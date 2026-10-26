@@ -1,0 +1,14 @@
+# Default pipeline config. Swap detector or tracker here, never in code.
+detector:
+  name: yolo26n          # yolo26n | rfdetr-nano
+  weights: yolo26n.pt    # later: hf://<user>/pathsense-detector
+  imgsz: 640
+  conf: 0.3
+  device: auto           # auto | cpu | cuda
+
+tracker:
+  name: bytetrack        # bytetrack | botsort | ocsort
+
+analytics:
+  line: null             # [[x1, y1], [x2, y2]] in pixels
+  zones: []              # list of polygons

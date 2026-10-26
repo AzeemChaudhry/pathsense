@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Data, weights and outputs (keep these on the Hugging Face Hub, not in git)
+data/
+datasets/
+runs/
+outputs/
+*.pt
+*.pth
+*.onnx
+*.engine
+*.mp4
+*.avi
+*.mov
+
+# Experiment tracking
+mlruns/
+.trackio/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+.env
