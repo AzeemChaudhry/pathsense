@@ -1,33 +1,49 @@
 # PathSense
 
-Real time people detection, tracking and movement analytics: line crossing counts, live occupancy, zone dwell time, trajectories and heatmaps, from a webcam or a video file.
+**Private, in browser people analytics you can question in plain language.**
 
-> Status: **Phase 0, setup and webcam baseline.** See the [roadmap](#roadmap).
+PathSense detects and tracks people in your webcam or an uploaded security camera clip, turns
+their movement into counts, occupancy, dwell time, trails, a heatmap and an event log, and
+answers questions like *"how many people came in after 2 pm?"* or *"who waited longest at
+the counter?"*. The finished app runs entirely in your browser: **no video is uploaded**.
+
+> Status: **Phase 0, webcam baseline.** See the [roadmap](#roadmap) and [docs/PLAN.md](docs/PLAN.md).
 
 <!-- Add once they exist:
-[![Demo](https://img.shields.io/badge/demo-Hugging%20Face%20Space-yellow)](https://huggingface.co/spaces/<user>/pathsense)
-[![Model](https://img.shields.io/badge/model-Hugging%20Face-blue)](https://huggingface.co/<user>/pathsense-detector)
-![CI](https://github.com/AzeemChaudhry/pathsense/actions/workflows/ci.yml/badge.svg)
+[![Demo](https://img.shields.io/badge/demo-Hugging%20Face%20Space-yellow)](https://huggingface.co/spaces/MuhammadAzeem/pathsense)
+[![Model](https://img.shields.io/badge/model-Hugging%20Face-blue)](https://huggingface.co/MuhammadAzeem/pathsense-detector)
 -->
+![CI](https://github.com/AzeemChaudhry/pathsense/actions/workflows/ci.yml/badge.svg)
 
 ## What it does
 
-1. **Detects** people in each frame (YOLO26n by default, RF-DETR as a challenger).
-2. **Tracks** each person with a stable ID across frames (ByteTrack first, then BoT-SORT and OC-SORT).
-3. **Analyses** movement: in and out counts over a line, occupancy, dwell time per zone, trails and a heatmap.
-4. **Exports** an annotated video, an events CSV and charts.
+1. **Detects** people in each frame (YOLO26n or RF-DETR Nano, exported to ONNX).
+2. **Tracks** each person with a stable ID across frames (ByteTrack; BoT-SORT and OC-SORT compared).
+3. **Analyses** movement: in and out counts over a line, occupancy, dwell per zone, trails, heatmap.
+4. **Logs events** (`enter`, `exit`, `zone_enter`, `zone_exit`, `dwell`) with track IDs and times.
+5. **Answers questions** about the event log with a small LLM running in the browser. The numbers
+   come from deterministic functions over the log; the model only picks the function and words the answer.
+
+## Why it is different
+
+People counting with YOLO is a solved tutorial. PathSense focuses on what is not common yet:
+processing that never leaves the device (so you can try it on real cameras safely), and
+plain language questions over tracked events. Research behind this: [docs/MARKET.md](docs/MARKET.md).
 
 ## Architecture
 
 ```
-Input (webcam / video / RTSP)
-   -> Detector   (YOLO26n | RF-DETR, ONNX Runtime, person class only)
-   -> Tracker    (ByteTrack | BoT-SORT | OC-SORT, stable IDs)
-   -> Analytics  (LineZone, PolygonZone, dwell, heatmap, trails)
-   -> Outputs    (annotated video, events CSV, MOT file for TrackEval)
-```
+Browser (Static Hugging Face Space, nothing leaves the device)
+  webcam / video file
+    -> detector ONNX   (onnxruntime-web; WebGPU, WASM fallback)
+    -> tracker         (ByteTrack in TypeScript, parity tested against Python)
+    -> analytics       (line counts, zones, dwell, heatmap) -> event log
+    -> Q&A             (query tools over the event log + small in browser LLM)
 
-Every detector returns the same `supervision.Detections` object, so swapping models is one config line, not a rewrite.
+Python (this repo)
+  research pipeline -> evaluation (TrackEval) -> training on free cloud GPUs (Kaggle)
+  -> ONNX export -> Hugging Face model repo
+```
 
 ## Quickstart
 
@@ -58,7 +74,8 @@ pathsense/
     analytics/    Line counts, zones, dwell time, heatmap
     io/           Video, webcam and RTSP readers and writers
     pipeline.py   Glues the stages together, one frame at a time
-  app/            Gradio app for the Hugging Face Space
+  web/            Browser app for the Static Space (Phase 5 and 6)
+  app/            Gradio fallback demo for browsers without WebGPU or WASM speed
   configs/        YAML configs (model, tracker, zones)
   eval/           TrackEval scripts and MOT format export
   train/          Fine tuning configs and scripts
@@ -79,20 +96,21 @@ Filled in during Phase 3 and Phase 4.
 
 ## Roadmap
 
-- [ ] **Phase 0** Setup and webcam baseline
+- [ ] **Phase 0** Webcam baseline (YOLO26n + ByteTrack)
 - [ ] **Phase 1** Pipeline package (detector interface, tracker wrapper, tests)
-- [ ] **Phase 2** Analytics (counts, zones, dwell, heatmap, CSV)
+- [ ] **Phase 2** Analytics and event log
 - [ ] **Phase 3** Evaluation harness (TrackEval on MOT17, tracker comparison)
-- [ ] **Phase 4** Fine tuning on a named failure case, before and after benchmark
-- [ ] **Phase 5** Gradio app on a ZeroGPU Space, weights on the Hub
-- [ ] **Phase 6** Production hardening (CI deploy, Docker, validation)
-- [ ] **Phase 7** Showcase (GIF, model card, write up)
+- [ ] **Phase 4** Train on Kaggle (Open Images), export ONNX, weights on the Hub
+- [ ] **Phase 5** Browser app: in browser detection, tracking and analytics
+- [ ] **Phase 6** Ask your footage: plain language Q&A over the event log
+- [ ] **Phase 7** Hardening and showcase
 
 ## Data
 
 Deployable models train on Open Images V7 (CC BY 4.0 annotations); CrowdHuman is used only
 for benchmarks. Research and license notes: [docs/DATASETS.md](docs/DATASETS.md).
-Download with `train/get_data.py` ([train/README.md](train/README.md)).
+Download with `train/get_data.py` ([train/README.md](train/README.md)); train on free cloud
+GPUs as described in [docs/COMPUTE.md](docs/COMPUTE.md).
 
 ## Design decisions
 
@@ -100,7 +118,8 @@ Plan: [docs/PLAN.md](docs/PLAN.md). Experiments are logged in [NOTES.md](NOTES.m
 
 ## Privacy and limitations
 
-- PathSense counts and tracks anonymous people. It does **not** identify who anyone is and does no face recognition.
+- PathSense counts and tracks anonymous people. It does **not** identify who anyone is: no face recognition, demographics or emotion analysis.
+- The browser app processes video on your device; nothing is uploaded.
 - Only footage recorded with the consent of the people in it is used for training or demos.
 - Public camera feeds are out of scope.
 

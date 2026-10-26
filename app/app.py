@@ -1,6 +1,7 @@
-"""Gradio app for the Hugging Face Space (Phase 5).
+"""Gradio fallback demo (optional).
 
-Plan: upload a clip (max about 30 seconds), draw a count line, get back the annotated
-video, heatmap, counts chart and events CSV. GPU work wrapped in `@spaces.GPU` for ZeroGPU,
-weights pulled from the Hub model repo at startup.
+The main product is the in browser app in `web/` (docs/PLAN.md, Phases 5 and 6). This
+Gradio app is only a fallback for visitors whose browser is too slow for in browser
+inference: upload a short clip, get the annotated video, counts and event log back.
+It would run on a ZeroGPU Space with GPU work wrapped in `@spaces.GPU`.
 """
