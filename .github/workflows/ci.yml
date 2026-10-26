@@ -5,10 +5,11 @@ on:
     branches: [main]
   pull_request:
 
-# A new push to the same branch cancels the run that is still going.
+# A new push to a PR cancels that PR's run that is still going. Runs on main are never
+# cancelled, so every merge commit gets a complete result (releases depend on it).
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -16,27 +17,46 @@ permissions:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.2  # no floating major tag; pin the release
-      - name: Ruff lint
-        run: uvx ruff@0.17.2 check .  # keep in step with ruff in uv.lock
-      - name: Ruff format
-        run: uvx ruff@0.17.2 format --check .
+        with:
+          fetch-depth: 0 # the commit message check below needs the PR's history
+      - uses: astral-sh/setup-uv@v10.3.2 # no floating major tag; pin the release
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+      # Same hooks as on the laptop: ruff check, ruff format, end of file, whitespace,
+      # large files. The ruff version comes from .pre-commit-config.yaml only.
+      - name: Pre-commit hooks
+        run: uvx pre-commit run --all-files --show-diff-on-failure
+      - name: Commit messages (no tool trailers)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if git log --format=%B "$BASE..$HEAD" \
+              | grep -inE '^(co-authored-by|claude-session):|generated with \[?claude'; then
+            echo "::error::Commit messages must not carry tool trailers (docs/DEVELOPMENT.md)"
+            exit 1
+          fi
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.2  # no floating major tag; pin the release
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           python-version: ${{ matrix.python-version }}
           # torch and the CUDA wheels are several GB; caching them would evict everything
-          # else from the 10 GB repo cache, and PyPI downloads are fast on runners anyway.
+          # else from the 10 GB repo cache, and PyPI downloads take about 20 s on runners.
           enable-cache: false
       - name: Install (fails if uv.lock is out of date with pyproject.toml)
         run: uv sync --locked --extra dev
