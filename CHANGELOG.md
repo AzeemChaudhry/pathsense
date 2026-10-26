@@ -8,6 +8,22 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ## [Unreleased]
 
+### Security
+
+- `main` is protected by a ruleset: pull requests only, passing CI and signed commits
+  required, no force pushes or deletion. Release tags can only be created, moved or
+  deleted by the maintainer.
+- Workflows from fork pull requests need maintainer approval; only GitHub's own actions
+  and the two third party actions in use may run.
+- The `@claude` action is pinned to a commit, and a test fails if any third party action
+  that receives a secret is not.
+- `SECURITY.md` explains how to report a vulnerability privately and what is protected.
+
+### Changed
+
+- `CLAUDE.md` is no longer part of the repository (it holds local assistant
+  instructions). The project rules it contained now live in `docs/DEVELOPMENT.md`.
+
 ## [0.2.0] - 2026-10-27
 
 Phase 1: pipeline package. Gate passed: the detector and the tracker each swap with one
