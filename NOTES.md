@@ -100,3 +100,21 @@ This becomes the "Design decisions" section of the README and the source of inte
      checking. Phase 3 measures this properly with TrackEval (HOTA, IDF1, ID switches).
 - **Decision:** gate passed; default stays YOLO26n + ByteTrack (fastest, fewest IDs).
   Fixed camera configs should set `enable_cmc: false` when using BoT-SORT.
+
+### 2026-10-27: why visible people go untracked
+- **Tried:** the documentation frame showed several clearly visible people without an ID.
+  Counted detections per frame by confidence on the full sample clip, then re-ran
+  ByteTrack with lower `track_activation_threshold` values on the same detections.
+- **Result:**
+
+  | Detector | boxes >= 0.3 | >= 0.5 | >= 0.7 | tracked (activation 0.7, default) | tracked (0.5) | tracked (0.4) |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | yolo26n | 23.3 | 14.8 | 4.8 | 14.4 (32 IDs) | 17.7 (39 IDs) | 17.7 (39 IDs) |
+  | rfdetr-nano | 23.8 | 11.8 | 3.9 | 12.5 (29 IDs) | 15.2 (33 IDs) | 15.2 (33 IDs) |
+
+  Values are means per frame. 0.4 changes nothing over 0.5, most likely because new tracks
+  also depend on `high_conf_det_threshold` (0.6), which stayed fixed.
+- **Decision:** defaults unchanged for now. Small people seen from above rarely score 0.7,
+  so the tracker, not the detector, is what drops them. Lowering the threshold tracks more
+  people but also creates more IDs, which could be more ID switches. Tune both thresholds
+  against MOT17 ground truth in Phase 3 rather than guessing here.
