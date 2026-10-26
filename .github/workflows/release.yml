@@ -1,43 +1,81 @@
 name: Release
 
-# Pushing a tag like v0.2.0 creates a GitHub release whose notes are that version's
-# section of CHANGELOG.md. See docs/DEVELOPMENT.md for the release steps.
+# Pushing a tag like v0.2.0 publishes a GitHub release whose notes are that version's
+# section of CHANGELOG.md. Every check below must pass first; see docs/DEVELOPMENT.md.
 on:
   push:
     tags: ["v*.*.*"]
 
 permissions:
-  contents: write
+  contents: write # create the release
+  actions: read # look up the CI run for the tagged commit
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # full history, to check the tag is on main
 
-      - name: Check the tag matches the package version
+      - name: Tag is on main
         run: |
-          version=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/pathsense/__init__.py)
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match __version__ $version"
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$TAG points at $GITHUB_SHA, which is not on main. Tag the merge commit on main."
             exit 1
           fi
 
+      - name: Tag is signed and verified by GitHub
+        run: |
+          tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)
+          verified=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_sha" --jq .verification.verified 2>/dev/null || echo false)
+          if [ "$verified" != "true" ]; then
+            echo "::error::$TAG is not a signed, verified tag. Create it with: git tag -s $TAG -m \"...\""
+            exit 1
+          fi
+
+      - name: Tag matches the package version
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/pathsense/__init__.py)
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::$TAG does not match __version__ $version"
+            exit 1
+          fi
+
+      - name: CI passed on the tagged commit
+        # The tag is usually pushed right after merging, while CI on main is still running,
+        # so wait for it (up to about 20 minutes) instead of failing straight away.
+        run: |
+          for _ in $(seq 40); do
+            conclusion=$(gh run list --workflow ci.yml --branch main --commit "$GITHUB_SHA" \
+              --event push --json status,conclusion \
+              --jq 'map(select(.status == "completed")) | first | .conclusion // ""')
+            case "$conclusion" in
+              success) echo "CI passed on $GITHUB_SHA"; exit 0 ;;
+              "") sleep 30 ;;
+              *) echo "::error::CI on $GITHUB_SHA finished with: $conclusion"; exit 1 ;;
+            esac
+          done
+          echo "::error::No finished CI run on main for $GITHUB_SHA"
+          exit 1
+
       - name: Extract release notes from CHANGELOG.md
         run: |
-          version=${GITHUB_REF_NAME#v}
-          awk -v v="$version" '
-            $0 ~ "^## \\[" v "\\]" { found = 1; next }
+          # Plain string match on "## [X.Y.Z]" (no regex, so the dots are literal).
+          awk -v heading="## [${TAG#v}]" '
+            index($0, heading) == 1 { found = 1; next }
             found && /^## \[/ { exit }
             found && /^\[.*\]: / { exit }
             found { print }
           ' CHANGELOG.md > notes.md
-          if [ ! -s notes.md ]; then
-            echo "::error::No CHANGELOG.md section for $version"
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::No CHANGELOG.md section for ${TAG#v}"
             exit 1
           fi
 
-      - name: Create the GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag
+      - name: Publish the GitHub release
+        run: gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag
