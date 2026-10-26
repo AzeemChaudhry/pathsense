@@ -16,9 +16,7 @@ jobs:
       - name: Lint
         run: uvx ruff check .
       - name: Smoke tests (no heavy deps)
-        run: |
-          uv venv
-          uv pip install pytest
-          uv run --no-project pytest
+        # setup-uv already creates .venv, so running `uv venv` again fails; uvx avoids it.
+        run: uvx pytest
         env:
           PYTHONPATH: src
