@@ -14,10 +14,28 @@ Press "q" or Esc to quit.
 from __future__ import annotations
 
 import argparse
+import os
 import time
 from pathlib import Path
 
 PERSON_CLASS_ID = 0  # COCO "person"
+
+# opencv-python bundles a minimal Qt: no fonts (importing cv2 points QT_QPA_FONTDIR at an
+# empty folder) and only the X11 "xcb" platform plugin. Without help it prints warnings on
+# the first window. Use system DejaVu (Arch: TTF/, Debian and Ubuntu: truetype/dejavu/).
+SYSTEM_FONT_DIRS = ("/usr/share/fonts/TTF", "/usr/share/fonts/truetype/dejavu")
+
+
+def configure_qt() -> None:
+    """Call after importing cv2 and before the first window; Qt reads these variables then."""
+    if os.environ.get("WAYLAND_DISPLAY"):
+        os.environ.setdefault("QT_QPA_PLATFORM", "xcb")  # runs through XWayland
+    if os.path.isdir(os.environ.get("QT_QPA_FONTDIR", "")):
+        return
+    for font_dir in SYSTEM_FONT_DIRS:
+        if os.path.isdir(font_dir):
+            os.environ["QT_QPA_FONTDIR"] = font_dir
+            return
 
 
 def parse_source(source: str) -> int | str:
@@ -70,6 +88,8 @@ def main(argv: list[str] | None = None) -> None:
     from trackers import ByteTrackTracker
     from ultralytics import YOLO
 
+    configure_qt()
+
     source = parse_source(args.source)
     is_camera = isinstance(source, int)
     cap = cv2.VideoCapture(source)
@@ -83,9 +103,14 @@ def main(argv: list[str] | None = None) -> None:
     # Warm up once so CUDA initialisation does not inflate the timing of the first frame.
     model(np.zeros((args.imgsz, args.imgsz, 3), np.uint8), device=args.device, verbose=False)
     tracker = ByteTrackTracker(frame_rate=source_fps)  # once, outside the loop
-    box_annotator = sv.BoxAnnotator()
-    label_annotator = sv.LabelAnnotator(text_position=sv.Position.TOP_LEFT)
-    trace_annotator = sv.TraceAnnotator(trace_length=args.trail)
+    # Colour by track ID, not class, so an ID switch shows up as a colour change.
+    by_track = sv.ColorLookup.TRACK
+    box_annotator = sv.BoxAnnotator(color_lookup=by_track)
+    # smart_position keeps the label on screen when a close-up box touches the top edge.
+    label_annotator = sv.LabelAnnotator(
+        color_lookup=by_track, text_position=sv.Position.TOP_LEFT, smart_position=True
+    )
+    trace_annotator = sv.TraceAnnotator(color_lookup=by_track, trace_length=args.trail)
     fps_meter = FpsMeter()
     infer_meter = FpsMeter()
 
@@ -129,15 +154,13 @@ def main(argv: list[str] | None = None) -> None:
 
             fps = fps_meter.update(time.perf_counter() - tick)
             infer_ms = 1000 / infer_meter.update(infer_elapsed)
-            cv2.putText(
-                annotated,
-                f"FPS {fps:5.1f}  infer {infer_ms:4.0f} ms  people {len(detections)}",
-                (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (0, 255, 0),
-                2,
-            )
+            # Bottom left, so it never covers the ID labels at the top; dark outline first.
+            stats = f"FPS {fps:5.1f}  infer {infer_ms:4.0f} ms  people {len(detections)}"
+            origin = (10, annotated.shape[0] - 12)
+            for color, thickness in (((0, 0, 0), 4), ((0, 255, 0), 2)):
+                cv2.putText(
+                    annotated, stats, origin, cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, thickness
+                )
             frames += 1
 
             if args.save:

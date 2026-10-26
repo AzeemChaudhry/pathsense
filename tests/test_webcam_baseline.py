@@ -33,3 +33,21 @@ def test_fps_meter_ignores_zero_duration_and_rejects_bad_smoothing():
 def test_parser_defaults():
     args = webcam_baseline.build_parser().parse_args([])
     assert args.source == "0" and args.imgsz == 640 and args.save is None
+
+
+def test_configure_qt_replaces_missing_font_dir_and_picks_xcb_on_wayland(monkeypatch, tmp_path):
+    monkeypatch.setattr(webcam_baseline, "SYSTEM_FONT_DIRS", ("/no/such/dir", str(tmp_path)))
+    monkeypatch.setenv("QT_QPA_FONTDIR", "/site-packages/cv2/qt/fonts")  # what cv2 sets
+    monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
+    monkeypatch.delenv("QT_QPA_PLATFORM", raising=False)
+    webcam_baseline.configure_qt()
+    assert webcam_baseline.os.environ["QT_QPA_FONTDIR"] == str(tmp_path)
+    assert webcam_baseline.os.environ["QT_QPA_PLATFORM"] == "xcb"
+
+
+def test_configure_qt_keeps_a_valid_user_setting(monkeypatch, tmp_path):
+    monkeypatch.setenv("QT_QPA_FONTDIR", str(tmp_path))
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    webcam_baseline.configure_qt()
+    assert webcam_baseline.os.environ["QT_QPA_FONTDIR"] == str(tmp_path)
+    assert webcam_baseline.os.environ["QT_QPA_PLATFORM"] == "offscreen"
