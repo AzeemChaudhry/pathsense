@@ -34,3 +34,20 @@ def test_box_is_normalised_and_clipped():
     cls, cx, cy, w, h = second
     assert cx - w / 2 >= 0 and cy + h / 2 <= 1.0
     assert abs(w - 80 / 800) < 1e-6 and abs(h - 300 / 600) < 1e-6
+
+
+def test_openimages_maps_people_and_drops_groups_and_depictions():
+    dets = [
+        {"label": "Man", "bbox": [0.1, 0.2, 0.2, 0.4], "group": False, "depiction": False},
+        {"label": "Woman", "bbox": [0.9, 0.5, 0.3, 0.3], "group": False, "depiction": False},
+        {"label": "Person", "bbox": [0.0, 0.0, 1.0, 1.0], "group": True, "depiction": False},
+        {"label": "Girl", "bbox": [0.3, 0.3, 0.1, 0.1], "group": False, "depiction": True},
+        {"label": "Car", "bbox": [0.3, 0.3, 0.1, 0.1], "group": False, "depiction": False},
+        {"label": "Boy", "bbox": [0.5, 0.5, 0.001, 0.2], "group": False, "depiction": False},
+    ]
+    lines = get_data.openimages_to_yolo(dets)
+    assert len(lines) == 2
+    man = list(map(float, lines[0].split()))
+    assert man == pytest.approx([0, 0.2, 0.4, 0.2, 0.4], abs=1e-6)
+    cls, cx, cy, w, h = map(float, lines[1].split())  # Woman box clipped at the right edge
+    assert cx + w / 2 <= 1.0 + 1e-9 and w == pytest.approx(0.1, abs=1e-6)

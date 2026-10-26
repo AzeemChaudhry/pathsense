@@ -17,7 +17,7 @@ dependencies = [
 [project.optional-dependencies]
 rfdetr = ["rfdetr"]
 app = ["gradio>=6", "fastrtc"]
-data = ["huggingface_hub", "pillow", "roboflow"]
+data = ["huggingface_hub", "pillow", "roboflow", "fiftyone"]
 dev = ["pytest", "ruff", "pre-commit"]
 
 [build-system]
