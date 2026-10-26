@@ -14,10 +14,10 @@ from dataclasses import dataclass
 
 import supervision as sv
 
-from pathsense.config import Config
-from pathsense.detect import Detector, build_detector
+from pathsense.config import Config, ConfigError
+from pathsense.detect import DETECTORS, Detector, build_detector
 from pathsense.io import Frame, VideoSource
-from pathsense.track import Tracker, build_tracker
+from pathsense.track import TRACKERS, Tracker, build_tracker
 
 
 @dataclass(frozen=True)
@@ -32,6 +32,19 @@ class Pipeline:
     def __init__(self, detector: Detector, tracker: Tracker) -> None:
         self.detector = detector
         self.tracker = tracker
+
+    @staticmethod
+    def check(config: Config) -> None:
+        """Raise ConfigError for an unknown detector or tracker before anything is opened or
+        downloaded, so a typo is reported straight away, not after the camera starts."""
+        if config.detector.name not in DETECTORS:
+            raise ConfigError(
+                f"Unknown detector {config.detector.name!r}; choose one of {sorted(DETECTORS)}"
+            )
+        if config.tracker.name not in TRACKERS:
+            raise ConfigError(
+                f"Unknown tracker {config.tracker.name!r}; choose one of {sorted(TRACKERS)}"
+            )
 
     @classmethod
     def from_config(cls, config: Config, frame_rate: float = 30.0) -> Pipeline:

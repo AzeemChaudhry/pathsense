@@ -81,6 +81,7 @@ def run(args: argparse.Namespace) -> Summary:
     from pathsense.timing import FpsMeter
 
     config = load_config(args.config, args.overrides)
+    Pipeline.check(config)  # before the camera turns on or weights download
     configure_qt()
 
     with VideoSource(args.source) as source:

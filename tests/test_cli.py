@@ -43,6 +43,16 @@ def test_max_frames_stops_early(monkeypatch, tiny_video, capsys):
     assert "frames=5 " in capsys.readouterr().out
 
 
-def test_bad_config_exits_with_a_message():
+def test_bad_config_is_reported_before_the_source_is_opened(tmp_path):
+    # The source does not exist either; the config error must win, so a typo is reported
+    # before a camera turns on or weights download.
+    missing = str(tmp_path / "missing.mp4")
     with pytest.raises(SystemExit, match="Unknown detector 'yolo99'"):
-        main(["run", "--no-show", "--set", "detector.name=yolo99", "--source", "0"])
+        main(["run", "--no-show", "--set", "detector.name=yolo99", "--source", missing])
+    with pytest.raises(SystemExit, match="Unknown tracker 'deepsort'"):
+        main(["run", "--no-show", "--set", "tracker.name=deepsort", "--source", missing])
+
+
+def test_missing_source_exits_with_a_message(tmp_path):
+    with pytest.raises(SystemExit, match="Could not open video source"):
+        main(["run", "--no-show", "--source", str(tmp_path / "missing.mp4")])
