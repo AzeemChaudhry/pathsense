@@ -151,7 +151,7 @@ Docs ship in the same PR as the change:
 | --- | --- |
 | add or change a script, flag or module | `README.md` usage, and the module docstring |
 | run an experiment or measure something | `NOTES.md` (what, the number, the decision) |
-| pass a phase gate | `docs/PLAN.md` "Current status" and the README roadmap |
+| pass a phase gate | `docs/PLAN.md` "Current status", the README roadmap, and a before and after section in `docs/PROGRESS.md` (images from public sample footage only) |
 | change data sources or licenses | `docs/DATASETS.md` |
 | change how work is done | this file (and `CLAUDE.md` only if a must follow rule changes) |
 | change anything users notice | `CHANGELOG.md` under Unreleased |

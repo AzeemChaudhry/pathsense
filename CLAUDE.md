@@ -20,6 +20,7 @@ device. This repo also holds the Python research, evaluation and training pipeli
 | `docs/DATASETS.md` | Data license review; Open Images for deployable models |
 | `docs/COMPUTE.md` | Free GPUs; how to train on Kaggle and push weights to the Hub |
 | `NOTES.md` | Experiment log: what was tried, the number, the decision |
+| `docs/PROGRESS.md` | Before and after each phase, for readers: images, tables, open issues |
 | `docs/DEVELOPMENT.md` | Branches, commits, signing, CI, `@claude` review, versioning, releases |
 | `CHANGELOG.md` | User facing changes per version; add to Unreleased in every PR |
 
@@ -77,6 +78,8 @@ enforced by hooks, CI and rulesets, so a violation fails loudly. The ones to kee
   answer. Never let the model compute counts or times itself.
 - Privacy: no face recognition, identification, demographics or emotion, ever. No video
   upload in the browser app. Say this in the UI and README.
+- Docs and images are professional and public: illustrate with public sample footage
+  (`data/samples/`), never frames from Azeem's own webcam recordings.
 - Never commit data, videos or weights (`data/`, `*.pt`, `*.onnx`, `*.mp4` are ignored).
   CrowdHuman images must never be redistributed; deployable models train on Open Images.
 - Licenses: repo is AGPL 3.0 because of Ultralytics. Prefer shipping RF-DETR Nano

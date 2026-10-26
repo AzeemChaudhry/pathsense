@@ -195,7 +195,8 @@ GPUs as described in [docs/COMPUTE.md](docs/COMPUTE.md).
 
 ## Design decisions
 
-Plan: [docs/PLAN.md](docs/PLAN.md). Experiments are logged in [NOTES.md](NOTES.md).
+Plan: [docs/PLAN.md](docs/PLAN.md). Before and after each phase, with images and numbers:
+[docs/PROGRESS.md](docs/PROGRESS.md). Experiments are logged in [NOTES.md](NOTES.md).
 
 ## Development
 

@@ -32,6 +32,8 @@ config line, measured for all six combinations in NOTES.md.
 - `commit-msg` hook and a CI check that reject tool trailers in commit messages.
 - Tests that keep the ruff version, the setup-uv pin and the changelog links consistent.
 - Pull request template with the review checklist.
+- `docs/PROGRESS.md`: before and after each phase, with images from the sample clip, the
+  measurements and the open issues carried forward.
 
 ### Changed
 
