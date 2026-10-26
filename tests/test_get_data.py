@@ -15,8 +15,12 @@ RECORD = {
         {"tag": "person", "fbox": [100, 50, 200, 400], "vbox": [100, 50, 200, 300], "extra": {}},
         {"tag": "person", "fbox": [-20, 300, 100, 400], "vbox": [0, 300, 80, 200], "extra": {}},
         {"tag": "mask", "fbox": [10, 10, 50, 50], "vbox": [10, 10, 50, 50], "extra": {"ignore": 1}},
-        {"tag": "person", "fbox": [500, 10, 40, 80], "vbox": [500, 10, 40, 80],
-         "extra": {"ignore": 1}},
+        {
+            "tag": "person",
+            "fbox": [500, 10, 40, 80],
+            "vbox": [500, 10, 40, 80],
+            "extra": {"ignore": 1},
+        },
         {"tag": "person", "fbox": [600, 100, 4, 4], "vbox": [600, 100, 4, 4], "extra": {}},
     ],
 }

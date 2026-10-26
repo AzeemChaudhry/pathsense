@@ -50,8 +50,9 @@ ALL_TRAIN_ZIPS = ["CrowdHuman_train01.zip", "CrowdHuman_train02.zip", "CrowdHuma
 
 
 # ----------------------------------------------------------------------------- conversion
-def odgt_to_yolo(record: dict, width: int, height: int, box_key: str = "fbox",
-                 min_size: int = 8) -> list[str]:
+def odgt_to_yolo(
+    record: dict, width: int, height: int, box_key: str = "fbox", min_size: int = 8
+) -> list[str]:
     """Convert one CrowdHuman odgt record to YOLO label lines (class 0 = person).
 
     Drops "mask" regions (crowds, reflections, posters) and boxes marked ignore,
@@ -120,8 +121,9 @@ def download_crowdhuman(raw: Path, all_train: bool) -> None:
                 marker.touch()
 
 
-def build_crowdhuman(raw: Path, out: Path, max_train: int | None, max_val: int | None,
-                     box_key: str, seed: int) -> None:
+def build_crowdhuman(
+    raw: Path, out: Path, max_train: int | None, max_val: int | None, box_key: str, seed: int
+) -> None:
     from PIL import Image
 
     images_dir = raw / "Images"
@@ -201,8 +203,10 @@ def cmd_openimages(args: argparse.Namespace) -> None:
     # Raw downloads go to FiftyOne's zoo folder (default ~/fiftyone). To keep them on
     # another disk, export FIFTYONE_DATASET_ZOO_DIR=/path/to/disk/fiftyone first.
     out = DATA / "openimages"
-    for split, oi_split, limit in [("train", "train", args.max_train),
-                                   ("val", "validation", args.max_val)]:
+    for split, oi_split, limit in [
+        ("train", "train", args.max_train),
+        ("val", "validation", args.max_val),
+    ]:
         ds = foz.load_zoo_dataset(
             "open-images-v7",
             split=oi_split,
@@ -216,7 +220,8 @@ def cmd_openimages(args: argparse.Namespace) -> None:
             drop_existing_dataset=True,
         )
         field = next(
-            name for name, f in ds.get_field_schema().items()
+            name
+            for name, f in ds.get_field_schema().items()
             if getattr(f, "document_type", None) is fo.Detections
         )
         img_out, lbl_out = out / "images" / split, out / "labels" / split
@@ -227,8 +232,12 @@ def cmd_openimages(args: argparse.Namespace) -> None:
         for sample in ds.iter_samples(progress=True):
             labels = sample[field]
             dets = [
-                {"label": d.label, "bbox": d.bounding_box,
-                 "group": _flag(d, "IsGroupOf"), "depiction": _flag(d, "IsDepiction")}
+                {
+                    "label": d.label,
+                    "bbox": d.bounding_box,
+                    "group": _flag(d, "IsGroupOf"),
+                    "depiction": _flag(d, "IsDepiction"),
+                }
                 for d in (labels.detections if labels else [])
             ]
             lines = openimages_to_yolo(dets)
@@ -242,8 +251,10 @@ def cmd_openimages(args: argparse.Namespace) -> None:
         print(f"[{split}] {kept} images, {people} people")
 
     print(f"[done] dataset config written to {write_yaml('openimages', out)}")
-    print("[note] attribution: Open Images V7 by Google, annotations CC BY 4.0, "
-          "images CC BY 2.0 (verify per image before redistributing images)")
+    print(
+        "[note] attribution: Open Images V7 by Google, annotations CC BY 4.0, "
+        "images CC BY 2.0 (verify per image before redistributing images)"
+    )
 
 
 # ----------------------------------------------------------------------------- roboflow
@@ -277,8 +288,12 @@ def main() -> None:
     )
     ch.add_argument("--max-train", type=int, default=None, help="random subset size for train")
     ch.add_argument("--max-val", type=int, default=1000, help="random subset size for val")
-    ch.add_argument("--box", choices=["fbox", "vbox"], default="fbox",
-                    help="full body (default, matches tracking) or visible region box")
+    ch.add_argument(
+        "--box",
+        choices=["fbox", "vbox"],
+        default="fbox",
+        help="full body (default, matches tracking) or visible region box",
+    )
     ch.add_argument("--seed", type=int, default=0)
     ch.add_argument("--skip-download", action="store_true", help="reuse files in data/raw")
     ch.set_defaults(func=cmd_crowdhuman)

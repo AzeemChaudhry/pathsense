@@ -35,12 +35,15 @@ Closed: SageMaker Studio Lab (no new users), Colab Pro for Education (no new sig
    ```python
    from kaggle_secrets import UserSecretsClient
    from huggingface_hub import HfApi
+
    token = UserSecretsClient().get_secret("HF_TOKEN")
    api = HfApi(token=token)
    api.create_repo("MuhammadAzeem/pathsense-detector", repo_type="model", exist_ok=True)
    api.upload_folder(
        folder_path="/kaggle/working/runs/yolo26n-oi/weights",
-       repo_id="MuhammadAzeem/pathsense-detector", repo_type="model")
+       repo_id="MuhammadAzeem/pathsense-detector",
+       repo_type="model",
+   )
    ```
 6. Record the run (data size, epochs, mAP, time) in NOTES.md.
 
