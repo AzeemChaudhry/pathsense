@@ -26,3 +26,15 @@ def test_workflows_pin_setup_uv_to_one_release():
     for workflow in (ROOT / ".github" / "workflows").glob("*.yml"):
         pins.update(re.findall(r"astral-sh/setup-uv@(\S+)", workflow.read_text()))
     assert len(pins) == 1, pins
+
+
+def test_actions_that_receive_secrets_are_pinned_to_a_commit():
+    # A third party action that sees a secret must not change under us when its tag moves.
+    for workflow in (ROOT / ".github" / "workflows").glob("*.yml"):
+        text = workflow.read_text()
+        if "secrets." not in text:
+            continue
+        for action in re.findall(r"uses:\s*(\S+)", text):
+            if action.startswith("actions/"):
+                continue  # GitHub's own actions
+            assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), (workflow.name, action)

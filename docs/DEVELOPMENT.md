@@ -1,7 +1,7 @@
 # Development workflow
 
-The single source for how changes get into PathSense. `CLAUDE.md` points here, and the
-same rules apply to people and to Claude. Most rules are enforced by a hook, CI or a GitHub
+The single source for how changes get into PathSense and the rules the code follows. The
+same rules apply to people and to AI assistants. Most rules are enforced by a hook, CI or a GitHub
 ruleset; the table says which, so nothing depends on memory.
 
 ## The rules
@@ -21,6 +21,29 @@ ruleset; the table says which, so nothing depends on memory.
 | `@claude` reviews only and cannot push | `claude.yml` (read only token) |
 | Docs and `CHANGELOG.md` change in the same PR as the code | PR template checklist, review |
 
+## Project rules
+
+These hold for every change, whoever writes it:
+
+- **Detector contract.** Every detector returns `supervision.Detections` with people only and
+  `class_id` 0 (`pathsense.detect.base`). New models are added to the `DETECTORS`
+  registry and never imported directly elsewhere.
+- **Config, not code.** Stages and thresholds are chosen in `configs/default.yaml` or with
+  `--set`, never hard coded.
+- **Numbers come from code.** In the question answering phase, answers are computed by
+  deterministic functions over the event log; the language model only picks the function
+  and words the answer. It never computes counts or times itself.
+- **Browser parity.** The browser tracker must match the Python tracker; a parity test feeds
+  the same detections to both and compares IDs and counts.
+- **Privacy.** No face recognition, identification, demographics or emotion analysis, ever.
+  The browser app never uploads video. Docs and images use public sample footage only,
+  never recordings of identifiable people taken for this project.
+- **No data, video or weights in git** (`data/`, `*.mp4`, `*.pt`, `*.onnx` are ignored).
+  CrowdHuman images are never redistributed, and deployable models train on Open Images
+  (`docs/DATASETS.md`).
+- **Licenses.** The repo is AGPL 3.0 because of Ultralytics. RF-DETR (Apache 2.0) is the
+  model for commercial work.
+
 ## Setup (once per clone)
 
 ```bash
@@ -31,10 +54,10 @@ uv run pre-commit install    # installs the pre-commit and commit-msg hooks
 Signing, with the SSH key registered on GitHub as a signing key:
 
 ```bash
-git config user.name "Azeem Chaudhry"
-git config user.email "chaudhry.azeem0308@gmail.com"   # must be verified on AzeemChaudhry
+git config user.name "Your Name"
+git config user.email "you@example.com"     # an email verified on your GitHub account
 git config gpg.format ssh
-git config user.signingkey ~/.ssh/github_signing.pub
+git config user.signingkey ~/.ssh/<your-signing-key>.pub
 git config commit.gpgsign true
 git config tag.gpgsign true
 ```
@@ -90,7 +113,7 @@ the speed tables in NOTES.md. It is not committed (`data/` is ignored).
 Comment `@claude` on a PR, in a PR review, or in a new issue, with what you want, for
 example `@claude review this PR for tracking bugs and missing tests`.
 
-- The `Claude review` workflow runs Claude Code with `CLAUDE.md` and this file as context,
+- The `Claude review` workflow runs Claude Code with this file as context,
   and Claude replies in the thread as `github-actions[bot]`.
 - It is **review only**. Claude acts with the workflow's own token, which has read only
   access to the code, and its file editing tools are disabled. It can read code and CI
@@ -153,5 +176,5 @@ Docs ship in the same PR as the change:
 | run an experiment or measure something | `NOTES.md` (what, the number, the decision) |
 | pass a phase gate | `docs/PLAN.md` "Current status", the README roadmap, and a before and after section in `docs/PROGRESS.md` (images from public sample footage only) |
 | change data sources or licenses | `docs/DATASETS.md` |
-| change how work is done | this file (and `CLAUDE.md` only if a must follow rule changes) |
+| change how work is done | this file |
 | change anything users notice | `CHANGELOG.md` under Unreleased |

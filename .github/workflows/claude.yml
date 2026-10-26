@@ -44,7 +44,9 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: anthropics/claude-code-action@v1
+      # Pinned to a commit (v1.0.262): this step holds the token, so an upstream release
+      # cannot change what runs here until the pin is moved on purpose.
+      - uses: anthropics/claude-code-action@925afb53776cf1a2b738c6bdbed37b4d4000ef13 # v1.0.262
         with:
           # Claude Pro/Max subscription token from `claude setup-token`.
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -54,4 +56,4 @@ jobs:
           # Second guard on top of the read only token: no file editing tools at all.
           claude_args: |
             --disallowedTools Edit,MultiEdit,Write,NotebookEdit
-            --append-system-prompt "You are a reviewer for this repository. Never edit files, commit, push or open pull requests. Read CLAUDE.md and docs/DEVELOPMENT.md, then reply with findings, ordered by severity, each with the file and line."
+            --append-system-prompt "You are a reviewer for this repository. Never edit files, commit, push or open pull requests. Read docs/DEVELOPMENT.md (workflow and project rules), then reply with findings, ordered by severity, each with the file and line."

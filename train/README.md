@@ -52,7 +52,7 @@ Check the license on the project page before using any Roboflow dataset.
 | Dataset | License | Use in PathSense |
 | --- | --- | --- |
 | Open Images V7 | annotations CC BY 4.0, images CC BY 2.0 | Training any deployable model; credit Google |
-| CrowdHuman | CC BY NC 4.0, no redistribution of images | Portfolio and research only; never publish the images; weights trained on it are not for paid client work |
+| CrowdHuman | CC BY NC 4.0, no redistribution of images | Portfolio and research only; never publish the images; weights trained on it are not for commercial use |
 | MOT17 / MOT20 | CC BY NC SA 3.0 | Evaluation only (Phase 3) |
 | Roboflow Universe projects | varies, often CC BY 4.0 | Check each project |
 
