@@ -68,8 +68,22 @@ with it.
 A new push to a PR cancels that PR's older run. Runs on `main` are never cancelled, because
 releases need a finished CI result for the merge commit. Every job has a timeout.
 
-Tests must not need a GPU, a webcam or downloaded data. Keep heavy imports inside functions
-(see `scripts/webcam_baseline.py`) so helpers can be tested on their own.
+Tests must not need a GPU, a webcam or downloaded data: use the fakes in `tests/` (a fake
+detector, synthetic boxes, a tiny generated video) and keep model imports inside the
+`load()` methods so modules import without weights.
+
+Tests that load real weights are marked `@pytest.mark.slow` and skipped unless asked for.
+Run them locally before a PR that touches a detector or the pipeline:
+
+```bash
+uv sync --extra dev --extra rfdetr
+mkdir -p data/samples && cd data/samples && uv run python -c \
+  "from supervision.assets import download_assets, VideoAssets; download_assets(VideoAssets.PEOPLE_WALKING)"
+cd ../.. && PATHSENSE_SLOW=1 uv run pytest -m slow
+```
+
+`data/samples/people-walking.mp4` (1080p, 25 FPS, about 25 people) is also the clip used for
+the speed tables in NOTES.md. It is not committed (`data/` is ignored).
 
 ## Review with Claude
 

@@ -67,7 +67,9 @@ enforced by hooks, CI and rulesets, so a violation fails loudly. The ones to kee
 
 ## Technical rules
 
-- Every Python detector returns `supervision.Detections`; keep that contract.
+- Every Python detector returns `supervision.Detections` with people only and `class_id` 0
+  (`pathsense.detect.base`); new models go in the `DETECTORS` registry, never imported
+  directly elsewhere. Stages are chosen in `configs/default.yaml`, never in code.
 - The browser tracker must match the Python tracker: keep a parity test that feeds the
   same detections to both and compares track IDs and counts.
 - The event log is the interface between vision and language. Q&A answers must come from

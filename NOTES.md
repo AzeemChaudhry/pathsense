@@ -47,6 +47,56 @@ This becomes the "Design decisions" section of the README and the source of inte
      edge showed no ID. Now `smart_position=True` and colour per track ID.
 - **Decision:** kept as the Phase 0 baseline. Re-entry is the failure that matters most
   for counting and dwell time, because one person counted as five inflates every number.
-  Phase 3 compares BoT-SORT (which can use appearance re-identification) and a longer
-  `lost_track_buffer`. Truncated people at the frame edge are a fine tuning target for
-  Phase 4.
+  Phase 3 compares a longer `lost_track_buffer` and an appearance based re-identification
+  step (correction, Phase 1: the `trackers` library's BoT-SORT has no appearance
+  features, only camera motion compensation). Truncated people at the frame edge are a
+  fine tuning target for Phase 4.
+
+## Phase 1: pipeline package
+
+### 2026-10-27: detector speed on the GTX 1650
+- **Tried:** YOLO26n and RF-DETR Nano on frames of `people-walking.mp4` (1920x1080,
+  supervision sample clip), 30 frames after 5 warm up frames, CUDA synchronised.
+- **Result:**
+
+  | Detector | Mode | ms per frame | People in frame 1 (conf 0.3) |
+  | --- | --- | --- | --- |
+  | YOLO26n | default, imgsz 640 | 16.3 | 21 |
+  | RF-DETR Nano | default FP32, 384 | 31.6 | 25 |
+  | RF-DETR Nano | compiled FP32 | 30.3 | 25 |
+  | RF-DETR Nano | compiled FP16 | 142.7 | 25 |
+
+- **Decision:** RF-DETR runs in plain FP32. FP16 is about 4.5x slower on this card: the
+  GTX 1650 (Turing TU117) has no tensor cores, so half precision gains nothing and the
+  casts cost time. Compiling saves about 1 ms for a long start up, not worth it. RF-DETR's
+  start up advice to use FP16 is silenced in the adapter because it is wrong here.
+  RF-DETR reports COCO category ids (person is 1, not 0); the adapter maps it.
+
+### 2026-10-27: Phase 1 gate, swap detector and tracker with one config line
+- **Tried:** `pathsense run --source data/samples/people-walking.mp4 --no-show` with one
+  `--set detector.name=...` and one `--set tracker.name=...` per run, full clip (341
+  frames, 25 FPS, about 20 to 30 people in view). Times are means per frame.
+- **Result:**
+
+  | Detector | Tracker | FPS | detect ms | track ms | unique IDs |
+  | --- | --- | --- | --- | --- | --- |
+  | yolo26n | bytetrack | 95.2 | 8.3 | 0.7 | 32 |
+  | yolo26n | botsort | 30.2 | 14.4 | 17.4 | 32 |
+  | yolo26n | botsort, `enable_cmc: false` | 94.0 | 8.2 | 1.0 | 32 |
+  | yolo26n | ocsort | 96.1 | 8.1 | 0.9 | 38 |
+  | rfdetr-nano | bytetrack | 24.7 | 38.5 | 0.6 | 29 |
+  | rfdetr-nano | botsort | 19.8 | 38.8 | 10.2 | 30 |
+  | rfdetr-nano | ocsort | 24.5 | 38.6 | 0.8 | 33 |
+
+  Webcam through the new CLI: 27.1 FPS, 1 ID for 1 person.
+- **What it shows:**
+  1. Every combination runs from one config line, and the gate passes.
+  2. YOLO26n detects 4.6x faster than RF-DETR Nano on 1080p frames.
+  3. BoT-SORT's camera motion compensation (sparse optical flow on every full frame) costs
+     10 to 17 ms per frame and even slows detection (CPU contention). With a fixed camera
+     it does nothing useful; turned off, BoT-SORT costs 1 ms and gives the same IDs here.
+  4. `unique_ids` is not an accuracy measure without ground truth: more IDs can mean
+     more ID switches or more people correctly found. OC-SORT's higher count needs
+     checking. Phase 3 measures this properly with TrackEval (HOTA, IDF1, ID switches).
+- **Decision:** gate passed; default stays YOLO26n + ByteTrack (fastest, fewest IDs).
+  Fixed camera configs should set `enable_cmc: false` when using BoT-SORT.
