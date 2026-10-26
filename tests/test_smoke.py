@@ -7,4 +7,4 @@ def test_package_imports():
 
 
 def test_detector_protocol_exists():
-    assert hasattr(Detector, "__call__")
+    assert "__call__" in Detector.__dict__
