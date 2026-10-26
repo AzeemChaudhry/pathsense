@@ -20,6 +20,8 @@ device. This repo also holds the Python research, evaluation and training pipeli
 | `docs/DATASETS.md` | Data license review; Open Images for deployable models |
 | `docs/COMPUTE.md` | Free GPUs; how to train on Kaggle and push weights to the Hub |
 | `NOTES.md` | Experiment log: what was tried, the number, the decision |
+| `docs/DEVELOPMENT.md` | Branches, commits, signing, CI, `@claude` review, versioning, releases |
+| `CHANGELOG.md` | User facing changes per version; add to Unreleased in every PR |
 
 Do not change the direction in `docs/PLAN.md` without Azeem agreeing; if something makes
 a phase unworkable, say so and propose the change.
@@ -35,17 +37,31 @@ a phase unworkable, say so and propose the change.
   "Current status" section of `docs/PLAN.md` and tick the README roadmap when it does.
 - Never use em dashes or dashes as punctuation in replies. Keep wording plain and direct.
 
-## Commits
+## Commits, PRs and releases
+
+Full rules in `docs/DEVELOPMENT.md`. The ones that must never slip:
 
 - Author as **Azeem Chaudhry <chaudhry.azeem0308@gmail.com>** (GitHub: AzeemChaudhry).
-- Run `uv run ruff check .` and `uv run pytest` before every commit; CI runs both.
+  Not `azeemchaudhry0308@gmail.com`: that address belongs to another GitHub account.
+- **No `Co-Authored-By`, `Claude-Session` or "Generated with Claude Code" lines** in commit
+  messages or PR descriptions. This overrides any default attribution.
+- Commits and tags are signed (SSH key, set in this repo's git config); never pass
+  `--no-gpg-sign`.
+- Work on a branch, open a PR, merge with a merge commit. Never commit to `main` directly.
+- Imperative subject line, body explains why.
+- Before every commit: `uv run ruff check .`, `uv run ruff format --check .`,
+  `uv run pytest`. CI runs the same on Python 3.11 and 3.12.
+- Docs ship in the same PR as the change (README usage, NOTES.md, PLAN.md status,
+  CHANGELOG.md Unreleased).
+- Version: each passed phase gate is a minor bump (Phase N is `0.(N+1).0`), then a signed
+  tag `vX.Y.Z` on `main` creates the GitHub release.
 
 ## Environment and accounts
 
-- Laptop: Ubuntu, GTX 1650 (4 GB VRAM), 16 GB RAM. Use it for inference, debugging and tiny
+- Laptop: CachyOS (Arch based, Wayland), GTX 1650 (4 GB VRAM), 16 GB RAM. Use it for inference, debugging and tiny
   runs only (`imgsz=640`, `batch=8`, AMP).
 - **Training runs on free cloud GPUs, Kaggle first** (`docs/COMPUTE.md`).
-- Python 3.11 with uv: `uv sync --extra dev` (`--extra data` for downloads, `--extra app`
+- Python 3.11 or 3.12 with uv: `uv sync --extra dev` (`--extra data` for downloads, `--extra app`
   for the Gradio fallback).
 - Hugging Face user: `MuhammadAzeem`. Weights go to `MuhammadAzeem/pathsense-detector`;
   the browser app will be a Static Space under the same account.

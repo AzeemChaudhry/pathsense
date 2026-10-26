@@ -197,9 +197,7 @@ def main(argv: list[str] | None = None) -> None:
             # Convert YOLO's output to supervision's Detections (boxes, confidences, class
             # ids), then let ByteTrack match them to the people it saw last frame and fill
             # in detections.tracker_id.
-            detections = tracker.update(
-                sv.Detections.from_ultralytics(result), timestamp=timestamp
-            )
+            detections = tracker.update(sv.Detections.from_ultralytics(result), timestamp=timestamp)
             infer_elapsed = time.perf_counter() - infer_start
             infer_seconds += infer_elapsed
 

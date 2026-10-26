@@ -47,7 +47,7 @@ Python (this repo)
 
 ## Quickstart
 
-Requires Python 3.11 and [uv](https://docs.astral.sh/uv/). A CUDA GPU is optional.
+Requires Python 3.11 or 3.12 and [uv](https://docs.astral.sh/uv/). A CUDA GPU is optional.
 
 ```bash
 git clone https://github.com/AzeemChaudhry/pathsense.git
@@ -101,6 +101,7 @@ Run the checks:
 
 ```bash
 uv run ruff check .
+uv run ruff format --check .
 uv run pytest
 ```
 
@@ -155,6 +156,11 @@ GPUs as described in [docs/COMPUTE.md](docs/COMPUTE.md).
 ## Design decisions
 
 Plan: [docs/PLAN.md](docs/PLAN.md). Experiments are logged in [NOTES.md](NOTES.md).
+
+## Development
+
+Branches, signed commits, CI, `@claude` reviews, versioning and releases are described in
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Changes per version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Privacy and limitations
 
