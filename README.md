@@ -7,7 +7,7 @@ their movement into counts, occupancy, dwell time, trails, a heatmap and an even
 answers questions like *"how many people came in after 2 pm?"* or *"who waited longest at
 the counter?"*. The finished app runs entirely in your browser: **no video is uploaded**.
 
-> Status: **Phase 0, webcam baseline.** See the [roadmap](#roadmap) and [docs/PLAN.md](docs/PLAN.md).
+> Status: **Phase 1, pipeline package.** Phase 0 baseline done. See the [roadmap](#roadmap) and [docs/PLAN.md](docs/PLAN.md).
 
 <!-- Add once they exist:
 [![Demo](https://img.shields.io/badge/demo-Hugging%20Face%20Space-yellow)](https://huggingface.co/spaces/MuhammadAzeem/pathsense)
@@ -67,10 +67,18 @@ or `Esc` to quit (or Ctrl+C with `--no-show`); a summary line is printed on exit
 frames=370 seconds=18.9 mean_fps=19.5 infer_ms=20.0 unique_ids=1
 ```
 
-On a webcam the loop FPS is usually capped by the camera (often under its nominal 30 FPS in
-dim light), so `infer_ms` is the number that measures the model. The tracker gets real
-capture timestamps, and `--save` repeats frames as needed so the recording plays back at
-real speed.
+On a webcam the loop FPS is usually capped by the camera, so `infer_ms` is the number that
+measures the model. Many webcams lower their frame rate in dim light to expose longer (the
+test laptop drops from 30 to 20 FPS). On Linux you can check and turn this off:
+
+```bash
+v4l2-ctl -d /dev/video0 --get-ctrl=exposure_dynamic_framerate
+v4l2-ctl -d /dev/video0 --set-ctrl=exposure_dynamic_framerate=0   # fixed 30 FPS, darker image
+```
+
+Each track ID gets its own colour, so an ID switch shows up as a colour change. The tracker
+gets real capture timestamps, and `--save` repeats frames as needed so the recording plays
+back at real speed. Measured numbers and failure cases are in [NOTES.md](NOTES.md).
 
 ```bash
 uv run python scripts/webcam_baseline.py                          # webcam 0
@@ -128,7 +136,7 @@ Filled in during Phase 3 and Phase 4.
 
 ## Roadmap
 
-- [ ] **Phase 0** Webcam baseline (YOLO26n + ByteTrack)
+- [x] **Phase 0** Webcam baseline (YOLO26n + ByteTrack)
 - [ ] **Phase 1** Pipeline package (detector interface, tracker wrapper, tests)
 - [ ] **Phase 2** Analytics and event log
 - [ ] **Phase 3** Evaluation harness (TrackEval on MOT17, tracker comparison)
