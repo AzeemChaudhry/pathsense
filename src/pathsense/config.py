@@ -1,0 +1,107 @@
+"""Pipeline configuration: one YAML file, plus `section.key=value` overrides.
+
+Swapping the detector or tracker is one line, either in the file or on the command line:
+
+    detector:
+      name: rfdetr-nano        # was yolo26n
+
+    pathsense run --set tracker.name=botsort
+
+Unknown sections or keys are errors, not silently ignored, so a typo cannot quietly fall
+back to a default.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field, fields, replace
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+DEFAULT_CONFIG = Path(__file__).resolve().parents[2] / "configs" / "default.yaml"
+
+
+class ConfigError(ValueError):
+    """The config file or an override is invalid."""
+
+
+@dataclass(frozen=True)
+class DetectorConfig:
+    name: str = "yolo26n"  # a key of pathsense.detect.DETECTORS
+    weights: str | None = None  # None: the model's own pretrained weights
+    imgsz: int | None = None  # None: the model's default input size (YOLO 640, RF-DETR Nano 384)
+    # Low on purpose: ByteTrack's second matching pass uses boxes between this and 0.6 to keep
+    # following people who are partly hidden (see NOTES.md, Phase 0).
+    conf: float = 0.1
+    device: str | None = None  # None: GPU if available. "cpu", "cuda", "0"...
+
+
+@dataclass(frozen=True)
+class TrackerConfig:
+    name: str = "bytetrack"  # a key of pathsense.track.TRACKERS
+    # Extra keyword arguments for the tracker class, e.g. {lost_track_buffer: 60}.
+    params: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class Config:
+    detector: DetectorConfig = field(default_factory=DetectorConfig)
+    tracker: TrackerConfig = field(default_factory=TrackerConfig)
+    # Phase 2 fills these in; kept as plain data until then.
+    analytics: dict[str, Any] = field(default_factory=dict)
+
+
+SECTIONS = {"detector": DetectorConfig, "tracker": TrackerConfig}
+
+
+##### Loading ##############################################################################
+
+
+def load_config(path: str | Path | None = None, overrides: list[str] | None = None) -> Config:
+    """Read a YAML config (default: configs/default.yaml) and apply `a.b=value` overrides."""
+    path = Path(path) if path else DEFAULT_CONFIG
+    try:
+        raw = yaml.safe_load(path.read_text()) or {}
+    except FileNotFoundError:
+        raise ConfigError(f"Config file not found: {path}") from None
+    if not isinstance(raw, dict):
+        raise ConfigError(f"{path}: expected a mapping at the top level")
+    for override in overrides or []:
+        apply_override(raw, override)
+    return from_dict(raw)
+
+
+def apply_override(raw: dict[str, Any], override: str) -> None:
+    """Set `section.key=value` in a raw config dict. The value is parsed as YAML."""
+    key, sep, value = override.partition("=")
+    parts = key.strip().split(".")
+    if not sep or len(parts) < 2 or not all(parts):
+        raise ConfigError(f"Override {override!r} must look like section.key=value")
+    node = raw
+    for part in parts[:-1]:
+        node = node.setdefault(part, {})
+        if not isinstance(node, dict):
+            raise ConfigError(f"Override {override!r}: {part} is not a section")
+    node[parts[-1]] = yaml.safe_load(value)  # "0.3" -> 0.3, "null" -> None, "{a: 1}" -> dict
+
+
+def from_dict(raw: dict[str, Any]) -> Config:
+    unknown = set(raw) - {f.name for f in fields(Config)}
+    if unknown:
+        raise ConfigError(f"Unknown config sections: {sorted(unknown)}")
+    config = Config(analytics=raw.get("analytics") or {})
+    for section, cls in SECTIONS.items():
+        values = raw.get(section) or {}
+        if not isinstance(values, dict):
+            raise ConfigError(f"[{section}] must be a mapping")
+        allowed = {f.name for f in fields(cls)}
+        unknown = set(values) - allowed
+        if unknown:
+            raise ConfigError(
+                f"Unknown keys in [{section}]: {sorted(unknown)}; allowed: {sorted(allowed)}"
+            )
+        config = replace(config, **{section: cls(**values)})
+    if config.detector.device == "auto":  # accepted for readability in YAML
+        config = replace(config, detector=replace(config.detector, device=None))
+    return config
