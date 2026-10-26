@@ -21,76 +21,17 @@ How one frame flows through the loop in main():
 from __future__ import annotations
 
 import argparse
-import os
 import time
 from pathlib import Path
 
+# This script came first (Phase 0). The helpers it needs now live in the package and are
+# tested there: parse_source ("0" means camera 0), configure_qt (fonts and Wayland for the
+# window) and FpsMeter (smoothed FPS). `pathsense run` is the configurable successor.
+from pathsense.io import parse_source
+from pathsense.io.display import configure_qt
+from pathsense.timing import FpsMeter
+
 PERSON_CLASS_ID = 0  # YOLO26n is trained on COCO, where class 0 is "person"
-
-
-##### Qt window setup ######################################################################
-# cv2.imshow opens its window with Qt, a GUI toolkit that opencv-python bundles inside the
-# wheel. That bundled copy is trimmed down: it has no fonts and only the X11 ("xcb") display
-# plugin. Importing cv2 even points QT_QPA_FONTDIR at an empty folder, so Qt prints
-# "Qt no longer ships fonts" on the first window. We point it at the DejaVu fonts the system
-# already has (Arch: TTF/, Debian and Ubuntu: truetype/dejavu/).
-
-SYSTEM_FONT_DIRS = ("/usr/share/fonts/TTF", "/usr/share/fonts/truetype/dejavu")
-
-
-def configure_qt() -> None:
-    """Call after importing cv2 and before the first window; Qt reads these variables then."""
-    # On a Wayland desktop Qt looks for a "wayland" plugin the wheel does not have, warns,
-    # then falls back to X11. Asking for X11 ("xcb") directly skips the warning; the window
-    # still shows normally through XWayland.
-    if os.environ.get("WAYLAND_DISPLAY"):
-        os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
-    # Respect a font folder the user set themselves, as long as it exists.
-    if os.path.isdir(os.environ.get("QT_QPA_FONTDIR", "")):
-        return
-    for font_dir in SYSTEM_FONT_DIRS:
-        if os.path.isdir(font_dir):
-            os.environ["QT_QPA_FONTDIR"] = font_dir
-            return
-
-
-##### Small helpers (unit tested in tests/test_webcam_baseline.py) ##########################
-
-
-def parse_source(source: str) -> int | str:
-    """A bare integer means a camera index; anything else is a file path or stream URL."""
-    # OpenCV opens /dev/video0 when given the int 0, but treats the string "0" as a filename.
-    return int(source) if source.isdigit() else source
-
-
-class FpsMeter:
-    """Exponential moving average of frames per second, so the overlay does not flicker.
-
-    Raw FPS jumps every frame (one frame takes 45 ms, the next 55 ms, so the number flips
-    between 22 and 18). Instead of showing the raw value we blend it into the running value:
-
-        shown = 0.9 * previous_shown + 0.1 * this_frame
-
-    Each new frame only moves the number 10 percent of the way, so it changes smoothly and
-    settles on the true average within about a second. `smoothing` is that 0.9: higher is
-    steadier but slower to react.
-    """
-
-    def __init__(self, smoothing: float = 0.9) -> None:
-        if not 0 <= smoothing < 1:
-            raise ValueError("smoothing must be in [0, 1)")
-        self.smoothing = smoothing
-        self.fps = 0.0
-
-    def update(self, frame_seconds: float) -> float:
-        if frame_seconds <= 0:
-            return self.fps
-        instant = 1.0 / frame_seconds  # e.g. 0.05 s per frame -> 20 FPS
-        if self.fps == 0.0:
-            self.fps = instant  # first frame: nothing to blend with yet
-        else:
-            self.fps = self.smoothing * self.fps + (1 - self.smoothing) * instant
-        return self.fps
 
 
 ##### Command line options #################################################################

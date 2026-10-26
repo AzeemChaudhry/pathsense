@@ -3,6 +3,11 @@
 Keeping this contract small is the key design decision of the project: the tracker,
 analytics and app only ever see `supervision.Detections`, so YOLO26 and RF-DETR are
 interchangeable through config.
+
+The contract:
+- input: one BGR frame (H, W, 3) uint8, as OpenCV reads it
+- output: `sv.Detections` with `xyxy` in pixels, `confidence`, and `class_id` all equal to
+  PERSON_CLASS_ID; nothing but people
 """
 
 from __future__ import annotations
@@ -12,6 +17,8 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     import numpy as np
     import supervision as sv
+
+PERSON_CLASS_ID = 0  # what every detector reports for "person", whatever its model uses
 
 
 class Detector(Protocol):
@@ -24,5 +31,12 @@ class Detector(Protocol):
         ...
 
 
-# Phase 1 TODO: add YoloDetector (ultralytics) and RfDetrDetector (rfdetr) adapters here,
-# each loading weights from the Hugging Face Hub and keeping only the person class.
+def select_people(detections: sv.Detections, model_person_id: int) -> sv.Detections:
+    """Keep only the model's person class and relabel it as PERSON_CLASS_ID.
+
+    Models number classes differently: YOLO (COCO 80 classes) uses 0 for person, RF-DETR
+    (COCO 91 category ids) uses 1. After this, every detector looks the same downstream.
+    """
+    people = detections[detections.class_id == model_person_id]
+    people.class_id[:] = PERSON_CLASS_ID
+    return people

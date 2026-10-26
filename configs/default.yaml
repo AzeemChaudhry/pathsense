@@ -1,14 +1,17 @@
-# Default pipeline config. Swap detector or tracker here, never in code.
+# Default pipeline config. Swap the detector or tracker here (or with --set), never in code.
+# Every key is optional; see src/pathsense/config.py for the defaults and docs/PLAN.md.
+
 detector:
-  name: yolo26n          # yolo26n | rfdetr-nano
-  weights: yolo26n.pt    # later: hf://<user>/pathsense-detector
-  imgsz: 640
-  conf: 0.3
-  device: auto           # auto | cpu | cuda
+  name: yolo26n        # yolo26n | yolo26s | rfdetr-nano | rfdetr-small
+  weights: null        # null: pretrained COCO weights; later hf://MuhammadAzeem/pathsense-detector
+  imgsz: null          # null: model default (YOLO 640, RF-DETR Nano 384)
+  conf: 0.1            # kept low so ByteTrack can use low confidence boxes
+  device: auto         # auto | cpu | cuda | 0
 
 tracker:
-  name: bytetrack        # bytetrack | botsort | ocsort
+  name: bytetrack      # bytetrack | botsort | ocsort
+  params: {}           # extra tracker arguments, e.g. {lost_track_buffer: 60}
 
-analytics:
-  line: null             # [[x1, y1], [x2, y2]] in pixels
-  zones: []              # list of polygons
+analytics:             # Phase 2
+  line: null           # [[x1, y1], [x2, y2]] in pixels
+  zones: []            # list of polygons

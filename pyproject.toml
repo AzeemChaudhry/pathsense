@@ -14,6 +14,9 @@ dependencies = [
     "pyyaml",
 ]
 
+[project.scripts]
+pathsense = "pathsense.cli:main"
+
 [project.optional-dependencies]
 rfdetr = ["rfdetr"]
 app = ["gradio>=6", "fastrtc"]
@@ -40,3 +43,4 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = ["slow: loads real model weights; run with PATHSENSE_SLOW=1"]

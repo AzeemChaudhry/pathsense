@@ -90,5 +90,8 @@ after numbers on CCTV style video.
 - **Phase 0 gate passed (2026-10-27).** `scripts/webcam_baseline.py`: ID held for 76 s;
   20.5 FPS camera bound (20 ms detect + track on the GTX 1650). Failures logged in
   NOTES.md: re-entry gets a new ID, and partly visible people are fragmented or missed.
-- **Next task: Phase 1 pipeline package** (`Detector` adapters, tracker wrapper, frame
-  sources, config driven swap).
+- **Phase 1 gate passed (2026-10-27), v0.2.0.** `pathsense run` swaps YOLO26n, RF-DETR
+  Nano, ByteTrack, BoT-SORT and OC-SORT with one config line; all six combinations
+  measured in NOTES.md.
+- **Next task: Phase 2 analytics and event log** (line crossings, zones, dwell, heatmap,
+  events as JSON lines).
