@@ -27,4 +27,14 @@ mlruns/
 .vscode/
 .idea/
 .DS_Store
+
+# Secrets and credentials
 .env
+.env.*
+*.pem
+*.key
+
+# Local AI assistant instructions (personal, not part of the public repo)
+CLAUDE.md
+CLAUDE.local.md
+.claude/
