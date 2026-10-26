@@ -28,7 +28,7 @@ the counter?"*. The finished app runs entirely in your browser: **no video is up
 
 People counting with YOLO is a solved tutorial. PathSense focuses on what is not common yet:
 processing that never leaves the device (so you can try it on real cameras safely), and
-plain language questions over tracked events. Research behind this: [docs/MARKET.md](docs/MARKET.md).
+plain language questions over tracked events. The roadmap is in [docs/PLAN.md](docs/PLAN.md).
 
 ## Architecture
 

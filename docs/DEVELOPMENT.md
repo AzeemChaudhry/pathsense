@@ -54,10 +54,10 @@ uv run pre-commit install    # installs the pre-commit and commit-msg hooks
 Signing, with the SSH key registered on GitHub as a signing key:
 
 ```bash
-git config user.name "Azeem Chaudhry"
-git config user.email "chaudhry.azeem0308@gmail.com"   # must be verified on AzeemChaudhry
+git config user.name "Your Name"
+git config user.email "you@example.com"     # an email verified on your GitHub account
 git config gpg.format ssh
-git config user.signingkey ~/.ssh/github_signing.pub
+git config user.signingkey ~/.ssh/<your-signing-key>.pub
 git config commit.gpgsign true
 git config tag.gpgsign true
 ```

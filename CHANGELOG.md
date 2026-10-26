@@ -23,6 +23,10 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 - `CLAUDE.md` is no longer part of the repository (it holds local assistant
   instructions). The project rules it contained now live in `docs/DEVELOPMENT.md`.
+- `docs/PLAN.md` is now a public roadmap: pitch, architecture, phases, gates and status.
+  Planning notes outside the engineering scope, and the market research
+  (`docs/MARKET.md`), moved to a private notes repository.
+- `docs/DEVELOPMENT.md` setup uses placeholders instead of a personal email address.
 
 ## [0.2.0] - 2026-10-27
 

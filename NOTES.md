@@ -1,7 +1,7 @@
 # Experiment log
 
 One entry per thing tried: what, the number it produced, and why it was kept or dropped.
-This becomes the "Design decisions" section of the README and the source of interview stories.
+This becomes the "Design decisions" section of the README.
 
 ## Template
 
