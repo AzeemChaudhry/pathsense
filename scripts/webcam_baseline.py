@@ -9,6 +9,13 @@ an mp4, which is the recording the Phase 0 gate asks for.
     uv run python scripts/webcam_baseline.py --source clip.mp4 --device cpu
 
 Press "q" or Esc to quit.
+
+How one frame flows through the loop in main():
+
+    camera frame -> YOLO26n (finds people, gives boxes + confidence)
+                 -> ByteTrack (links today's boxes to yesterday's, gives each person an ID)
+                 -> annotators (draw boxes, "#id" labels, trails)
+                 -> window and/or saved mp4
 """
 
 from __future__ import annotations
@@ -18,18 +25,27 @@ import os
 import time
 from pathlib import Path
 
-PERSON_CLASS_ID = 0  # COCO "person"
+PERSON_CLASS_ID = 0  # YOLO26n is trained on COCO, where class 0 is "person"
 
-# opencv-python bundles a minimal Qt: no fonts (importing cv2 points QT_QPA_FONTDIR at an
-# empty folder) and only the X11 "xcb" platform plugin. Without help it prints warnings on
-# the first window. Use system DejaVu (Arch: TTF/, Debian and Ubuntu: truetype/dejavu/).
+
+##### Qt window setup ######################################################################
+# cv2.imshow opens its window with Qt, a GUI toolkit that opencv-python bundles inside the
+# wheel. That bundled copy is trimmed down: it has no fonts and only the X11 ("xcb") display
+# plugin. Importing cv2 even points QT_QPA_FONTDIR at an empty folder, so Qt prints
+# "Qt no longer ships fonts" on the first window. We point it at the DejaVu fonts the system
+# already has (Arch: TTF/, Debian and Ubuntu: truetype/dejavu/).
+
 SYSTEM_FONT_DIRS = ("/usr/share/fonts/TTF", "/usr/share/fonts/truetype/dejavu")
 
 
 def configure_qt() -> None:
     """Call after importing cv2 and before the first window; Qt reads these variables then."""
+    # On a Wayland desktop Qt looks for a "wayland" plugin the wheel does not have, warns,
+    # then falls back to X11. Asking for X11 ("xcb") directly skips the warning; the window
+    # still shows normally through XWayland.
     if os.environ.get("WAYLAND_DISPLAY"):
-        os.environ.setdefault("QT_QPA_PLATFORM", "xcb")  # runs through XWayland
+        os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
+    # Respect a font folder the user set themselves, as long as it exists.
     if os.path.isdir(os.environ.get("QT_QPA_FONTDIR", "")):
         return
     for font_dir in SYSTEM_FONT_DIRS:
@@ -38,13 +54,27 @@ def configure_qt() -> None:
             return
 
 
+##### Small helpers (unit tested in tests/test_webcam_baseline.py) ##########################
+
+
 def parse_source(source: str) -> int | str:
     """A bare integer means a camera index; anything else is a file path or stream URL."""
+    # OpenCV opens /dev/video0 when given the int 0, but treats the string "0" as a filename.
     return int(source) if source.isdigit() else source
 
 
 class FpsMeter:
-    """Exponential moving average of frames per second, so the overlay does not flicker."""
+    """Exponential moving average of frames per second, so the overlay does not flicker.
+
+    Raw FPS jumps every frame (one frame takes 45 ms, the next 55 ms, so the number flips
+    between 22 and 18). Instead of showing the raw value we blend it into the running value:
+
+        shown = 0.9 * previous_shown + 0.1 * this_frame
+
+    Each new frame only moves the number 10 percent of the way, so it changes smoothly and
+    settles on the true average within about a second. `smoothing` is that 0.9: higher is
+    steadier but slower to react.
+    """
 
     def __init__(self, smoothing: float = 0.9) -> None:
         if not 0 <= smoothing < 1:
@@ -55,21 +85,27 @@ class FpsMeter:
     def update(self, frame_seconds: float) -> float:
         if frame_seconds <= 0:
             return self.fps
-        instant = 1.0 / frame_seconds
+        instant = 1.0 / frame_seconds  # e.g. 0.05 s per frame -> 20 FPS
         if self.fps == 0.0:
-            self.fps = instant
+            self.fps = instant  # first frame: nothing to blend with yet
         else:
             self.fps = self.smoothing * self.fps + (1 - self.smoothing) * instant
         return self.fps
+
+
+##### Command line options #################################################################
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--source", default="0", help="camera index, video file or stream URL")
     p.add_argument("--weights", default="yolo26n.pt")
+    # The frame is resized to this before YOLO sees it. 640 is what the model was trained on.
     p.add_argument("--imgsz", type=int, default=640)
-    # Low on purpose: ByteTrack's second association pass recovers occluded people from
-    # boxes below its 0.6 high confidence threshold, so do not filter them out here.
+    # Confidence is how sure YOLO is that a box is a person (0 to 1). We keep it low on
+    # purpose: ByteTrack first matches the sure boxes (above 0.6), then uses the unsure ones
+    # (0.1 to 0.6) to keep following people who are half hidden or blurred. Filtering at 0.3
+    # here would throw most of those away before ByteTrack sees them.
     p.add_argument("--conf", type=float, default=0.1, help="detector confidence threshold")
     p.add_argument("--device", default=None, help="cpu, 0 (first GPU); default: auto")
     p.add_argument("--trail", type=int, default=30, help="trail length in frames")
@@ -81,7 +117,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
 
-    # Heavy imports live here so the helpers above stay importable without them.
+    # Heavy imports live here so the helpers above stay importable without them (CI runs
+    # the unit tests without installing torch).
     import cv2
     import numpy as np
     import supervision as sv
@@ -90,72 +127,101 @@ def main(argv: list[str] | None = None) -> None:
 
     configure_qt()
 
+    ##### Open the video source ############################################################
     source = parse_source(args.source)
     is_camera = isinstance(source, int)
     cap = cv2.VideoCapture(source)
     if not cap.isOpened():
         raise SystemExit(f"Could not open source {args.source!r}")
-    # Webcams often report 30 FPS but deliver less (auto exposure in dim light). This is the
-    # nominal rate: the saved video uses it, with camera frames repeated to stay real time.
+    # The rate the source *claims*. A video file is exact. A webcam usually says 30, but in
+    # dim light many webcams slow down to expose each frame longer (see README), so the real
+    # rate can be lower. We only use this number as the frame rate of the saved mp4.
     source_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
 
+    ##### Build the model, tracker and drawing tools (once, before the loop) ##############
     model = YOLO(args.weights)
-    # Warm up once so CUDA initialisation does not inflate the timing of the first frame.
+    # The very first GPU call is slow (CUDA starts up, memory gets allocated). Run one blank
+    # image through now so that cost does not land on the first real frame and skew timing.
     model(np.zeros((args.imgsz, args.imgsz, 3), np.uint8), device=args.device, verbose=False)
-    tracker = ByteTrackTracker(frame_rate=source_fps)  # once, outside the loop
-    # Colour by track ID, not class, so an ID switch shows up as a colour change.
+
+    # The tracker remembers every person between frames, so it must be created once. Creating
+    # it inside the loop would wipe its memory each frame and give everyone a new ID.
+    tracker = ByteTrackTracker(frame_rate=source_fps)
+
+    # Colour by track ID, not by class (everyone is class "person", so all boxes would be
+    # the same colour). Now an ID switch shows up as a colour change.
     by_track = sv.ColorLookup.TRACK
     box_annotator = sv.BoxAnnotator(color_lookup=by_track)
-    # smart_position keeps the label on screen when a close-up box touches the top edge.
+    # The label sits above the box. smart_position moves it inside the frame when a
+    # close-up box touches the top edge, which would otherwise push the label off screen.
     label_annotator = sv.LabelAnnotator(
         color_lookup=by_track, text_position=sv.Position.TOP_LEFT, smart_position=True
     )
     trace_annotator = sv.TraceAnnotator(color_lookup=by_track, trace_length=args.trail)
-    fps_meter = FpsMeter()
-    infer_meter = FpsMeter()
 
+    fps_meter = FpsMeter()  # whole loop: camera wait + model + drawing
+    infer_meter = FpsMeter()  # model + tracker only, i.e. how fast the AI part is
+
+    ##### Counters for the summary line printed at the end ################################
     writer, written, first_tick = None, 0, None
-
     frames, infer_seconds, seen_ids = 0, 0.0, set()
     started = time.perf_counter()
+
     try:
         while True:
+            ##### 1. Grab a frame ##########################################################
             tick = time.perf_counter()
+            # read() waits until the camera has a new frame. If the camera delivers 20
+            # frames a second, this line alone makes the loop wait about 50 ms, so the loop
+            # can never run faster than the camera, however fast the model is.
             ok, frame = cap.read()
             if not ok:
-                break
+                break  # end of a video file, or the camera was unplugged
             first_tick = first_tick or tick
-            # Real capture time for a camera, nominal time for a file, so the tracker's
-            # lost track budget is in seconds whatever the processing speed.
+
+            # Seconds since the first frame. For a camera this is the real clock; for a file
+            # it is the frame's position in the video. The tracker uses it to decide how long
+            # someone can be missing before their ID is dropped (about 1 second).
             timestamp = tick - first_tick if is_camera else frames / source_fps
 
+            ##### 2. Detect people and track them ##########################################
             infer_start = time.perf_counter()
             result = model(
                 frame,
                 imgsz=args.imgsz,
                 conf=args.conf,
-                classes=[PERSON_CLASS_ID],
+                classes=[PERSON_CLASS_ID],  # ignore cars, chairs, cups...
                 device=args.device,
                 verbose=False,
-            )[0]
+            )[0]  # the model takes a batch and returns a list; we sent one frame
+            # Convert YOLO's output to supervision's Detections (boxes, confidences, class
+            # ids), then let ByteTrack match them to the people it saw last frame and fill
+            # in detections.tracker_id.
             detections = tracker.update(
                 sv.Detections.from_ultralytics(result), timestamp=timestamp
             )
             infer_elapsed = time.perf_counter() - infer_start
             infer_seconds += infer_elapsed
-            # Unconfirmed tracks and unmatched boxes come back with tracker_id -1; hide them.
+
+            # A brand new person must be seen in 2 frames in a row before ByteTrack trusts
+            # them and assigns an ID. Until then (and for boxes it could not match) the ID is
+            # -1. We hide those so stray false detections do not flash on screen.
             detections = detections[detections.tracker_id != -1]
             seen_ids.update(int(t) for t in detections.tracker_id)
 
+            ##### 3. Draw boxes, labels, trails and the stats line #########################
             labels = [f"#{tid}" for tid in detections.tracker_id]
             annotated = trace_annotator.annotate(frame.copy(), detections)
             annotated = box_annotator.annotate(annotated, detections)
             annotated = label_annotator.annotate(annotated, detections, labels=labels)
 
+            # FPS = whole loop (limited by the camera). infer = model + tracker time per
+            # frame (limited by the GPU). Comparing the two tells you which one is slow.
             fps = fps_meter.update(time.perf_counter() - tick)
             infer_ms = 1000 / infer_meter.update(infer_elapsed)
-            # Bottom left, so it never covers the ID labels at the top; dark outline first.
             stats = f"FPS {fps:5.1f}  infer {infer_ms:4.0f} ms  people {len(detections)}"
+            # Bottom left, so it never covers the ID labels at the top. Drawn twice, thick
+            # black then thin green, so it stays readable on light and dark backgrounds.
             origin = (10, annotated.shape[0] - 12)
             for color, thickness in (((0, 0, 0), 4), ((0, 255, 0), 2)):
                 cv2.putText(
@@ -163,31 +229,41 @@ def main(argv: list[str] | None = None) -> None:
                 )
             frames += 1
 
+            ##### 4. Save to mp4 (optional) ################################################
             if args.save:
                 if writer is None:
                     args.save.parent.mkdir(parents=True, exist_ok=True)
                     h, w = annotated.shape[:2]
                     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
                     writer = cv2.VideoWriter(str(args.save), fourcc, source_fps, (w, h))
-                # Repeat a frame until the video clock catches up with capture time, so a
-                # camera slower than its nominal rate still records at real speed.
+                # An mp4 has one fixed frame rate (here 30). If the camera only gives 20
+                # frames a second and we wrote each once, 10 s of capture would become
+                # 200 frames / 30 = 6.7 s of video, playing too fast. So we repeat a frame
+                # whenever the video falls behind the real clock, keeping playback real time.
                 while written <= timestamp * source_fps:
                     writer.write(annotated)
                     written += 1
 
+            ##### 5. Show the window and check for quit ####################################
             if not args.no_show:
                 cv2.imshow("PathSense webcam baseline", annotated)
+                # waitKey lets the window redraw and returns the key pressed (27 is Esc).
                 if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
                     break
     except KeyboardInterrupt:
-        pass
+        pass  # Ctrl+C: still fall through to cleanup and the summary
     finally:
+        ##### Cleanup: release the camera and finish the mp4 file ##########################
         elapsed = time.perf_counter() - started
         cap.release()
         if writer is not None:
-            writer.release()
+            writer.release()  # without this the mp4 is left unfinished and will not play
         cv2.destroyAllWindows()
 
+    ##### Summary line for NOTES.md ########################################################
+    # mean_fps: frames per second over the whole run. infer_ms: average model + tracker time.
+    # unique_ids: how many different IDs were handed out. With one person in view this
+    # should be 1; anything higher means the tracker lost them and gave them a new ID.
     mean_fps = frames / elapsed if elapsed > 0 else 0.0
     mean_infer_ms = 1000 * infer_seconds / frames if frames else 0.0
     print(
