@@ -57,6 +57,38 @@ uv run python -c "import torch; print('CUDA:', torch.cuda.is_available())"
 uv run python scripts/webcam_baseline.py
 ```
 
+### Webcam baseline (Phase 0)
+
+YOLO26n detects people and ByteTrack gives each one a stable ID. The window shows
+boxes, `#<id>` labels, trails, the loop FPS and the detect plus track time in ms. Press `q`
+or `Esc` to quit (or Ctrl+C with `--no-show`); a summary line is printed on exit:
+
+```
+frames=370 seconds=18.9 mean_fps=19.5 infer_ms=20.0 unique_ids=1
+```
+
+On a webcam the loop FPS is usually capped by the camera (often under its nominal 30 FPS in
+dim light), so `infer_ms` is the number that measures the model. The tracker gets real
+capture timestamps, and `--save` repeats frames as needed so the recording plays back at
+real speed.
+
+```bash
+uv run python scripts/webcam_baseline.py                          # webcam 0
+uv run python scripts/webcam_baseline.py --save runs/phase0.mp4   # also record the output
+uv run python scripts/webcam_baseline.py --source clip.mp4 --device cpu
+```
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--source` | `0` | camera index, video file or stream URL |
+| `--weights` | `yolo26n.pt` | Ultralytics weights; downloaded on first run |
+| `--imgsz` | `640` | inference size |
+| `--conf` | `0.1` | detector threshold; kept low so ByteTrack can use low confidence boxes |
+| `--device` | auto | `cpu` or `0` for the first GPU |
+| `--trail` | `30` | trail length in frames |
+| `--save` | off | write the annotated video to an mp4 |
+| `--no-show` | off | run without a window (for example over SSH) |
+
 Run the checks:
 
 ```bash
