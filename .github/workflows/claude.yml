@@ -1,7 +1,7 @@
-name: Claude
+name: Claude review
 
-# Mention @claude in a PR comment, a review, or an issue to ask for a review or a change.
-# Claude reads CLAUDE.md for the project rules.
+# Mention @claude in a PR comment, a PR review, or an issue to get a review or an answer.
+# Review only: Claude can read the code and CI results and reply, but cannot push.
 on:
   issue_comment:
     types: [created]
@@ -10,32 +10,35 @@ on:
   pull_request_review:
     types: [submitted]
   issues:
-    types: [opened, assigned]
+    types: [opened]
 
 jobs:
   claude:
     # Public repo: only the owner and collaborators can trigger it, so strangers cannot
-    # spend the API budget by commenting @claude.
+    # spend the token by commenting @claude. Bot comments (including Claude's own replies)
+    # never match, so it cannot trigger itself.
     if: |
       (github.event_name == 'issue_comment'
         && contains(github.event.comment.body, '@claude')
-        && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
+        && contains(fromJSON('["OWNER","COLLABORATOR"]'), github.event.comment.author_association)) ||
       (github.event_name == 'pull_request_review_comment'
         && contains(github.event.comment.body, '@claude')
-        && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
+        && contains(fromJSON('["OWNER","COLLABORATOR"]'), github.event.comment.author_association)) ||
       (github.event_name == 'pull_request_review'
         && contains(github.event.review.body, '@claude')
-        && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association)) ||
+        && contains(fromJSON('["OWNER","COLLABORATOR"]'), github.event.review.author_association)) ||
       (github.event_name == 'issues'
-        && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))
-        && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
+        && contains(github.event.issue.body, '@claude')
+        && contains(fromJSON('["OWNER","COLLABORATOR"]'), github.event.issue.author_association))
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Claude acts with this job's GITHUB_TOKEN (passed below), not the Claude app token,
+    # so these permissions are the hard limit: contents is read only, so pushes fail.
     permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-      id-token: write
-      actions: read # lets Claude read CI results on PRs
+      contents: read
+      pull-requests: write # reply and leave review comments
+      issues: write # reply on issues
+      actions: read # read CI results and logs
     steps:
       - uses: actions/checkout@v7
         with:
@@ -43,10 +46,12 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         with:
-          # Set exactly one of these repo secrets:
-          #   CLAUDE_CODE_OAUTH_TOKEN  Claude Pro/Max subscription (`claude setup-token`)
-          #   ANTHROPIC_API_KEY        pay per use API key from console.anthropic.com
+          # Claude Pro/Max subscription token from `claude setup-token`.
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Commits Claude pushes are signed by GitHub, so they show as Verified.
-          use_commit_signing: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          additional_permissions: |
+            actions: read
+          # Second guard on top of the read only token: no file editing tools at all.
+          claude_args: |
+            --disallowedTools Edit,MultiEdit,Write,NotebookEdit
+            --append-system-prompt "You are a reviewer for this repository. Never edit files, commit, push or open pull requests. Read CLAUDE.md and docs/DEVELOPMENT.md, then reply with findings, ordered by severity, each with the file and line."

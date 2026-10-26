@@ -1,125 +1,137 @@
 # Development workflow
 
-How changes get into PathSense: branches, commits, checks, review, versions and releases.
-`CLAUDE.md` points Claude Code here, so the same rules apply to people and to Claude.
+The single source for how changes get into PathSense. `CLAUDE.md` points here, and the
+same rules apply to people and to Claude. Most rules are enforced by a hook, CI or a GitHub
+ruleset; the table says which, so nothing depends on memory.
 
-## Setup
+## The rules
+
+| Rule | Enforced by |
+| --- | --- |
+| Every change goes through a PR into `main`; no direct pushes, no force pushes | `main` ruleset |
+| CI (`lint`, `test (3.11)`, `test (3.12)`) must pass before merging | `main` ruleset |
+| Commits are signed | `main` ruleset (rejects unsigned commits) |
+| Merge with a merge commit, never squash or rebase (keeps each signature) | repo settings |
+| Commit messages carry no `Co-Authored-By`, `Claude-Session` or "Generated with Claude" lines | `commit-msg` hook, CI `lint` |
+| Code is formatted and lint clean; no stray whitespace, broken YAML/TOML or files over 1 MB | `pre-commit` hooks, CI `lint` |
+| `uv.lock` matches `pyproject.toml` | CI `test` (`uv sync --locked`) |
+| ruff version agrees between pre-commit and `uv.lock` | `tests/test_repo_consistency.py` |
+| Version, changelog section and changelog links agree | `tests/test_changelog.py` |
+| Releases come only from signed tags on `main` whose commit passed CI | `release.yml`, tag ruleset |
+| `@claude` reviews only and cannot push | `claude.yml` (read only token) |
+| Docs and `CHANGELOG.md` change in the same PR as the code | PR template checklist, review |
+
+## Setup (once per clone)
 
 ```bash
 uv sync --extra dev          # add --extra data for dataset downloads
-uv run pre-commit install    # runs ruff and file hygiene checks on every commit
+uv run pre-commit install    # installs the pre-commit and commit-msg hooks
 ```
 
-Python 3.11 or 3.12 (CI tests both). `uv.lock` pins every dependency; after changing
-`pyproject.toml` run `uv lock` and commit the lock file with it. CI fails if they disagree.
+Signing, with the SSH key registered on GitHub as a signing key:
 
-## Branches and pull requests
+```bash
+git config user.name "Azeem Chaudhry"
+git config user.email "chaudhry.azeem0308@gmail.com"   # must be verified on AzeemChaudhry
+git config gpg.format ssh
+git config user.signingkey ~/.ssh/github_signing.pub
+git config commit.gpgsign true
+git config tag.gpgsign true
+```
 
-- `main` is always green and releasable. Nothing is committed to it directly.
-- One branch per task, named by type: `phase1/detector-adapters`, `fix/qt-fonts`,
-  `docs/kaggle-guide`, `chore/ci-matrix`.
-- Open a PR into `main`. Merge with a **merge commit** (not squash or rebase) so each signed
-  commit keeps its signature, then delete the branch.
-- A PR is ready when CI is green and the docs in the same PR describe the change (see
-  [Documentation](#documentation)).
+Python 3.11 or 3.12. After changing `pyproject.toml`, run `uv lock` and commit the lock file
+with it.
 
-## Commits
+## Making a change
 
-- **Signed.** Every commit and tag is signed, so GitHub shows it as Verified. Set up once
-  per clone with the SSH key registered on GitHub as a signing key:
+1. Branch from an up to date `main`, named by type: `phase1/detector-adapters`,
+   `fix/qt-fonts`, `docs/kaggle-guide`, `chore/ci-cache`.
+2. Commit in small, focused steps. Formatting only changes, dependency bumps and behaviour
+   changes go in separate commits.
+3. Message: imperative subject under about 70 characters with no trailing period ("Add
+   ByteTrack wrapper"), a blank line, then a body that explains why.
+4. Before pushing: `uv run pre-commit run --all-files` and `uv run pytest`.
+5. Open a PR. The template lists what to fill in; update the docs and `CHANGELOG.md` in
+   the same PR (see [Documentation](#documentation)).
+6. Optionally ask `@claude` for a review (below).
+7. When CI is green, merge (merge commit is the only option) and delete the branch.
 
-  ```bash
-  git config user.name "Azeem Chaudhry"
-  git config user.email "chaudhry.azeem0308@gmail.com"
-  git config gpg.format ssh
-  git config user.signingkey ~/.ssh/github_signing.pub
-  git config commit.gpgsign true
-  git config tag.gpgsign true
-  ```
-
-  The email must be a verified email on the GitHub account, or commits show as Unverified
-  and are attributed to whichever account owns that address.
-- **Messages.** Subject in the imperative, under about 70 characters, no trailing period
-  ("Add ByteTrack wrapper", not "Added ByteTrack wrapper."). Blank line, then a body that
-  explains why the change was made and anything a reviewer would not see from the diff.
-- **No tool trailers.** No `Co-Authored-By`, `Claude-Session` or "Generated with" lines.
-- **Small and focused.** Formatting only changes, dependency bumps and behaviour changes go
-  in separate commits.
-- **Checks first:** `uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest`.
-
-## Continuous integration
+## CI
 
 `.github/workflows/ci.yml` runs on every PR and every push to `main`:
 
-| Job | What it does |
-| --- | --- |
-| `lint` | `ruff check` and `ruff format --check` |
-| `test (3.11)`, `test (3.12)` | `uv sync --locked --extra dev`, then `pytest` |
+| Job | Steps | Time |
+| --- | --- | --- |
+| `lint` | all pre-commit hooks on every file; on PRs, the commit message check | about 15 s |
+| `test (3.11)`, `test (3.12)` | `uv sync --locked --extra dev`, then `pytest` | about 40 s |
+
+A new push to a PR cancels that PR's older run. Runs on `main` are never cancelled, because
+releases need a finished CI result for the merge commit. Every job has a timeout.
 
 Tests must not need a GPU, a webcam or downloaded data. Keep heavy imports inside functions
 (see `scripts/webcam_baseline.py`) so helpers can be tested on their own.
 
 ## Review with Claude
 
-Comment `@claude` on a PR (or in a review, or an issue) with what you want, for example
-`@claude review this PR for tracking bugs and missing tests`. The `Claude` workflow runs
-Claude Code with `CLAUDE.md` as its instructions and replies in the thread. Only the repo
-owner and collaborators can trigger it.
+Comment `@claude` on a PR, in a PR review, or in a new issue, with what you want, for
+example `@claude review this PR for tracking bugs and missing tests`.
 
-One time setup (either option):
-
-1. Install the Claude GitHub app on this repo: <https://github.com/apps/claude>.
-2. Add **one** repo secret under Settings > Secrets and variables > Actions:
-   - `CLAUDE_CODE_OAUTH_TOKEN` to use a Claude Pro or Max subscription: run
-     `claude setup-token` locally and paste the token.
-   - `ANTHROPIC_API_KEY` to pay per use: create a key at console.anthropic.com.
-
-Running `/install-github-app` inside Claude Code does both steps interactively.
+- The `Claude review` workflow runs Claude Code with `CLAUDE.md` and this file as context,
+  and Claude replies in the thread as `github-actions[bot]`.
+- It is **review only**. Claude acts with the workflow's own token, which has read only
+  access to the code, and its file editing tools are disabled. It can read code and CI
+  logs and write comments; it cannot commit, push or open PRs. Apply suggested changes
+  yourself (or with Claude Code locally) on your branch.
+- Only the repo owner and collaborators can trigger it, and bot comments never do.
+- Needs the repo secret `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`, uses the Claude
+  subscription). No GitHub app is needed.
 
 ## Versioning
 
-[Semantic Versioning](https://semver.org/), adapted to the phase plan in `docs/PLAN.md`:
+[Semantic Versioning](https://semver.org/), mapped to the phase plan in `docs/PLAN.md`:
 
-| Change | Version bump | Example |
+| Change | Bump | Example |
 | --- | --- | --- |
 | A phase gate passes | minor | Phase 1 done: `0.1.0` to `0.2.0` |
-| Bug fix or doc fix after a release | patch | `0.2.0` to `0.2.1` |
+| Fix after a release | patch | `0.2.0` to `0.2.1` |
 | Phase 7 showcase complete | major | `1.0.0` |
 
-Phase N maps to `0.(N+1).0`, so the version tells you how far the project is. The version
-lives in one place, `__version__` in `src/pathsense/__init__.py`; `pyproject.toml` reads it
-from there.
+Phase N is `0.(N+1).0`. The version lives only in `__version__` in
+`src/pathsense/__init__.py`; `pyproject.toml` reads it from there.
 
 ## Changelog
 
-`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Every PR
-that changes behaviour, adds a feature or changes the docs in a way users notice adds a
-line under `## [Unreleased]`, grouped as Added, Changed, Fixed or Removed. Write it for
-someone using the project, not as a list of commits.
+`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Any PR that
+changes something a user or contributor would notice adds a line under `## [Unreleased]`,
+grouped as Added, Changed, Fixed or Removed. Write it for a reader of the project, not as
+a list of commits.
 
 ## Releasing
 
-When a phase gate passes (or a fix needs shipping):
-
 1. On a branch, bump `__version__` in `src/pathsense/__init__.py`.
-2. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, add a new
-   empty `## [Unreleased]` above it, and update the compare links at the bottom.
-   `tests/test_changelog.py` fails if these do not line up.
+2. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, add a new empty
+   `## [Unreleased]` above it, and update the links at the bottom:
+   ```
+   [Unreleased]: https://github.com/AzeemChaudhry/pathsense/compare/vX.Y.Z...HEAD
+   [X.Y.Z]: https://github.com/AzeemChaudhry/pathsense/compare/vPREVIOUS...vX.Y.Z
+   ```
+   `tests/test_changelog.py` fails until all of this lines up.
 3. PR, CI green, merge.
-4. Tag the merge commit on `main` and push the tag:
-
+4. Tag the merge commit on `main` with a signed tag and push it:
    ```bash
    git switch main && git pull
    git tag -s vX.Y.Z -m "vX.Y.Z: <phase or summary>"
    git push origin vX.Y.Z
    ```
-
-5. `.github/workflows/release.yml` checks that the tag matches `__version__` and creates the
-   GitHub release with that version's changelog section as the notes.
+5. `release.yml` checks that the tag is on `main`, is signed and verified, matches
+   `__version__`, and that CI passed on that commit (it waits up to 20 minutes if CI is
+   still running). Then it publishes the GitHub release with that version's changelog
+   section as the notes. If any check fails, nothing is published: fix the cause, delete
+   the tag (`git push origin :refs/tags/vX.Y.Z`, allowed for the owner only) and tag again.
 
 ## Documentation
 
-Docs are part of the change, in the same PR, not a follow up:
+Docs ship in the same PR as the change:
 
 | When you... | Update |
 | --- | --- |
@@ -127,5 +139,5 @@ Docs are part of the change, in the same PR, not a follow up:
 | run an experiment or measure something | `NOTES.md` (what, the number, the decision) |
 | pass a phase gate | `docs/PLAN.md` "Current status" and the README roadmap |
 | change data sources or licenses | `docs/DATASETS.md` |
-| change how work is done | this file and `CLAUDE.md` |
+| change how work is done | this file (and `CLAUDE.md` only if a must follow rule changes) |
 | change anything users notice | `CHANGELOG.md` under Unreleased |

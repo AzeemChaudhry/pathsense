@@ -8,6 +8,22 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ## [Unreleased]
 
+### Changed
+
+- `@claude` is review only: it runs with a read only token and no file editing tools, so it
+  can comment but never push. Replies come from `github-actions[bot]`.
+- Releases are published only from signed, verified tags on `main` whose commit passed CI.
+- CI runs the pre-commit hooks (including YAML, TOML and merge conflict checks) instead of
+  separate ruff steps, caches the hook environments, never cancels runs on `main`, and
+  has a timeout on every job.
+- `docs/DEVELOPMENT.md` lists every rule with what enforces it; `CLAUDE.md` points there.
+
+### Added
+
+- `commit-msg` hook and a CI check that reject tool trailers in commit messages.
+- Tests that keep the ruff version, the setup-uv pin and the changelog links consistent.
+- Pull request template with the review checklist.
+
 ## [0.1.0] - 2026-10-27
 
 Phase 0: webcam baseline. Gate passed: one person kept the same ID for 76 s.

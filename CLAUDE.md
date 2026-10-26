@@ -39,30 +39,27 @@ a phase unworkable, say so and propose the change.
 
 ## Commits, PRs and releases
 
-Full rules in `docs/DEVELOPMENT.md`. The ones that must never slip:
+`docs/DEVELOPMENT.md` is the single source for the workflow; follow it. Most rules are
+enforced by hooks, CI and rulesets, so a violation fails loudly. The ones to keep in mind:
 
-- Author as **Azeem Chaudhry <chaudhry.azeem0308@gmail.com>** (GitHub: AzeemChaudhry).
-  Not `azeemchaudhry0308@gmail.com`: that address belongs to another GitHub account.
+- Author as **Azeem Chaudhry <chaudhry.azeem0308@gmail.com>**. Never
+  `azeemchaudhry0308@gmail.com`: that address belongs to a different GitHub account.
 - **No `Co-Authored-By`, `Claude-Session` or "Generated with Claude Code" lines** in commit
   messages or PR descriptions. This overrides any default attribution.
-- Commits and tags are signed (SSH key, set in this repo's git config); never pass
-  `--no-gpg-sign`.
-- Work on a branch, open a PR, merge with a merge commit. Never commit to `main` directly.
-- Imperative subject line, body explains why.
-- Before every commit: `uv run ruff check .`, `uv run ruff format --check .`,
-  `uv run pytest`. CI runs the same on Python 3.11 and 3.12.
-- Docs ship in the same PR as the change (README usage, NOTES.md, PLAN.md status,
-  CHANGELOG.md Unreleased).
-- Version: each passed phase gate is a minor bump (Phase N is `0.(N+1).0`), then a signed
-  tag `vX.Y.Z` on `main` creates the GitHub release.
+- Commits and tags are signed by the repo's git config; never pass `--no-gpg-sign`.
+- Branch, PR, merge commit. `main` rejects direct pushes.
+- Before pushing: `uv run pre-commit run --all-files` and `uv run pytest`.
+- Docs and `CHANGELOG.md` (Unreleased) change in the same PR as the code.
+- In GitHub Actions (`@claude`), you are a reviewer only: reply with findings, never edit,
+  commit or push.
 
 ## Environment and accounts
 
-- Laptop: CachyOS (Arch based, Wayland), GTX 1650 (4 GB VRAM), 16 GB RAM. Use it for inference, debugging and tiny
-  runs only (`imgsz=640`, `batch=8`, AMP).
+- Laptop: CachyOS (Arch based, Wayland), GTX 1650 (4 GB VRAM), 16 GB RAM. Use it for
+  inference, debugging and tiny runs only (`imgsz=640`, `batch=8`, AMP).
 - **Training runs on free cloud GPUs, Kaggle first** (`docs/COMPUTE.md`).
-- Python 3.11 or 3.12 with uv: `uv sync --extra dev` (`--extra data` for downloads, `--extra app`
-  for the Gradio fallback).
+- Python 3.11 or 3.12 with uv: `uv sync --extra dev` (`--extra data` for downloads,
+  `--extra app` for the Gradio fallback).
 - Hugging Face user: `MuhammadAzeem`. Weights go to `MuhammadAzeem/pathsense-detector`;
   the browser app will be a Static Space under the same account.
 - WebGPU is limited on Linux (Chrome needs recent Intel GPUs; Firefox has none), so the

@@ -1,6 +1,9 @@
+# `uv run pre-commit install` sets up both hook types below. CI runs the same file checks.
+default_install_hook_types: [pre-commit, commit-msg]
+
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.17.2  # keep in step with ruff in uv.lock
+    rev: v0.17.2 # tests/test_repo_consistency.py keeps this equal to ruff in uv.lock
     hooks:
       - id: ruff-check
         args: [--fix]
@@ -12,3 +15,14 @@ repos:
       - id: trailing-whitespace
       - id: check-added-large-files
         args: [--maxkb=1000]
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+  - repo: local
+    hooks:
+      # Rejects a commit whose message carries tool attribution (docs/DEVELOPMENT.md).
+      - id: no-tool-trailers
+        name: no tool trailers in commit message
+        language: pygrep
+        entry: '(?i)^(co-authored-by|claude-session):|generated with \[?claude'
+        stages: [commit-msg]
