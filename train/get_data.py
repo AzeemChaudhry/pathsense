@@ -12,7 +12,8 @@ Usage
 -----
     uv sync --extra data
     uv run python train/get_data.py crowdhuman --max-train 5000
-    uv run python train/get_data.py roboflow --workspace krupal --project overhead-person-94pcq --version 1
+    uv run python train/get_data.py roboflow \
+        --workspace krupal --project overhead-person-94pcq --version 1
 
 Output (git ignored)
 --------------------
@@ -152,11 +153,15 @@ def cmd_roboflow(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = p.add_subparsers(dest="source", required=True)
 
     ch = sub.add_parser("crowdhuman", help="CrowdHuman from the Hugging Face Hub")
-    ch.add_argument("--all-train", action="store_true", help="all 3 train zips (~8.4 GB) instead of 1")
+    ch.add_argument(
+        "--all-train", action="store_true", help="all 3 train zips (~8.4 GB) instead of 1"
+    )
     ch.add_argument("--max-train", type=int, default=None, help="random subset size for train")
     ch.add_argument("--max-val", type=int, default=1000, help="random subset size for val")
     ch.add_argument("--box", choices=["fbox", "vbox"], default="fbox",
