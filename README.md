@@ -88,9 +88,15 @@ Filled in during Phase 3 and Phase 4.
 - [ ] **Phase 6** Production hardening (CI deploy, Docker, validation)
 - [ ] **Phase 7** Showcase (GIF, model card, write up)
 
+## Data
+
+Deployable models train on Open Images V7 (CC BY 4.0 annotations); CrowdHuman is used only
+for benchmarks. Research and license notes: [docs/DATASETS.md](docs/DATASETS.md).
+Download with `train/get_data.py` ([train/README.md](train/README.md)).
+
 ## Design decisions
 
-Logged in [NOTES.md](NOTES.md) as they are made.
+Plan: [docs/PLAN.md](docs/PLAN.md). Experiments are logged in [NOTES.md](NOTES.md).
 
 ## Privacy and limitations
 
