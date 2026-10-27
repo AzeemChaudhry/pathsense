@@ -65,3 +65,10 @@ def test_apply_override_creates_nested_keys():
     raw = {}
     apply_override(raw, "analytics.line=[[0, 0], [10, 10]]")
     assert raw == {"analytics": {"line": [[0, 0], [10, 10]]}}
+
+
+def test_camera_section_defaults_and_overrides():
+    config = load_config()
+    assert config.camera.calibrate and config.camera.dynamic_framerate is False
+    config = load_config(overrides=["camera.max_width=640", "camera.dynamic_framerate=null"])
+    assert config.camera.max_width == 640 and config.camera.dynamic_framerate is None

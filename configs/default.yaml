@@ -12,6 +12,13 @@ tracker:
   name: bytetrack      # bytetrack | botsort | ocsort
   params: {}           # extra tracker arguments, e.g. {lost_track_buffer: 60}
 
+camera:                # webcams only; files and streams ignore this
+  calibrate: true      # measure a new camera once, then reuse (~/.config/pathsense/cameras.json)
+  max_width: 1280      # largest picture to try
+  fps: 30              # target frame rate
+  dynamic_framerate: false   # false: steady FPS in dim light, darker picture; null: leave as is
+  store: null          # null: default capture calibration file
+
 analytics:             # Phase 2
   line: null           # [[x1, y1], [x2, y2]] in pixels
   zones: []            # list of polygons
