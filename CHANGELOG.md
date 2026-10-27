@@ -28,7 +28,8 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
   required, no force pushes or deletion. Release tags can only be created, moved or
   deleted by the maintainer.
 - Workflows from fork pull requests need maintainer approval; only GitHub's own actions
-  and the two third party actions in use may run.
+  and the third party actions in use may run (`claude-code-action`, `setup-uv`, and
+  `setup-bun` pinned to the commit the Claude action needs).
 - The `@claude` action is pinned to a commit, and a test fails if any third party action
   that receives a secret is not.
 - `SECURITY.md` explains how to report a vulnerability privately and what is protected.
