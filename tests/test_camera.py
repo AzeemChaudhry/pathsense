@@ -435,12 +435,3 @@ def test_failed_save_leaves_no_temporary_file(tmp_path, monkeypatch):
     with pytest.raises(OSError, match="disk full"):
         store.put(CameraIdentity("usb-a", "Cam A"), REQUEST, SETTINGS)
     assert list(tmp_path.iterdir()) == []
-
-
-def test_video_source_reports_the_size_the_camera_agreed_to(monkeypatch):
-    from pathsense.io import source
-
-    cap = FakeCapture()
-    monkeypatch.setattr(source.cv2, "VideoCapture", lambda index: cap)
-    with source.VideoSource("0", camera=CameraSettings("MJPG", 1280, 720, 30, 29.8)) as src:
-        assert src.size == (1280, 720)

@@ -53,11 +53,6 @@ class VideoSource:
         # What the source claims. Exact for files; for cameras only a nominal value.
         self.fps = self._cap.get(cv2.CAP_PROP_FPS) or 30.0
         self.frame_count = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT)) if not self.is_camera else 0
-        # What the source agreed to deliver, e.g. to check a camera accepted its calibration.
-        self.size = (
-            int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-            int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-        )
 
     def __iter__(self) -> Iterator[Frame]:
         index, first_tick = 0, None

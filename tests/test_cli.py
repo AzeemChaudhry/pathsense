@@ -99,45 +99,27 @@ def test_run_passes_recalibrate_to_the_camera(monkeypatch, capsys):
     assert seen == [("0", True)]
 
 
-def test_recalibrate_on_a_file_says_it_is_ignored(capsys, tiny_video):
-    from pathsense.cli import camera_settings
-    from pathsense.config import load_config
-
-    assert camera_settings(load_config(), str(tiny_video), recalibrate=True) is None
+def test_recalibrate_on_a_file_says_it_is_ignored(monkeypatch, tiny_video, capsys):
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    main(["run", "--no-show", "--recalibrate", "--source", str(tiny_video),
+          "--set", "detector.name=fake"])  # fmt: skip
     assert "only applies to cameras" in capsys.readouterr().out
 
 
-def test_run_warns_when_the_camera_ignores_its_calibration(monkeypatch, capsys):
-    import pathsense.cli as cli
-    from pathsense.io import camera as cam
-    from pathsense.io import source
+def test_calibrate_on_a_file_does_not_mention_recalibrate(tiny_video, capsys):
+    with pytest.raises(SystemExit, match="needs a camera index"):
+        main(["calibrate", "--source", str(tiny_video)])
+    assert "--recalibrate" not in capsys.readouterr().out
 
-    class SmallCamera:  # accepts the requests but keeps delivering 640x480
-        def __init__(self, index):
-            pass
 
-        def isOpened(self):
-            return True
+def test_camera_size_check_uses_the_real_frame(capsys):
+    import numpy as np
 
-        def set(self, prop, value):
-            pass
+    from pathsense.cli import check_camera_size
+    from pathsense.io.camera import CameraSettings
 
-        def get(self, prop):
-            return {
-                source.cv2.CAP_PROP_FRAME_WIDTH: 640,
-                source.cv2.CAP_PROP_FRAME_HEIGHT: 480,
-            }.get(prop, 30.0)
-
-        def read(self):
-            return False, None
-
-        def release(self):
-            pass
-
-    monkeypatch.setattr(source.cv2, "VideoCapture", SmallCamera)
-    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
-    monkeypatch.setattr(
-        cli, "camera_settings", lambda *a: cam.CameraSettings("MJPG", 1280, 960, 30, 30.0)
-    )
-    main(["run", "--no-show", "--source", "0", "--set", "detector.name=fake"])
-    assert "not the calibrated 1280x960" in capsys.readouterr().out
+    calibrated = CameraSettings("MJPG", 1280, 960, 30, 30.0)
+    check_camera_size(np.zeros((960, 1280, 3), np.uint8), calibrated)
+    assert capsys.readouterr().out == ""  # the normal case: no warning
+    check_camera_size(np.zeros((480, 640, 3), np.uint8), calibrated)
+    assert "delivering 640x480, not the calibrated 1280x960" in capsys.readouterr().out
