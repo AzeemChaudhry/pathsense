@@ -9,6 +9,8 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
+from pathsense.io.camera import CameraSettings, apply_mode
+
 
 def parse_source(source: str | int) -> int | str:
     """A bare integer means a camera index; anything else is a file path or stream URL."""
@@ -35,14 +37,19 @@ class VideoSource:
     Timestamps come from the real clock for a camera (it may deliver fewer frames than it
     claims, e.g. 20 instead of 30 in dim light) and from the frame position for a file (so
     a file processed faster or slower than real time still has correct times).
+
+    `camera` (from `pathsense.io.camera.load_or_calibrate`) sets a camera's format, size and
+    frame rate; it is ignored for files and streams.
     """
 
-    def __init__(self, source: str | int) -> None:
+    def __init__(self, source: str | int, camera: CameraSettings | None = None) -> None:
         self.source = parse_source(source)
         self.is_camera = isinstance(self.source, int)
         self._cap = cv2.VideoCapture(self.source)
         if not self._cap.isOpened():
             raise OSError(f"Could not open video source {source!r}")
+        if self.is_camera and camera:
+            apply_mode(self._cap, camera.fourcc, camera.width, camera.height, camera.fps)
         # What the source claims. Exact for files; for cameras only a nominal value.
         self.fps = self._cap.get(cv2.CAP_PROP_FPS) or 30.0
         self.frame_count = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT)) if not self.is_camera else 0

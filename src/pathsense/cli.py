@@ -4,6 +4,10 @@
     pathsense run --source clip.mp4 --save runs/clip.mp4
     pathsense run --set detector.name=rfdetr-nano --set tracker.name=botsort
     pathsense run --source clip.mp4 --no-show --max-frames 300   # quick benchmark
+    pathsense calibrate                             # measure webcam 0 again and save it
+
+The first run with a new webcam measures its best capture mode (a few seconds) and saves
+it; later runs reuse it (see pathsense.io.camera).
 
 Press "q" or Esc in the window to stop (Ctrl+C without a window). A summary line is
 printed at the end for NOTES.md.
@@ -15,8 +19,12 @@ import argparse
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pathsense import __version__
+
+if TYPE_CHECKING:
+    from pathsense.config import Config
 
 
 @dataclass(frozen=True)
@@ -48,25 +56,43 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
 
     run = commands.add_parser("run", help="detect and track people in a video or webcam")
-    run.add_argument("--source", default="0", help="camera index, video file or stream URL")
-    run.add_argument(
-        "--config", type=Path, default=None, help="YAML config (default: configs/default.yaml)"
-    )
-    run.add_argument(
-        "--set",
-        dest="overrides",
-        action="append",
-        default=[],
-        metavar="SECTION.KEY=VALUE",
-        help="override a config value, e.g. detector.name=rfdetr-nano (repeatable)",
-    )
+    calibrate = commands.add_parser("calibrate", help="measure a webcam's best mode and save it")
+    for command in (run, calibrate):
+        command.add_argument("--source", default="0", help="camera index, video file or stream URL")
+        command.add_argument(
+            "--config", type=Path, default=None, help="YAML config (default: configs/default.yaml)"
+        )
+        command.add_argument(
+            "--set",
+            dest="overrides",
+            action="append",
+            default=[],
+            metavar="SECTION.KEY=VALUE",
+            help="override a config value, e.g. detector.name=rfdetr-nano (repeatable)",
+        )
     run.add_argument(
         "--save", type=Path, default=None, help="write the annotated video to this mp4"
     )
     run.add_argument("--no-show", action="store_true", help="do not open a window")
     run.add_argument("--max-frames", type=int, default=None, help="stop after this many frames")
     run.add_argument("--trail", type=int, default=30, help="trail length in frames")
+    run.add_argument(
+        "--recalibrate", action="store_true", help="measure the webcam again before running"
+    )
     return parser
+
+
+def camera_settings(config: Config, source: str, recalibrate: bool = False):
+    """Saved or freshly measured settings for a webcam source; None for files and streams."""
+    from pathsense.io import parse_source
+    from pathsense.io.camera import CalibrationStore, camera_request, load_or_calibrate
+
+    index = parse_source(source)
+    cam = config.camera
+    if not isinstance(index, int) or not (cam.calibrate or recalibrate):
+        return None
+    request = camera_request(cam.max_width, cam.fps, cam.dynamic_framerate)
+    return load_or_calibrate(index, request, CalibrationStore(cam.store), recalibrate)
 
 
 def run(args: argparse.Namespace) -> Summary:
@@ -82,9 +108,10 @@ def run(args: argparse.Namespace) -> Summary:
 
     config = load_config(args.config, args.overrides)
     Pipeline.check(config)  # before the camera turns on or weights download
+    camera = camera_settings(config, args.source, args.recalibrate)
     configure_qt()
 
-    with VideoSource(args.source) as source:
+    with VideoSource(args.source, camera=camera) as source:
         pipeline = Pipeline.from_config(config, frame_rate=source.fps)
         annotator = Annotator(trail_length=args.trail)
         writer = RealTimeVideoWriter(args.save, source.fps) if args.save else None
@@ -137,17 +164,21 @@ def run(args: argparse.Namespace) -> Summary:
 
 
 def main(argv: list[str] | None = None) -> None:
-    args = build_parser().parse_args(argv)
-    if args.command == "run":
-        from pathsense.config import ConfigError
+    from pathsense.config import ConfigError, load_config
 
-        try:
-            summary = run(args)
-        except (ConfigError, OSError) as error:
-            raise SystemExit(f"pathsense: {error}") from None
-        print(summary)
-        if args.save:
-            print(f"saved {args.save}")
+    args = build_parser().parse_args(argv)
+    try:
+        if args.command == "calibrate":
+            config = load_config(args.config, args.overrides)
+            if camera_settings(config, args.source, recalibrate=True) is None:
+                raise SystemExit("pathsense: calibrate needs a camera index, e.g. --source 0")
+            return
+        summary = run(args)
+    except (ConfigError, OSError) as error:
+        raise SystemExit(f"pathsense: {error}") from None
+    print(summary)
+    if args.save:
+        print(f"saved {args.save}")
 
 
 if __name__ == "__main__":

@@ -45,14 +45,28 @@ class TrackerConfig:
 
 
 @dataclass(frozen=True)
+class CameraConfig:
+    # Measure a new camera once and reuse the result (pathsense.io.camera). Off: OpenCV's
+    # defaults, e.g. raw 640x480.
+    calibrate: bool = True
+    max_width: int = 1280  # largest picture to consider; the detector shrinks to 640 anyway
+    fps: float = 30.0  # target frame rate
+    # Many webcams drop to 20 FPS in dim light to expose longer when this is on. False:
+    # steady FPS, darker picture. None: leave the camera's setting alone.
+    dynamic_framerate: bool | None = False
+    store: str | None = None  # None: ~/.config/pathsense/cameras.json
+
+
+@dataclass(frozen=True)
 class Config:
     detector: DetectorConfig = field(default_factory=DetectorConfig)
     tracker: TrackerConfig = field(default_factory=TrackerConfig)
+    camera: CameraConfig = field(default_factory=CameraConfig)
     # Phase 2 fills these in; kept as plain data until then.
     analytics: dict[str, Any] = field(default_factory=dict)
 
 
-SECTIONS = {"detector": DetectorConfig, "tracker": TrackerConfig}
+SECTIONS = {"detector": DetectorConfig, "tracker": TrackerConfig, "camera": CameraConfig}
 
 
 ##### Loading ##############################################################################

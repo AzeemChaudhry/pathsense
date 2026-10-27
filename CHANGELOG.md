@@ -8,6 +8,14 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ## [Unreleased]
 
+### Added
+
+- Webcam capture calibration: the first run with a new camera measures its best capture mode in
+  about 4 seconds and saves it in `~/.config/pathsense/cameras.json`; later runs recognise
+  the camera by its USB ids and reuse it. The test webcam goes from 640x480 to 1280x960 at
+  the same 30 FPS. `pathsense calibrate` and `pathsense run --recalibrate` measure again,
+  and a `camera` config section sets the target and turns capture calibration off.
+
 ### Security
 
 - Pillow upgraded from 12.3.0 to 13.0.0, which fixes 39 Dependabot alerts (5 critical,

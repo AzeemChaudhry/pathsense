@@ -118,3 +118,30 @@ This becomes the "Design decisions" section of the README.
   so the tracker, not the detector, is what drops them. Lowering the threshold tracks more
   people but also creates more IDs, which could be more ID switches. Tune both thresholds
   against MOT17 ground truth in Phase 3 rather than guessing here.
+
+### 2026-10-27: webcam capture modes and capture calibration
+- **Tried:** every capture mode of the test webcam through OpenCV, 2 s warm up then 3 to 4 s
+  of measuring, with `exposure_dynamic_framerate` on and off.
+- **Result:**
+
+  | Mode | Dynamic frame rate on (dim room) | Off |
+  | --- | --- | --- |
+  | YUYV 640x480 (OpenCV's default) | 20.0 | 30.2 |
+  | YUYV 1280x720 | 10.3 | not tried |
+  | MJPG 1280x720 | 19.7 | 30.0 |
+  | MJPG 1280x960 (calibration's pick) | | 30.5 |
+
+  Raw YUYV above 640x480 does not fit through USB 2 at full speed (the camera advertises
+  only 10 FPS for it). MJPG is compressed in the camera, so it reaches 30 FPS at 4 times
+  the pixels.
+  A first probe that also set `CAP_PROP_BUFFERSIZE=1` measured only 15.7 to 20 FPS with the
+  dynamic frame rate off. With one buffer the camera waits for each read before it can
+  capture the next frame. Without it, 30 FPS came back.
+  The camera returns to dynamic frame rate on by itself, so the setting has to be applied
+  at every launch.
+- **Decision:** added `pathsense.io.camera`. It runs a capture calibration once per camera, keyed by USB ids:
+  advertised modes up to 1280 wide, largest first, keeping the first one measured at 90 %
+  or more of 30 FPS. Controls are reapplied at every launch. Capture calibration takes 4 s on this
+  camera. Never set the buffer size to 1. A background capture thread is not added yet: it
+  only helps when the detector is slower than the camera (RF-DETR Nano at 38 ms against
+  33 ms per frame), not with YOLO26n at 8 to 20 ms.
