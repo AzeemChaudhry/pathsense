@@ -56,3 +56,16 @@ def test_bad_config_is_reported_before_the_source_is_opened(tmp_path):
 def test_missing_source_exits_with_a_message(tmp_path):
     with pytest.raises(SystemExit, match="Could not open video source"):
         main(["run", "--no-show", "--source", str(tmp_path / "missing.mp4")])
+
+
+def test_calibrate_needs_a_camera(tiny_video):
+    with pytest.raises(SystemExit, match="needs a camera index"):
+        main(["calibrate", "--source", str(tiny_video)])
+
+
+def test_files_are_never_calibrated(tiny_video):
+    from pathsense.cli import camera_settings
+    from pathsense.config import load_config
+
+    assert camera_settings(load_config(), str(tiny_video), recalibrate=True) is None
+    assert build_parser().parse_args(["run", "--recalibrate"]).recalibrate
