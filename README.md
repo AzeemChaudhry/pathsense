@@ -146,7 +146,8 @@ to 20 FPS in dim light, at the cost of a darker picture.
 
 Later runs recognise the camera by its USB vendor, product and serial number, reapply the
 saved settings (cameras forget their controls on replug), and skip the measuring. Changing
-a `camera.*` value recalibrates. Without `v4l2-ctl` (macOS, Windows, or Linux without
+a `camera.*` value recalibrates. Two identical webcams without a USB serial number share one
+entry, which is harmless because they support the same modes. Without `v4l2-ctl` (macOS, Windows, or Linux without
 `v4l-utils`) a few common modes are tried and the camera is recognised by its index only.
 
 Capture calibration picks how the camera delivers frames (format, size, frame rate). It
