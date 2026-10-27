@@ -73,6 +73,7 @@ uv run pathsense run --set detector.name=rfdetr-nano              # swap the det
 uv run pathsense run --set tracker.name=botsort                   # swap the tracker
 uv run pathsense run --config my.yaml --set detector.device=cpu   # own config file
 uv run pathsense run --source clip.mp4 --no-show --max-frames 300 # quick benchmark
+uv run pathsense calibrate                                        # re-measure webcam 0
 ```
 
 | Flag | Default | Meaning |
@@ -84,6 +85,7 @@ uv run pathsense run --source clip.mp4 --no-show --max-frames 300 # quick benchm
 | `--no-show` | off | run without a window (for example over SSH or for benchmarks) |
 | `--max-frames` | all | stop after this many frames |
 | `--trail` | `30` | trail length in frames |
+| `--recalibrate` | off | measure the webcam again before running |
 
 ### Configuration
 
@@ -99,6 +101,11 @@ swapping a model is one line, never a code change. Typos are errors, not silent 
 | `detector.device` | `auto` | `auto`, `cpu`, `cuda`, `0` |
 | `tracker.name` | `bytetrack` | `bytetrack`, `botsort`, `ocsort` |
 | `tracker.params` | `{}` | passed to the tracker, e.g. `{lost_track_buffer: 60}` |
+| `camera.calibrate` | `true` | capture calibration: measure a new webcam once and reuse the result |
+| `camera.max_width` | `1280` | largest picture to try |
+| `camera.fps` | `30` | target frame rate |
+| `camera.dynamic_framerate` | `false` | `false`: steady FPS in dim light; `null`: leave the camera's setting |
+| `camera.store` | `null` | capture calibration file; `null` is `~/.config/pathsense/cameras.json` |
 
 For a fixed camera, run BoT-SORT with `tracker.params={enable_cmc: false}`: its camera motion
 compensation costs 10 to 17 ms per 1080p frame and only helps when the camera moves.
@@ -120,13 +127,31 @@ with VideoSource("clip.mp4") as source:
 ### Webcam notes
 
 On a webcam the loop FPS is usually capped by the camera, so `detect_ms` is the number that
-measures the model. Many webcams lower their frame rate in dim light to expose longer (the
-test laptop drops from 30 to 20 FPS). On Linux you can check and turn this off:
+measures the model.
 
-```bash
-v4l2-ctl -d /dev/video0 --get-ctrl=exposure_dynamic_framerate
-v4l2-ctl -d /dev/video0 --set-ctrl=exposure_dynamic_framerate=0   # fixed 30 FPS, darker image
+The first run with a new webcam runs a **capture calibration**, which takes about 4 seconds:
+
 ```
+camera: AUKEY PC-W1: calibrating, a few seconds...
+  MJPG 1280x960: 30.5 FPS
+camera: AUKEY PC-W1: MJPG 1280x960 at 30.5 FPS, saved to ~/.config/pathsense/cameras.json
+```
+
+It lists the modes the camera advertises, then measures them from the largest picture down
+and keeps the first that really delivers the target FPS. Webcams default to raw 640x480,
+and raw frames at higher sizes do not fit through USB at full speed, so the winner is
+usually compressed MJPG. The test webcam goes from 640x480 to 1280x960 at the same 30 FPS.
+The capture calibration also turns off `exposure_dynamic_framerate`, which otherwise drops many webcams
+to 20 FPS in dim light, at the cost of a darker picture.
+
+Later runs recognise the camera by its USB vendor, product and serial number, reapply the
+saved settings (cameras forget their controls on replug), and skip the measuring. Changing
+a `camera.*` value recalibrates. Without `v4l2-ctl` (macOS, Windows, or Linux without
+`v4l-utils`) a few common modes are tried and the camera is recognised by its index only.
+
+Capture calibration picks how the camera delivers frames (format, size, frame rate). It
+is not geometric calibration (lens distortion, focal length, camera position), which
+PathSense does not need while it measures in pixels.
 
 Each track ID gets its own colour, so an ID switch shows up as a colour change. The tracker
 gets real capture timestamps, so it forgets a lost person after the same time whatever the
