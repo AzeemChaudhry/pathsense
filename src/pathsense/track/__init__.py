@@ -16,6 +16,8 @@ longer than `lost_track_buffer` comes back with a new ID (NOTES.md, Phase 0).
 
 from __future__ import annotations
 
+import inspect
+import warnings
 from typing import Any
 
 import numpy as np
@@ -33,12 +35,34 @@ TRACKERS = {
 USES_FRAME = {"botsort"}
 
 
+def accepted_params(name: str) -> set[str]:
+    return set(inspect.signature(TRACKERS[name].__init__).parameters) - {"self", "frame_rate"}
+
+
+def split_params(name: str, params: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """The params this tracker takes, and those only another tracker takes.
+
+    One config serves all trackers, so a setting such as `track_activation_threshold`
+    (ByteTrack and BoT-SORT only) must not break `tracker.name=ocsort`; it is skipped with
+    a warning. A name no tracker knows is a typo and stays an error.
+    """
+    known = set().union(*(accepted_params(n) for n in TRACKERS))
+    typos = sorted(set(params) - known)
+    if typos:
+        raise ConfigError(f"Unknown tracker params {typos}; known: {sorted(known)}")
+    ours = accepted_params(name)
+    return {k: v for k, v in params.items() if k in ours}, sorted(set(params) - ours)
+
+
 class Tracker:
     def __init__(self, name: str = "bytetrack", frame_rate: float = 30.0, **params: Any) -> None:
         """`frame_rate` scales the lost track budget; `params` go to the tracker class."""
         if name not in TRACKERS:
             raise ConfigError(f"Unknown tracker {name!r}; choose one of {sorted(TRACKERS)}")
         self.name = name
+        params, skipped = split_params(name, params)
+        if skipped:
+            warnings.warn(f"{name} does not use {skipped}; skipped", stacklevel=2)
         self._tracker = TRACKERS[name](frame_rate=frame_rate, **params)
 
     def update(

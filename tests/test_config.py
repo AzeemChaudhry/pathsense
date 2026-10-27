@@ -13,7 +13,8 @@ def test_default_file_loads_and_matches_code_defaults():
     config = load_config()
     assert DEFAULT_CONFIG.exists()
     assert config.detector == Config().detector  # "auto" device becomes None
-    assert config.tracker.name == "bytetrack" and config.tracker.params == {}
+    assert config.tracker.name == "bytetrack"
+    assert config.tracker.params == {"track_activation_threshold": 0.6}
 
 
 def test_one_override_swaps_the_detector_or_tracker():

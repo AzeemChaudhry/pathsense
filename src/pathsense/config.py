@@ -41,6 +41,7 @@ class DetectorConfig:
 class TrackerConfig:
     name: str = "bytetrack"  # a key of pathsense.track.TRACKERS
     # Extra keyword arguments for the tracker class, e.g. {lost_track_buffer: 60}.
+    # configs/default.yaml sets track_activation_threshold: 0.6 (ByteTrack's own is 0.7).
     params: dict[str, Any] = field(default_factory=dict)
 
 

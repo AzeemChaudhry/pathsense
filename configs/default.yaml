@@ -10,7 +10,10 @@ detector:
 
 tracker:
   name: bytetrack      # bytetrack | botsort | ocsort
-  params: {}           # extra tracker arguments, e.g. {lost_track_buffer: 60}
+  # Extra tracker arguments, e.g. lost_track_buffer: 60. A setting the chosen tracker does
+  # not take is skipped with a warning (OC-SORT has no activation threshold).
+  params:
+    track_activation_threshold: 0.6   # was 0.7: missed a person detected at 0.61 (NOTES.md)
 
 camera:                # webcams only; files and streams ignore this
   calibrate: true      # measure a new camera once, then reuse (~/.config/pathsense/cameras.json)

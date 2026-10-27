@@ -1,6 +1,7 @@
 """The pipeline end to end with a fake detector and the real tracker and video reader."""
 
 import numpy as np
+import pytest
 from conftest import detections
 
 from pathsense.annotate import Annotator
@@ -39,7 +40,8 @@ def test_pipeline_tracks_one_person_through_a_video(tiny_video):
 def test_from_config_builds_the_named_stages(monkeypatch):
     monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
     config = load_config(overrides=["detector.name=fake", "tracker.name=ocsort"])
-    pipeline = Pipeline.from_config(config, frame_rate=25)
+    with pytest.warns(UserWarning, match="ocsort does not use"):  # default config's setting
+        pipeline = Pipeline.from_config(config, frame_rate=25)
     assert pipeline.detector.name == "fake" and pipeline.tracker.name == "ocsort"
 
 
