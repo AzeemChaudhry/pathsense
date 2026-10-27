@@ -19,7 +19,6 @@ pathsense = "pathsense.cli:main"
 
 [project.optional-dependencies]
 rfdetr = ["rfdetr"]
-app = ["gradio>=6", "fastrtc"]
 data = ["huggingface_hub", "pillow", "roboflow", "fiftyone"]
 dev = ["pytest", "ruff", "pre-commit"]
 

@@ -10,6 +10,12 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Security
 
+- Pillow upgraded from 12.3.0 to 13.0.0, which fixes 39 Dependabot alerts (5 critical,
+  23 high). The unused `app` extra (Gradio, which requires Pillow below 13) is removed
+  until the fallback demo is built.
+- Remaining alerts: pymongo 4.9.2 and strawberry-graphql 0.316.0 come only from FiftyOne
+  in the `data` extra, whose latest release pins them. They are used only by the local
+  dataset downloader, never by the pipeline or a server.
 - `main` is protected by a ruleset: pull requests only, passing CI and signed commits
   required, no force pushes or deletion. Release tags can only be created, moved or
   deleted by the maintainer.
