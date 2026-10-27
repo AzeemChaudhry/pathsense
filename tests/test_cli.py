@@ -82,3 +82,83 @@ def test_calibrate_command_measures_the_camera_again(monkeypatch):
     )
     main(["calibrate", "--source", "1"])
     assert seen == [(1, True)]
+
+
+def test_run_passes_recalibrate_to_the_camera(monkeypatch, capsys):
+    import pathsense.cli as cli
+
+    seen = []
+
+    def fake_settings(config, source, recalibrate=False):
+        seen.append((source, recalibrate))
+        raise OSError("stop before opening a camera")
+
+    monkeypatch.setattr(cli, "camera_settings", fake_settings)
+    with pytest.raises(SystemExit, match="stop before"):
+        main(["run", "--no-show", "--recalibrate", "--source", "0"])
+    assert seen == [("0", True)]
+
+
+def test_recalibrate_on_a_file_says_it_is_ignored(monkeypatch, tiny_video, capsys):
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    main(["run", "--no-show", "--recalibrate", "--source", str(tiny_video),
+          "--set", "detector.name=fake"])  # fmt: skip
+    assert "only applies to cameras" in capsys.readouterr().out
+
+
+def test_calibrate_on_a_file_does_not_mention_recalibrate(tiny_video, capsys):
+    with pytest.raises(SystemExit, match="needs a camera index"):
+        main(["calibrate", "--source", str(tiny_video)])
+    assert "--recalibrate" not in capsys.readouterr().out
+
+
+def test_camera_size_check_uses_the_real_frame(capsys):
+    import numpy as np
+
+    from pathsense.cli import check_camera_size
+    from pathsense.io.camera import CameraSettings
+
+    calibrated = CameraSettings("MJPG", 1280, 960, 30, 30.0)
+    check_camera_size(np.zeros((960, 1280, 3), np.uint8), calibrated)
+    assert capsys.readouterr().out == ""  # the normal case: no warning
+    check_camera_size(np.zeros((480, 640, 3), np.uint8), calibrated)
+    assert "delivering 640x480, not the calibrated 1280x960" in capsys.readouterr().out
+
+
+def test_run_checks_the_camera_size_once_and_never_for_files(monkeypatch, tiny_video, capsys):
+    import numpy as np
+
+    import pathsense.cli as cli
+    from pathsense.io import source
+    from pathsense.io.camera import CameraSettings
+
+    class SmallCamera:  # accepts the calibrated mode but keeps delivering 640x480
+        def __init__(self, index):
+            self.left = 3
+
+        def isOpened(self):
+            return True
+
+        def set(self, prop, value):
+            pass
+
+        def get(self, prop):
+            return 30.0
+
+        def read(self):
+            self.left -= 1
+            return self.left >= 0, np.zeros((480, 640, 3), np.uint8)
+
+        def release(self):
+            pass
+
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    main(["run", "--no-show", "--source", str(tiny_video), "--set", "detector.name=fake"])
+    assert "delivering" not in capsys.readouterr().out
+
+    monkeypatch.setattr(source.cv2, "VideoCapture", SmallCamera)
+    calibrated = CameraSettings("MJPG", 1280, 960, 30, 30.0)
+    monkeypatch.setattr(cli, "camera_settings", lambda *a: calibrated)
+    main(["run", "--no-show", "--source", "0", "--set", "detector.name=fake"])
+    printed = capsys.readouterr().out
+    assert "frames=3 " in printed and printed.count("not the calibrated 1280x960") == 1

@@ -95,6 +95,18 @@ def camera_settings(config: Config, source: str, recalibrate: bool = False):
     return load_or_calibrate(index, request, CalibrationStore(cam.store), recalibrate)
 
 
+def check_camera_size(image, camera) -> None:
+    """Warn if the camera delivers another size than its calibration (same USB ids, but new
+    firmware or another driver). Uses a real frame: some backends report a stale size
+    before the first read."""
+    height, width = image.shape[:2]
+    if (width, height) != (camera.width, camera.height):
+        print(
+            f"camera: delivering {width}x{height}, not the calibrated "
+            f"{camera.width}x{camera.height}; run `pathsense calibrate` to measure again"
+        )
+
+
 def run(args: argparse.Namespace) -> Summary:
     # Heavy imports here, so `pathsense --help` and the tests of this module stay fast.
     import cv2
@@ -109,6 +121,8 @@ def run(args: argparse.Namespace) -> Summary:
     config = load_config(args.config, args.overrides)
     Pipeline.check(config)  # before the camera turns on or weights download
     camera = camera_settings(config, args.source, args.recalibrate)
+    if args.recalibrate and camera is None:
+        print("pathsense: --recalibrate only applies to cameras; ignored for this source")
     configure_qt()
 
     with VideoSource(args.source, camera=camera) as source:
@@ -121,6 +135,8 @@ def run(args: argparse.Namespace) -> Summary:
         try:
             for result in pipeline.run(source):
                 frames += 1
+                if frames == 1 and camera:
+                    check_camera_size(result.frame.image, camera)
                 detect_total += result.detect_ms
                 track_total += result.track_ms
                 ids.update(int(t) for t in result.tracked.tracker_id)

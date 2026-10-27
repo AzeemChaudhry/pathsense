@@ -14,7 +14,7 @@ not in a public issue. You will get a reply within a few days.
 | Release tags `v*` | Only the maintainer can create, move or delete them; releases are published only from signed, verified tags on `main` whose commit passed CI |
 | Pull requests from forks | Workflows run only after the maintainer approves them, never with repository secrets, and with a read only token |
 | `@claude` reviews | Triggered only by the owner or collaborators; runs with a read only token and no file editing tools, so it can comment but not push; the action is pinned to a commit |
-| GitHub Actions | Only GitHub's own actions plus `anthropics/claude-code-action` and `astral-sh/setup-uv` may run; the default token is read only |
+| GitHub Actions | Only GitHub's own actions plus `anthropics/claude-code-action`, `astral-sh/setup-uv` and `oven-sh/setup-bun` (pinned to the commit the Claude action uses) may run; the default token is read only |
 | Secrets | Stored as encrypted repository secrets, never in code; secret scanning with push protection blocks commits that contain credentials |
 | Dependencies | Locked in `uv.lock`; Dependabot alerts report known vulnerabilities |
 
