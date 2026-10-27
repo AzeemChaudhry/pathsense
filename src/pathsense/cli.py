@@ -89,6 +89,8 @@ def camera_settings(config: Config, source: str, recalibrate: bool = False):
 
     index = parse_source(source)
     cam = config.camera
+    if recalibrate and not isinstance(index, int):
+        print("pathsense: --recalibrate only applies to cameras; ignored for this source")
     if not isinstance(index, int) or not (cam.calibrate or recalibrate):
         return None
     request = camera_request(cam.max_width, cam.fps, cam.dynamic_framerate)
@@ -112,6 +114,12 @@ def run(args: argparse.Namespace) -> Summary:
     configure_qt()
 
     with VideoSource(args.source, camera=camera) as source:
+        if camera and source.size != (camera.width, camera.height):
+            # Same USB ids, different behaviour (new firmware, another driver): say so.
+            print(
+                f"camera: delivering {source.size[0]}x{source.size[1]}, not the calibrated "
+                f"{camera.width}x{camera.height}; run `pathsense calibrate` to measure again"
+            )
         pipeline = Pipeline.from_config(config, frame_rate=source.fps)
         annotator = Annotator(trail_length=args.trail)
         writer = RealTimeVideoWriter(args.save, source.fps) if args.save else None

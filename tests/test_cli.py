@@ -82,3 +82,62 @@ def test_calibrate_command_measures_the_camera_again(monkeypatch):
     )
     main(["calibrate", "--source", "1"])
     assert seen == [(1, True)]
+
+
+def test_run_passes_recalibrate_to_the_camera(monkeypatch, capsys):
+    import pathsense.cli as cli
+
+    seen = []
+
+    def fake_settings(config, source, recalibrate=False):
+        seen.append((source, recalibrate))
+        raise OSError("stop before opening a camera")
+
+    monkeypatch.setattr(cli, "camera_settings", fake_settings)
+    with pytest.raises(SystemExit, match="stop before"):
+        main(["run", "--no-show", "--recalibrate", "--source", "0"])
+    assert seen == [("0", True)]
+
+
+def test_recalibrate_on_a_file_says_it_is_ignored(capsys, tiny_video):
+    from pathsense.cli import camera_settings
+    from pathsense.config import load_config
+
+    assert camera_settings(load_config(), str(tiny_video), recalibrate=True) is None
+    assert "only applies to cameras" in capsys.readouterr().out
+
+
+def test_run_warns_when_the_camera_ignores_its_calibration(monkeypatch, capsys):
+    import pathsense.cli as cli
+    from pathsense.io import camera as cam
+    from pathsense.io import source
+
+    class SmallCamera:  # accepts the requests but keeps delivering 640x480
+        def __init__(self, index):
+            pass
+
+        def isOpened(self):
+            return True
+
+        def set(self, prop, value):
+            pass
+
+        def get(self, prop):
+            return {
+                source.cv2.CAP_PROP_FRAME_WIDTH: 640,
+                source.cv2.CAP_PROP_FRAME_HEIGHT: 480,
+            }.get(prop, 30.0)
+
+        def read(self):
+            return False, None
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(source.cv2, "VideoCapture", SmallCamera)
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    monkeypatch.setattr(
+        cli, "camera_settings", lambda *a: cam.CameraSettings("MJPG", 1280, 960, 30, 30.0)
+    )
+    main(["run", "--no-show", "--source", "0", "--set", "detector.name=fake"])
+    assert "not the calibrated 1280x960" in capsys.readouterr().out

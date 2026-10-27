@@ -358,3 +358,89 @@ def test_video_source_applies_camera_settings(monkeypatch):
         cv2.CAP_PROP_FRAME_HEIGHT,
         cv2.CAP_PROP_FPS,
     ]
+
+
+##### Second review: fallbacks, logging and edge cases ####################################
+
+
+def test_stepwise_only_camera_falls_back_and_says_why(fake_v4l2):
+    fake_v4l2.replies["--list-formats-ext"] = (
+        "\t[0]: 'YUYV' (YUYV 4:2:2)\n\t\tSize: Stepwise 160x120 - 1920x1080 with step 8/8\n"
+    )
+    lines = []
+    assert list_modes(0, lines.append) == [Mode(*m) for m in camera.FALLBACK_MODES]
+    assert "no fixed YUYV or MJPG sizes" in lines[0]
+
+
+def test_failed_mode_listing_says_so(fake_v4l2):
+    fake_v4l2.replies["--list-formats-ext"] = "FAIL"
+    lines = []
+    list_modes(0, lines.append)
+    assert "could not list" in lines[0]
+
+
+def test_set_controls_says_so_when_the_controls_cannot_be_read(fake_v4l2):
+    fake_v4l2.replies["--list-ctrls"] = "FAIL"
+    lines = []
+    assert set_controls(0, {"exposure_dynamic_framerate": 0}, lines.append) == {}
+    assert "could not read camera controls" in lines[0]
+    assert not any(call[0] == "--set-ctrl" for call in fake_v4l2.calls)
+
+
+def test_calibrate_aims_at_what_the_camera_claims_and_saves_that_target():
+    measured = []
+    slow = Mode("MJPG", 1280, 720, 15.0)
+    settings = calibrate(
+        0, fps=30, modes=[slow], measure=lambda i, m, f: measured.append(f) or 15.0, log=quiet
+    )
+    assert measured == [15.0] and settings.fps == 15.0
+
+
+def test_measure_gives_up_after_a_second_without_frames(monkeypatch):
+    cap = FakeCapture(fail_first=10**9)
+    released = []
+    cap.release = lambda: released.append(True)
+    monkeypatch.setattr(camera.cv2, "VideoCapture", lambda index: cap)
+    clock = iter(range(100))  # each call is one second later
+    monkeypatch.setattr(camera.time, "perf_counter", lambda: next(clock))
+    assert measure(0, MJPG_720, fps=30) == 0.0 and released == [True]
+
+
+def test_measure_divides_by_the_elapsed_time(monkeypatch):
+    monkeypatch.setattr(camera.cv2, "VideoCapture", lambda index: FakeCapture())
+    ticks = iter([0.0, 0.0, 0.0, 10.0, 10.0, 10.5, 11.0, 12.5, 12.5])
+    monkeypatch.setattr(camera.time, "perf_counter", lambda: next(ticks))
+    # Start 0, first read ok, warm up ends at 10; frames read at 10.5 and 11, the loop ends
+    # at 12.5: 2 frames over 2.5 s, not over the nominal 2 s.
+    assert measure(0, MJPG_720, fps=30, warmup=1.0, seconds=2.0) == pytest.approx(0.8)
+
+
+def test_slow_saved_calibration_warns_on_every_launch(monkeypatch, tmp_path):
+    monkeypatch.setattr(camera, "identify", lambda index: CameraIdentity("usb-a", "Cam A"))
+    monkeypatch.setattr(camera, "set_controls", lambda i, c, log: {})
+    store = CalibrationStore(tmp_path / "c.json")
+    store.put(CameraIdentity("usb-a", "Cam A"), REQUEST, CameraSettings("YUYV", 640, 480, 30, 20.0))
+    lines = []
+    load_or_calibrate(0, REQUEST, store, log=lines.append)
+    assert "saved calibration" in lines[0] and "pathsense calibrate" in lines[-1]
+
+
+def test_failed_save_leaves_no_temporary_file(tmp_path, monkeypatch):
+    store = CalibrationStore(tmp_path / "cameras.json")
+
+    def fail(src, dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(camera.os, "replace", fail)
+    with pytest.raises(OSError, match="disk full"):
+        store.put(CameraIdentity("usb-a", "Cam A"), REQUEST, SETTINGS)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_video_source_reports_the_size_the_camera_agreed_to(monkeypatch):
+    from pathsense.io import source
+
+    cap = FakeCapture()
+    monkeypatch.setattr(source.cv2, "VideoCapture", lambda index: cap)
+    with source.VideoSource("0", camera=CameraSettings("MJPG", 1280, 720, 30, 29.8)) as src:
+        assert src.size == (1280, 720)

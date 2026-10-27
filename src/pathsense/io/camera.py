@@ -121,9 +121,13 @@ def parse_modes(text: str) -> list[Mode]:
 
 def list_modes(index: int, log: Callable[[str], None] = print) -> list[Mode]:
     if shutil.which("v4l2-ctl"):
-        if modes := parse_modes(_v4l2(index, "--list-formats-ext") or ""):
+        out = _v4l2(index, "--list-formats-ext")
+        if out is None:
+            log("  v4l2-ctl could not list the camera's modes; trying common ones")
+        elif modes := parse_modes(out):
             return modes
-        log("  v4l2-ctl listed no usable modes; trying common ones")
+        else:  # e.g. only Stepwise sizes, or only formats OpenCV cannot decode
+            log("  the camera lists no fixed YUYV or MJPG sizes; trying common ones")
     return [Mode(*mode) for mode in FALLBACK_MODES]
 
 
@@ -156,7 +160,10 @@ def set_controls(
     if not shutil.which("v4l2-ctl"):
         log(f"  v4l2-ctl not found; camera controls left as they are ({controls})")
         return {}
-    has = _v4l2(index, "--list-ctrls") or ""
+    has = _v4l2(index, "--list-ctrls")
+    if has is None:
+        log(f"  could not read camera controls; left as they are ({controls})")
+        return {}
     wanted = {k: v for k, v in controls.items() if re.search(rf"^\s*{k}\s", has, re.M)}
     settings = ",".join(f"{k}={v}" for k, v in wanted.items())
     if wanted and _v4l2(index, "--set-ctrl", settings) is None:
@@ -232,7 +239,7 @@ def calibrate(
     tries = candidates(modes, max_width, fps)
     if not tries:
         found = ", ".join(f"{m.width}x{m.height}" for m in modes)
-        raise OSError(f"Camera {index} has no mode up to width {max_width} (found {found})")
+        raise OSError(f"Camera {index}: no mode up to width {max_width} among {found}")
     target = target_fps(modes, max_width, fps)
     best: tuple[Mode, float] | None = None
     for mode in tries[:MAX_TRIES]:
@@ -302,8 +309,11 @@ class CalibrationStore:
         data = {"version": STORE_VERSION, "cameras": cameras}
         # Write a temporary file, then swap it in: a crash never leaves half a file.
         tmp = self.path.with_name(f"{self.path.name}.{os.getpid()}.tmp")
-        tmp.write_text(json.dumps(data, indent=2) + "\n")
-        os.replace(tmp, self.path)
+        try:
+            tmp.write_text(json.dumps(data, indent=2) + "\n")
+            os.replace(tmp, self.path)
+        finally:
+            tmp.unlink(missing_ok=True)  # gone after a successful replace; cleanup otherwise
 
 
 ##### Load or calibrate ####################################################################
