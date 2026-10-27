@@ -156,7 +156,7 @@ pathsense/
     cli.py        The `pathsense` command
     analytics/    Line counts, zones, dwell time, heatmap (Phase 2)
   web/            Browser app for the Static Space (Phase 5 and 6)
-  app/            Gradio fallback demo for browsers without WebGPU or WASM speed
+  app/            Placeholder for an optional Gradio fallback demo (not built yet)
   configs/        YAML configs (model, tracker, zones)
   eval/           TrackEval scripts and MOT format export
   train/          Data download and fine tuning
