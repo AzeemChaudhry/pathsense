@@ -69,3 +69,16 @@ def test_files_are_never_calibrated(tiny_video):
 
     assert camera_settings(load_config(), str(tiny_video), recalibrate=True) is None
     assert build_parser().parse_args(["run", "--recalibrate"]).recalibrate
+
+
+def test_calibrate_command_measures_the_camera_again(monkeypatch):
+    from pathsense.io import camera
+
+    seen = []
+    monkeypatch.setattr(
+        camera,
+        "load_or_calibrate",
+        lambda index, request, store, recalibrate: seen.append((index, recalibrate)) or object(),
+    )
+    main(["calibrate", "--source", "1"])
+    assert seen == [(1, True)]

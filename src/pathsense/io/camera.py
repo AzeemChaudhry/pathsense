@@ -119,48 +119,64 @@ def parse_modes(text: str) -> list[Mode]:
     return modes
 
 
-def list_modes(index: int) -> list[Mode]:
+def list_modes(index: int, log: Callable[[str], None] = print) -> list[Mode]:
     if shutil.which("v4l2-ctl"):
-        out = _v4l2(index, "--list-formats-ext")
-        if modes := parse_modes(out):
+        if modes := parse_modes(_v4l2(index, "--list-formats-ext") or ""):
             return modes
+        log("  v4l2-ctl listed no usable modes; trying common ones")
     return [Mode(*mode) for mode in FALLBACK_MODES]
+
+
+def target_fps(modes: list[Mode], max_width: int, fps: float) -> float:
+    """The FPS to aim for: the request, or less if no mode that fits claims that much."""
+    return min(fps, max((m.fps for m in modes if m.width <= max_width), default=fps))
 
 
 def candidates(modes: list[Mode], max_width: int, fps: float) -> list[Mode]:
     """Modes worth measuring, largest picture first.
 
     Only sizes up to `max_width` (the detector shrinks frames to 640 anyway, so more is
-    wasted decode time) and only modes that claim the target FPS. At equal size, YUYV comes
-    first: it needs no JPEG decoding.
+    wasted decode time) and only modes that claim about the target FPS (29.97 counts as
+    30). At equal size, YUYV comes first: it needs no JPEG decoding.
     """
-    target = min(fps, max((m.fps for m in modes), default=fps))
-    fit = [m for m in modes if m.width <= max_width and m.fps >= target]
+    target = target_fps(modes, max_width, fps)
+    fit = [m for m in modes if m.width <= max_width and m.fps >= 0.9 * target]
     return sorted(fit, key=lambda m: (-m.width * m.height, FORMATS.index(m.fourcc)))
 
 
 ##### Camera controls ######################################################################
 
 
-def set_controls(index: int, controls: dict[str, int]) -> dict[str, int]:
-    """Set v4l2 controls the camera has; returns the ones that were set."""
-    if not controls or not shutil.which("v4l2-ctl"):
+def set_controls(
+    index: int, controls: dict[str, int], log: Callable[[str], None] = print
+) -> dict[str, int]:
+    """Set the v4l2 controls the camera has; returns the ones that were really set."""
+    if not controls:
         return {}
-    has = _v4l2(index, "--list-ctrls")
-    applied = {k: v for k, v in controls.items() if re.search(rf"^\s*{k}\s", has, re.M)}
-    if applied:
-        _v4l2(index, "--set-ctrl", ",".join(f"{k}={v}" for k, v in applied.items()))
-    return applied
+    if not shutil.which("v4l2-ctl"):
+        log(f"  v4l2-ctl not found; camera controls left as they are ({controls})")
+        return {}
+    has = _v4l2(index, "--list-ctrls") or ""
+    wanted = {k: v for k, v in controls.items() if re.search(rf"^\s*{k}\s", has, re.M)}
+    settings = ",".join(f"{k}={v}" for k, v in wanted.items())
+    if wanted and _v4l2(index, "--set-ctrl", settings) is None:
+        log(f"  could not set camera controls ({settings})")
+        return {}
+    return wanted
 
 
-def _v4l2(index: int, *args: str) -> str:
-    result = subprocess.run(
-        ["v4l2-ctl", "-d", f"/dev/video{index}", *args],
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    return result.stdout
+def _v4l2(index: int, *args: str) -> str | None:
+    """stdout of a v4l2-ctl call, or None if it failed or hung."""
+    try:
+        result = subprocess.run(
+            ["v4l2-ctl", "-d", f"/dev/video{index}", *args],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return result.stdout if result.returncode == 0 else None
 
 
 ##### Measure ##############################################################################
@@ -175,23 +191,25 @@ def apply_mode(cap: cv2.VideoCapture, fourcc: str, width: int, height: int, fps:
     # Do not set CAP_PROP_BUFFERSIZE to 1: on this webcam it cut 30 FPS to 16 (NOTES.md).
 
 
-def measure(index: int, mode: Mode, warmup: float = 1.5, seconds: float = 2.0) -> float:
-    """Frames per second the camera really delivers in this mode; 0 if it refuses it."""
+def measure(index: int, mode: Mode, fps: float, warmup: float = 1.5, seconds: float = 2.0) -> float:
+    """Frames per second the camera really delivers in this mode, asked for `fps` (the same
+    request VideoSource makes later); 0 if it refuses the mode."""
     cap = cv2.VideoCapture(index)
     try:
         if not cap.isOpened():
             return 0.0
-        apply_mode(cap, mode.fourcc, mode.width, mode.height, mode.fps)
-        ok, image = cap.read()
+        apply_mode(cap, mode.fourcc, mode.width, mode.height, fps)
+        start, ok = time.perf_counter(), False
+        while not ok and time.perf_counter() - start < 1.0:  # some need a moment after a switch
+            ok, image = cap.read()
         if not ok or image.shape[:2] != (mode.height, mode.width):
-            return 0.0  # silently gave another size
-        start = time.perf_counter()
+            return 0.0  # no frames, or silently another size
         while time.perf_counter() - start < warmup:  # exposure settles in the first second
             cap.read()
         frames, start = 0, time.perf_counter()
         while time.perf_counter() - start < seconds:
             frames += cap.read()[0]
-        return frames / seconds
+        return frames / (time.perf_counter() - start)
     finally:
         cap.release()
 
@@ -204,19 +222,21 @@ def calibrate(
     max_width: int = 1280,
     fps: float = 30.0,
     controls: dict[str, int] | None = None,
-    measure: Callable[[int, Mode], float] = measure,
+    measure: Callable[[int, Mode, float], float] = measure,
     modes: list[Mode] | None = None,
     log: Callable[[str], None] = print,
 ) -> CameraSettings:
     """The largest mode that delivers at least 90 % of the target FPS, else the fastest."""
-    applied = set_controls(index, controls or {})
-    tries = candidates(modes if modes is not None else list_modes(index), max_width, fps)
+    applied = set_controls(index, controls or {}, log)
+    modes = modes if modes is not None else list_modes(index, log)
+    tries = candidates(modes, max_width, fps)
     if not tries:
-        raise OSError(f"Camera {index} advertises no usable mode up to width {max_width}")
-    target = min(fps, max(m.fps for m in tries))
+        found = ", ".join(f"{m.width}x{m.height}" for m in modes)
+        raise OSError(f"Camera {index} has no mode up to width {max_width} (found {found})")
+    target = target_fps(modes, max_width, fps)
     best: tuple[Mode, float] | None = None
     for mode in tries[:MAX_TRIES]:
-        got = measure(index, mode)
+        got = measure(index, mode, target)
         log(f"  {mode.fourcc} {mode.width}x{mode.height}: {got:.1f} FPS")
         if best is None or got > best[1]:
             best = (mode, got)
@@ -249,21 +269,28 @@ class CalibrationStore:
             return {}  # missing or damaged: calibrate again rather than fail
         if not isinstance(data, dict) or data.get("version") != STORE_VERSION:
             return {}
-        return data.get("cameras", {})
+        cameras = data.get("cameras")
+        return cameras if isinstance(cameras, dict) else {}
 
     def get(self, key: str, request: dict[str, Any]) -> CameraSettings | None:
         """Saved settings for this camera, if they were made for the same request."""
         entry = self._read().get(key)
-        if not entry or entry.get("request") != request:
+        if not isinstance(entry, dict) or entry.get("request") != request:
             return None
         try:
-            return CameraSettings(**entry["settings"])
+            settings = CameraSettings(**entry["settings"])
         except (KeyError, TypeError):
             return None
+        valid = isinstance(settings.controls, dict) and all(
+            isinstance(v, (int, float)) and not isinstance(v, bool)
+            for v in (settings.width, settings.height, settings.fps, settings.measured_fps)
+        )
+        return settings if valid and settings.fourcc in FORMATS else None
 
     def put(
         self, camera: CameraIdentity, request: dict[str, Any], settings: CameraSettings
     ) -> None:
+        """Save one camera, keeping the others. Raises OSError if the file cannot be written."""
         cameras = self._read()
         cameras[camera.key] = {
             "name": camera.name,
@@ -273,7 +300,10 @@ class CalibrationStore:
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
         data = {"version": STORE_VERSION, "cameras": cameras}
-        self.path.write_text(json.dumps(data, indent=2) + "\n")
+        # Write a temporary file, then swap it in: a crash never leaves half a file.
+        tmp = self.path.with_name(f"{self.path.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(data, indent=2) + "\n")
+        os.replace(tmp, self.path)
 
 
 ##### Load or calibrate ####################################################################
@@ -297,11 +327,26 @@ def load_or_calibrate(
     camera = identify(index)
     saved = None if recalibrate else store.get(camera.key, request)
     if saved:
-        set_controls(index, saved.controls)  # cameras forget controls on reset or replug
+        # The requested controls, not only the saved ones: if v4l2-ctl was missing at
+        # calibration and is installed now, they get set. Cameras forget them on replug.
+        set_controls(index, request["controls"], log)
         log(f"camera: {camera.name}: saved calibration, {saved.describe()}")
+        _warn_if_slow(saved, log)
         return saved
     log(f"camera: {camera.name}: calibrating, a few seconds...")
     settings = calibrate(index, request["max_width"], request["fps"], request["controls"], log=log)
-    store.put(camera, request, settings)
-    log(f"camera: {camera.name}: {settings.describe()}, saved to {store.path}")
+    try:
+        store.put(camera, request, settings)
+        log(f"camera: {camera.name}: {settings.describe()}, saved to {store.path}")
+    except OSError as error:  # the settings are still good for this run
+        log(f"camera: {camera.name}: {settings.describe()}, not saved ({error})")
+    _warn_if_slow(settings, log)
     return settings
+
+
+def _warn_if_slow(settings: CameraSettings, log: Callable[[str], None]) -> None:
+    if settings.measured_fps < 0.9 * settings.fps:
+        log(
+            f"camera: below the {settings.fps:g} FPS target (dim light, or the camera was "
+            "busy?); run `pathsense calibrate` to measure again"
+        )
