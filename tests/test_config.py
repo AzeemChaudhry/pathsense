@@ -73,3 +73,23 @@ def test_camera_section_defaults_and_overrides():
     assert config.camera.calibrate and config.camera.dynamic_framerate is False
     config = load_config(overrides=["camera.max_width=640", "camera.dynamic_framerate=null"])
     assert config.camera.max_width == 640 and config.camera.dynamic_framerate is None
+
+
+def test_analytics_line_is_read_and_checked():
+    assert load_config().analytics.line is None  # off by default
+    config = load_config(overrides=["analytics.line=[[0, 675], [1920, 675]]"])
+    assert config.analytics.line == ((0.0, 675.0), (1920.0, 675.0))
+    assert config.analytics.line_margin == 5
+
+
+@pytest.mark.parametrize(
+    "value", ["[[0, 675]]", "[[0, 675], [1920]]", "[[a, 1], [2, 3]]", "[[5, 5], [5, 5]]", "7"]
+)
+def test_bad_lines_are_config_errors(value):
+    with pytest.raises(ConfigError, match="analytics.line"):
+        load_config(overrides=[f"analytics.line={value}"])
+
+
+def test_analytics_typos_are_errors_now():
+    with pytest.raises(ConfigError, match=r"Unknown keys in \[analytics\]"):
+        load_config(overrides=["analytics.lien=[[0, 1], [2, 3]]"])

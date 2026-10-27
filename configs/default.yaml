@@ -22,6 +22,10 @@ camera:                # webcams only; files and streams ignore this
   dynamic_framerate: false   # false: steady FPS in dim light, darker picture; null: leave as is
   store: null          # null: default capture calibration file
 
-analytics:             # Phase 2
-  line: null           # [[x1, y1], [x2, y2]] in pixels
-  zones: []            # list of polygons
+analytics:
+  # Counting line in pixels, e.g. [[0, 675], [1920, 675]]. Standing on the first point
+  # looking at the second, crossing from your left to your right is "enter": for a line
+  # drawn left to right, walking down the image (towards the camera) enters.
+  line: null           # null: no line counting
+  line_margin: 5       # feet closer than this many pixels to the line do not change side
+  zones: []            # list of polygons (next Phase 2 piece)

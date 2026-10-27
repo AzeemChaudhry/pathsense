@@ -58,16 +58,48 @@ class CameraConfig:
     store: str | None = None  # None: ~/.config/pathsense/cameras.json
 
 
+Line = tuple[tuple[float, float], tuple[float, float]]
+
+
+@dataclass(frozen=True)
+class AnalyticsConfig:
+    # Counting line in pixels, [[x1, y1], [x2, y2]]. Standing on the first point looking at
+    # the second, crossing from your left to your right is "enter" (pathsense.analytics.line).
+    line: Line | None = None
+    line_margin: float = 5.0  # feet closer than this to the line do not change side
+    zones: list[Any] = field(default_factory=list)  # Phase 2, next piece
+
+    def __post_init__(self) -> None:
+        if self.line is not None:
+            object.__setattr__(self, "line", parse_line(self.line))
+
+
+def parse_line(value: Any) -> Line:
+    """[[x1, y1], [x2, y2]] -> ((x1, y1), (x2, y2)); anything else is a ConfigError."""
+    try:
+        (x1, y1), (x2, y2) = value
+        line = ((float(x1), float(y1)), (float(x2), float(y2)))
+    except (TypeError, ValueError):
+        raise ConfigError(f"analytics.line must be [[x1, y1], [x2, y2]], got {value!r}") from None
+    if line[0] == line[1]:
+        raise ConfigError(f"analytics.line needs two different points, got {value!r}")
+    return line
+
+
 @dataclass(frozen=True)
 class Config:
     detector: DetectorConfig = field(default_factory=DetectorConfig)
     tracker: TrackerConfig = field(default_factory=TrackerConfig)
     camera: CameraConfig = field(default_factory=CameraConfig)
-    # Phase 2 fills these in; kept as plain data until then.
-    analytics: dict[str, Any] = field(default_factory=dict)
+    analytics: AnalyticsConfig = field(default_factory=AnalyticsConfig)
 
 
-SECTIONS = {"detector": DetectorConfig, "tracker": TrackerConfig, "camera": CameraConfig}
+SECTIONS = {
+    "detector": DetectorConfig,
+    "tracker": TrackerConfig,
+    "camera": CameraConfig,
+    "analytics": AnalyticsConfig,
+}
 
 
 ##### Loading ##############################################################################
@@ -105,7 +137,7 @@ def from_dict(raw: dict[str, Any]) -> Config:
     unknown = set(raw) - {f.name for f in fields(Config)}
     if unknown:
         raise ConfigError(f"Unknown config sections: {sorted(unknown)}")
-    config = Config(analytics=raw.get("analytics") or {})
+    config = Config()
     for section, cls in SECTIONS.items():
         values = raw.get(section) or {}
         if not isinstance(values, dict):

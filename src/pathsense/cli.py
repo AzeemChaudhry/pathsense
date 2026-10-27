@@ -36,6 +36,8 @@ class Summary:
     detect_ms: float  # mean per frame
     track_ms: float
     unique_ids: int
+    line_in: int | None = None  # set when analytics.line is configured
+    line_out: int | None = None
 
     @property
     def fps(self) -> float:
@@ -47,7 +49,7 @@ class Summary:
             f"seconds={self.seconds:.1f} mean_fps={self.fps:.1f} "
             f"detect_ms={self.detect_ms:.1f} track_ms={self.track_ms:.1f} "
             f"unique_ids={self.unique_ids}"
-        )
+        ) + (f" in={self.line_in} out={self.line_out}" if self.line_in is not None else "")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -111,7 +113,7 @@ def run(args: argparse.Namespace) -> Summary:
     # Heavy imports here, so `pathsense --help` and the tests of this module stay fast.
     import cv2
 
-    from pathsense.annotate import Annotator
+    from pathsense.annotate import Annotator, draw_line
     from pathsense.config import load_config
     from pathsense.io import RealTimeVideoWriter, VideoSource
     from pathsense.io.display import configure_qt
@@ -132,6 +134,7 @@ def run(args: argparse.Namespace) -> Summary:
         loop_fps, detect_fps = FpsMeter(), FpsMeter()
         frames, detect_total, track_total, ids = 0, 0.0, 0.0, set()
         started = last = time.perf_counter()
+        counter, flash_until = pipeline.line_counter, -1.0
         try:
             for result in pipeline.run(source):
                 frames += 1
@@ -151,6 +154,13 @@ def run(args: argparse.Namespace) -> Summary:
                         f"people {len(result.tracked)}"
                     )
                     image = annotator.draw(result.frame.image, result.tracked, stats)
+                    if counter:
+                        if result.events:  # keep the line green for half a second
+                            flash_until = result.frame.timestamp + 0.5
+                        flash = result.frame.timestamp <= flash_until
+                        draw_line(
+                            image, config.analytics.line, counter.entered, counter.exited, flash
+                        )
                     if writer:
                         writer.write(image, result.frame.timestamp)
                     if not args.no_show:
@@ -176,6 +186,8 @@ def run(args: argparse.Namespace) -> Summary:
         detect_ms=detect_total / frames if frames else 0.0,
         track_ms=track_total / frames if frames else 0.0,
         unique_ids=len(ids),
+        line_in=counter.entered if counter else None,
+        line_out=counter.exited if counter else None,
     )
 
 

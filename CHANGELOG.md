@@ -10,6 +10,12 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Added
 
+- Line counting: `analytics.line` in the config counts people crossing it in each
+  direction. The window shows the line and IN and OUT totals, and the summary line ends
+  with `in=… out=…`. Each crossing is an event with time, frame and track ID, the start
+  of the Phase 2 event log. On the sample clip it matches a hand count (11 in, 7 out).
+- `PATHSENSE_CAMERA=1 uv run pytest tests/test_live_camera.py -s`: a manual webcam test
+  that passes when someone crosses a line within a minute.
 - Webcam capture calibration: the first run with a new camera measures its best capture mode in
   about 4 seconds and saves it in `~/.config/pathsense/cameras.json`; later runs recognise
   the camera by its USB ids and reuse it. The test webcam goes from 640x480 to 1280x960 at
@@ -36,6 +42,12 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Changed
 
+- Tracks now start at 0.6 detector confidence instead of ByteTrack's 0.7
+  (`tracker.params.track_activation_threshold`), which missed a person crossing the line
+  at 0.61. Tracker settings that only another tracker takes are skipped with a warning,
+  so `tracker.name=ocsort` still works; unknown names are still errors.
+- The `analytics` config section is checked like the others: unknown keys and malformed
+  lines are errors.
 - `CLAUDE.md` is no longer part of the repository (it holds local assistant
   instructions). The project rules it contained now live in `docs/DEVELOPMENT.md`.
 - `docs/PLAN.md` is now a public roadmap: pitch, architecture, phases, gates and status.

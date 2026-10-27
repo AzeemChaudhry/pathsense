@@ -162,3 +162,21 @@ def test_run_checks_the_camera_size_once_and_never_for_files(monkeypatch, tiny_v
     main(["run", "--no-show", "--source", "0", "--set", "detector.name=fake"])
     printed = capsys.readouterr().out
     assert "frames=3 " in printed and printed.count("not the calibrated 1280x960") == 1
+
+
+def test_summary_adds_line_counts_only_when_a_line_is_set():
+    plain = Summary("yolo26n", "bytetrack", 100, 5.0, 8.4, 0.6, 3)
+    assert " in=" not in str(plain)
+    counted = Summary("yolo26n", "bytetrack", 100, 5.0, 8.4, 0.6, 3, line_in=11, line_out=7)
+    assert str(counted).endswith("unique_ids=3 in=11 out=7")
+
+
+def test_run_with_a_line_counts_and_draws(monkeypatch, tiny_video, tmp_path, capsys):
+    # The fake walks right across a vertical line at x = 25 drawn bottom to top: one enter.
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    out = tmp_path / "out.mp4"
+    line = "analytics.line=[[25, 48], [25, 0]]"
+    main(["run", "--source", str(tiny_video), "--no-show", "--save", str(out),
+          "--set", "detector.name=fake", "--set", line])  # fmt: skip
+    assert capsys.readouterr().out.splitlines()[0].endswith("in=1 out=0")
+    assert out.stat().st_size > 0

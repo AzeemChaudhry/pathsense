@@ -74,6 +74,7 @@ uv run pathsense run --set tracker.name=botsort                   # swap the tra
 uv run pathsense run --config my.yaml --set detector.device=cpu   # own config file
 uv run pathsense run --source clip.mp4 --no-show --max-frames 300 # quick benchmark
 uv run pathsense calibrate                                        # re-measure webcam 0
+uv run pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]]"  # count crossings
 ```
 
 | Flag | Default | Meaning |
@@ -100,7 +101,9 @@ swapping a model is one line, never a code change. Typos are errors, not silent 
 | `detector.conf` | `0.1` | kept low so ByteTrack can use low confidence boxes |
 | `detector.device` | `auto` | `auto`, `cpu`, `cuda`, `0` |
 | `tracker.name` | `bytetrack` | `bytetrack`, `botsort`, `ocsort` |
-| `tracker.params` | `{}` | passed to the tracker, e.g. `{lost_track_buffer: 60}` |
+| `tracker.params` | `{track_activation_threshold: 0.6}` | passed to the tracker, e.g. `{lost_track_buffer: 60}`; a setting the chosen tracker does not take is skipped with a warning |
+| `analytics.line` | `null` | counting line `[[x1, y1], [x2, y2]]` in pixels; crossing from left to right of start to end is IN |
+| `analytics.line_margin` | `5` | feet closer than this many pixels to the line do not change side |
 | `camera.calibrate` | `true` | capture calibration: measure a new webcam once and reuse the result |
 | `camera.max_width` | `1280` | largest picture to try |
 | `camera.fps` | `30` | target frame rate |
