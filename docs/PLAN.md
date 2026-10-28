@@ -73,7 +73,7 @@ Each phase has one gate. Do not start the next phase until the gate passes.
 | 0 | **Webcam baseline** in Python: YOLO26n + ByteTrack, IDs and trails on screen | Stable ID on a 15 s recording; FPS and two failures logged in NOTES.md |
 | 1 | Pipeline package: `Detector` protocol, YOLO26 and RF-DETR adapters, tracker wrapper, frame sources, tests | Swap detector or tracker with one config line |
 | 2 | Analytics + **event log**: line crossings, zones, dwell, heatmap; events as JSON lines (`enter`, `exit`, `zone_enter`, `zone_exit`, `dwell`) with track ID and timestamp | Counts match a hand count on one clip; event log reproduces them |
-| 3 | Evaluation: TrackEval on MOT17 val half; compare ByteTrack, BoT-SORT, OC-SORT; FPS on GTX 1650 and CPU. **Scene tuning** (`pathsense tune`): profile each sample scene (people size, density, motion, occlusion, hard segments), run 5 to 10 candidate configs from cached detections, score them against reference counts and label free measures, and say whether an error is a scene limit, a setting or a logic bug | Baseline HOTA, IDF1, MOTA in README table; every sample scene has a tuned config and its count error against a hand count in a README table |
+| 3 | Evaluation and **scene tuning**. (1) Find why the false crossings happen: clips around each one, detector merges and misses against ID swaps. (2) Tracker comparison on MOT20-03 and 05 with the detector, line and scoring fixed: ByteTrack, ByteTrack with a longer buffer, BoT-SORT with ReID on and off, OC-SORT. (3) An event level safeguard against crossings made by an ID change, with tests for genuine repeat crossings. (4) `pathsense tune`: profile each scene (people size, density, overlap, motion, view), run 5 to 10 candidate configs from cached detections, score them, and say whether an error is a scene limit, a setting or a bug. Tune on MOT20-03 and 05, validate on the other MOT scenes and the sample clips. TrackEval HOTA, IDF1, MOTA; FPS on GTX 1650 and CPU | False crossings per scene, crossing precision and recall per direction, count error, ID switches, fragmentation and FPS in a README table for all eleven scenes. The chosen tracker cuts MOT20-03 false crossings without losing real ones (recall no worse than ByteTrack), and holds on the validation scenes |
 | 4 | **Train on Kaggle**: fine tune YOLO26n and RF-DETR Nano on Open Images people; export ONNX; push weights + model card to the Hub | Fine tuned model beats COCO baseline on held out data; ONNX runs in onnxruntime (Python) |
 | 5 | **Browser app (A)**: Static Space; ONNX detector in the browser; TypeScript ByteTrack; line counter, heatmap, event log; webcam and clip upload; WebGPU with WASM fallback | Same detections in Python and browser give the same track IDs and counts on a test clip |
 | 6 | **Ask your footage (B)**: query tools over the event log; small in browser LLM picks tools and answers; optional "bring your own API key" mode | 20 question test set answered with correct numbers |
@@ -86,6 +86,14 @@ Ideas for after the current phase, kept apart so they do not pull work forward:
 own problems (small far people, crowds at train doors, a cart hiding the legs, curved
 edges from a wide lens). Phase 3 now also builds scene tuning, so each scene is measured
 and tuned on its own, and a wrong count can be traced to the scene, a setting or the code.
+
+**Plan change 2026-10-28 (2):** scoring against MOT17 and MOT20 hand labelled tracks
+(`scripts/mot_counts.py`) showed that the remaining errors in crowds are ID swaps, not
+counting logic. Phase 3 starts with a controlled tracker comparison on the two worst
+scenes, and judges every change by false crossings and missed crossings separately, so a
+fix that removes false crossings by also losing real ones does not pass. ReID compares
+clothing, not faces; it stays in memory for one video, and must earn its cost in the
+browser to be kept.
 
 **Stretch (C):** on a cloud GPU, auto label real security camera frames from MEVA
 (CC BY 4.0) with SAM 3 or a large RF-DETR, train the nano model on them, publish before and
@@ -101,9 +109,10 @@ after numbers on CCTV style video.
 - **Phase 1 gate passed (2026-10-27), v0.2.0.** `pathsense run` swaps YOLO26n, RF-DETR
   Nano, ByteTrack, BoT-SORT and OC-SORT with one config line; all six combinations
   measured in NOTES.md.
-- **Phase 2 in progress.** Line crossings, zones, dwell, occupancy, heatmap and the JSON
-  lines event log are built; a line matches the hand count on `people-walking.mp4`
-  (11 IN, 7 OUT). Scene files for four public clips set each camera's lines, zones and
-  detector input; ID stitching and dropping partial duplicate boxes fixed the grocery
-  scene (1 IN, one 31.7 s aisle visit). Gate still to check: every event type against a
-  hand count on one clip.
+- **Phase 2 gate passed (2026-10-28), v0.3.0.** Lines, zones, dwell, occupancy, heatmap
+  and the JSON lines event log. people-walking: 11 IN, 7 OUT, matching the hand count;
+  MOT17-04 against hand labelled truth: line 8 IN (8), 4 OUT (5), zone dwell 450 s against
+  448 s visible; the event log alone reproduces every count. **Limitation:** in dense
+  crowds (MOT20) ByteTrack swaps IDs and the line counts false crossings the wrong way
+  (MOT20-03: 28 against 4); far groups in zones are undercounted. Both go to Phase 3.
+- **Phase 3 next:** first the tracker comparison on MOT20-03 and 05.

@@ -12,7 +12,8 @@ people), on a laptop GTX 1650.
 | --- | --- | --- | --- |
 | 0. Webcam baseline | 0.1.0 | One person keeps one ID for 15 s; FPS and failures logged | Passed |
 | 1. Pipeline package | 0.2.0 | Swap detector or tracker with one config line | Passed |
-| 2. Analytics and event log | 0.3.0 | Counts match a hand count; event log reproduces them | Next |
+| 2. Analytics and event log | 0.3.0 | Counts match a hand count; event log reproduces them | Passed |
+| 3. Evaluation and scene tuning | 0.4.0 | Tracker comparison and tuned scenes against true counts | Next |
 
 ## Phase 0: webcam baseline (v0.1.0)
 
@@ -101,6 +102,63 @@ Full clip (341 frames), mean per frame:
   creates more IDs (39 instead of 32), which may mean more ID switches. Choosing the
   setting needs ground truth, so it is part of the Phase 3 evaluation.
 
+## Phase 2: analytics and event log (v0.3.0)
+
+**Before.** People had IDs and trails, but nothing was counted. There was no record of what
+happened, and every camera used the same settings.
+
+**After.** Lines, zones, dwell, occupancy and a heatmap, all written to a JSON lines event
+log. A scene file holds one camera's lines, zones and detector settings.
+
+```bash
+uv run pathsense run --scene configs/scenes/people-walking.yaml --events runs/pw.jsonl --heatmap runs/pw.png
+```
+
+![Line and zone counting on the sample clip](images/phase2-line-zone.jpg)
+
+*The line across the concourse counts people walking down (IN) and up (OUT); the shaded
+lower half is a zone with its own enters, exits and people inside.*
+
+| | Before (Phase 1) | After (Phase 2) |
+| --- | --- | --- |
+| Counting | None | Lines (also curved, several points), each direction, with a 0.5 s hold against jitter |
+| Areas | None | Zones: enter, exit, dwell seconds, people inside now |
+| Record | None | Event log: `enter`, `exit`, `zone_enter`, `zone_exit`, `dwell`, each with time, frame and ID |
+| Where people stand | Box bottom | Feet from the head when a cart or person hides the legs (per scene) |
+| Lost for a moment | New ID | Old ID back within 2 s, from position, motion and size only |
+| Per camera settings | None | Scene files: line, zones, input size, tiles, partial box filter |
+| Testing | One clip by eye | Four sample clips plus seven MOT scenes scored against hand labelled tracks |
+| Tests | 57 | 250 |
+
+### The gate
+
+| Check | Result |
+| --- | --- |
+| Line against a hand count (people-walking) | 11 IN, 7 OUT; hand count 11, 7 |
+| Every event type against hand labelled truth (MOT17-04, night street) | Line 8 IN (truth 8), 4 OUT (5). Zone: 37 enters against 42 visible, dwell 450 s against 448 visible, 13 inside against 13.1 visible |
+| Event log reproduces the counts | Yes, on both clips: every count and the total dwell |
+
+MOT frames are not shown here; their license allows evaluation only.
+
+![Heatmap of the sample clip](images/phase2-heatmap.jpg)
+
+*Person seconds on the floor. The walking paths show as streaks and a person standing at
+the top left as a hot spot. The group of four standing on the left gets no heat: the
+detector never boxes them as separate people. That is the cluster problem below.*
+
+### What Phase 2 showed
+
+- **Every scene is different.** Far people need input size 1920, a market square seen from
+  far above needs tiles, a cart needs the partial box filter, a wide lens needs a curved
+  line. Settings belong to the scene, so Phase 3 builds scene tuning.
+- **Truth splits the errors.** Scoring against labelled tracks gives three numbers: truth
+  (everyone, hidden too), seen (people at least a quarter visible) and ours. On the night
+  street ours matches seen; the rest is people hidden behind others, which no camera sees.
+- **Crowds swap IDs.** In the MOT20 stadium crowds the main direction is counted well, but
+  an ID handed to the neighbour behind crosses back over the line: 28 false crossings the
+  wrong way against 4 real ones. This is tracking, not counting logic; net counting per ID
+  was tried and only traded it for missed exits.
+
 ## Open issues carried forward
 
 | Issue | Found in | Planned in |
@@ -108,3 +166,6 @@ Full clip (341 frames), mean per frame:
 | New ID after leaving the frame for more than about 1 s; none of the three trackers recognises a returning person by appearance | Phase 0 | Phase 3: longer lost track buffer and an appearance based re-identification step |
 | Partly visible people at the frame edge missed or split | Phase 0 | Phase 4: fine tuning |
 | Detected people not tracked because the track start threshold is high | Phase 1 | Phase 3: tune against MOT17 ground truth |
+| ID swaps in crowds give false crossings the wrong way (MOT20-03: 28 against 4) | Phase 2 | Phase 3: tracker comparison on MOT20-03 and 05 |
+| Groups standing close together are boxed as one or not at all | Phase 2 | Phase 3 measures it per scene; backlog: cluster detection |
+| Far groups in zones: we find 60 % of visible people (MOT17-02) | Phase 2 | Phase 3 scene tuning; backlog: zones guide detection |
