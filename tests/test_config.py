@@ -153,3 +153,27 @@ def test_bad_zones_are_config_errors(value, message):
 def test_new_analytics_settings_are_checked(override, message):
     with pytest.raises(ConfigError, match=message):
         load_config(overrides=[override])
+
+
+def test_a_scene_changes_only_the_keys_it_names(tmp_path):
+    from pathsense.config import scene_source
+
+    scene = tmp_path / "door.yaml"
+    scene.write_text(
+        "source: clips/door.mp4\nanalytics:\n  line: [[0, 10], [100, 10]]\n  line_confirm: 1.0\n"
+    )
+    config = load_config(scene=scene, overrides=["analytics.line_margin=9"])
+    assert config.analytics.line == ((0.0, 10.0), (100.0, 10.0))
+    assert config.analytics.line_confirm == 1.0 and config.analytics.line_margin == 9
+    assert config.analytics.zone_confirm == 0.5  # from the base config
+    assert config.tracker.params == {"track_activation_threshold": 0.6}  # untouched section
+    assert scene_source(scene) == "clips/door.mp4"
+
+
+def test_a_scene_with_a_typo_is_a_config_error(tmp_path):
+    scene = tmp_path / "bad.yaml"
+    scene.write_text("analytics: {lien: [[0, 1], [2, 3]]}\n")
+    with pytest.raises(ConfigError, match="Unknown keys in \\[analytics\\]"):
+        load_config(scene=scene)
+    with pytest.raises(ConfigError, match="not found"):
+        load_config(scene=tmp_path / "missing.yaml")

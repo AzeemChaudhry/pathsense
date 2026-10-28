@@ -1,0 +1,15 @@
+# Concourse seen from above (people-walking.mp4, 1920x1080, 25 FPS, 14 s).
+# Use case: footfall across the concourse, and who uses its lower half.
+#   uv run pathsense run --scene configs/scenes/people-walking.yaml
+#
+# Line: across the full width at y = 675, drawn left to right, so walking down the image
+# (towards the camera) is IN and walking up is OUT. Hand count: 11 IN, 7 OUT (NOTES.md).
+# Zone "lower half": the floor below the line; people who walk in from the sides or the
+# bottom edge enter it without crossing the line.
+source: data/samples/people-walking.mp4
+
+analytics:
+  line: [[0, 675], [1920, 675]]
+  zones:
+    - name: lower half
+      polygon: [[0, 675], [1920, 675], [1920, 1080], [0, 1080]]

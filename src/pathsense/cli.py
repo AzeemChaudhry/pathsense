@@ -5,6 +5,7 @@
     pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]]" \
         --events runs/clip.jsonl                    # count crossings, keep the event log
     pathsense run --source clip.mp4 --heatmap runs/heat.png   # where people spent time
+    pathsense run --scene configs/scenes/subway.yaml          # one camera's lines and zones
     pathsense run --set detector.name=rfdetr-nano --set tracker.name=botsort
     pathsense run --source clip.mp4 --no-show --max-frames 300   # quick benchmark
     pathsense calibrate                             # measure webcam 0 again and save it
@@ -66,7 +67,9 @@ def build_parser() -> argparse.ArgumentParser:
     run = commands.add_parser("run", help="detect and track people in a video or webcam")
     calibrate = commands.add_parser("calibrate", help="measure a webcam's best mode and save it")
     for command in (run, calibrate):
-        command.add_argument("--source", default="0", help="camera index, video file or stream URL")
+        command.add_argument(
+            "--source", default=None, help="camera index, video file or stream URL (default: 0)"
+        )
         command.add_argument(
             "--config", type=Path, default=None, help="YAML config (default: configs/default.yaml)"
         )
@@ -78,6 +81,13 @@ def build_parser() -> argparse.ArgumentParser:
             metavar="SECTION.KEY=VALUE",
             help="override a config value, e.g. detector.name=rfdetr-nano (repeatable)",
         )
+    run.add_argument(
+        "--scene",
+        type=Path,
+        default=None,
+        help="a camera's lines, zones and settings over the config (configs/scenes/*.yaml); "
+        "its source is used when --source is not given",
+    )
     run.add_argument(
         "--save", type=Path, default=None, help="write the annotated video to this mp4"
     )
@@ -135,20 +145,21 @@ def run(args: argparse.Namespace) -> Summary:
 
     from pathsense.analytics import EventLog, Heatmap
     from pathsense.annotate import Annotator, draw_line, draw_zone
-    from pathsense.config import load_config
+    from pathsense.config import load_config, scene_source
     from pathsense.io import RealTimeVideoWriter, VideoSource
     from pathsense.io.display import configure_qt
     from pathsense.pipeline import Pipeline
     from pathsense.timing import FpsMeter
 
-    config = load_config(args.config, args.overrides)
+    config = load_config(args.config, args.overrides, args.scene)
+    source_name = args.source or (scene_source(args.scene) if args.scene else None) or "0"
     Pipeline.check(config)  # before the camera turns on or weights download
-    camera = camera_settings(config, args.source, args.recalibrate)
+    camera = camera_settings(config, source_name, args.recalibrate)
     if args.recalibrate and camera is None:
         print("pathsense: --recalibrate only applies to cameras; ignored for this source")
     configure_qt()
 
-    with VideoSource(args.source, camera=camera) as source:
+    with VideoSource(source_name, camera=camera) as source:
         pipeline = Pipeline.from_config(config, frame_rate=source.fps)
         annotator = Annotator(trail_length=args.trail)
         writer = RealTimeVideoWriter(args.save, source.fps) if args.save else None
@@ -249,7 +260,7 @@ def main(argv: list[str] | None = None) -> None:
     try:
         if args.command == "calibrate":
             config = load_config(args.config, args.overrides)
-            if camera_settings(config, args.source, recalibrate=True) is None:
+            if camera_settings(config, args.source or "0", recalibrate=True) is None:
                 raise SystemExit("pathsense: calibrate needs a camera index, e.g. --source 0")
             return
         summary = run(args)

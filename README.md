@@ -78,11 +78,13 @@ uv run pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]
 uv run pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]]" --events runs/clip.jsonl  # and keep the event log
 uv run pathsense run --source clip.mp4 --set "analytics.zones=[{name: floor, polygon: [[0,675],[1920,675],[1920,1080],[0,1080]]}]"  # who is in an area, and for how long
 uv run pathsense run --source clip.mp4 --heatmap runs/heat.png      # where people spent time
+uv run pathsense run --scene configs/scenes/subway.yaml --events runs/subway.jsonl  # one camera's setup
 ```
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--source` | `0` | camera index, video file or stream URL |
+| `--scene` | none | one camera's lines, zones and settings, laid over the config (`configs/scenes/*.yaml`); its `source` is used when `--source` is not given |
 | `--config` | `configs/default.yaml` | YAML config |
 | `--set SECTION.KEY=VALUE` | none | override one config value; repeatable |
 | `--save` | off | write the annotated video to an mp4 that plays at real speed |
@@ -184,6 +186,13 @@ browsing with a zone over the aisle floor. Each person is reduced to their feet,
 the floor. A wide lens bends straight edges near the corners; give the line more points to
 follow them. Small, far people in a 4K or portrait video may need a larger
 `detector.imgsz` to be detected at all.
+
+`configs/scenes/` has one file per public sample clip, each starting with the scene's use
+case and what IN and OUT mean there: `people-walking` (concourse footfall), `subway`
+(boarding and getting off along the train's doors, waiting time on the platform),
+`grocery-store` (shoppers in an aisle and how long they browse) and `market-square`
+(people entering the square from the street, who gathers at the fountain). A scene changes
+only the keys it names; everything else comes from the config.
 
 With `--events`, each event is one JSON line:
 

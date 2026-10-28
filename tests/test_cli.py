@@ -14,7 +14,7 @@ def test_version(capsys):
 
 def test_run_defaults():
     args = build_parser().parse_args(["run"])
-    assert args.source == "0" and args.overrides == [] and not args.no_show
+    assert args.source is None and args.overrides == [] and not args.no_show  # webcam 0
 
 
 def test_summary_line():
@@ -288,3 +288,19 @@ def test_run_saves_a_heatmap(monkeypatch, tiny_video, tmp_path, capsys):
     image = cv2.imread(str(heat))
     assert image is not None and image.shape[:2] == (48, 64)
     assert f"saved {heat}" in capsys.readouterr().out
+
+
+def test_a_scene_names_its_video_and_lines_and_source_can_override_it(
+    monkeypatch, tiny_video, tmp_path, capsys
+):
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    scene = tmp_path / "scene.yaml"
+    scene.write_text(
+        f"source: {tiny_video}\n"
+        "detector: {name: fake}\n"
+        "analytics: {line: [[25, 48], [25, 0]]}\n"
+    )
+    main(["run", "--scene", str(scene), "--no-show"])
+    assert capsys.readouterr().out.splitlines()[0].endswith("in=1 out=0")
+    with pytest.raises(SystemExit, match="missing.mp4"):
+        main(["run", "--scene", str(scene), "--source", "missing.mp4", "--no-show"])

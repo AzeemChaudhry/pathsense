@@ -173,18 +173,46 @@ SECTIONS = {
 ##### Loading ##############################################################################
 
 
-def load_config(path: str | Path | None = None, overrides: list[str] | None = None) -> Config:
-    """Read a YAML config (default: configs/default.yaml) and apply `a.b=value` overrides."""
-    path = Path(path) if path else DEFAULT_CONFIG
+def load_config(
+    path: str | Path | None = None,
+    overrides: list[str] | None = None,
+    scene: str | Path | None = None,
+) -> Config:
+    """Read a YAML config (default: configs/default.yaml), lay a scene file over it, then
+    apply `a.b=value` overrides.
+
+    A scene (configs/scenes/*.yaml) holds what belongs to one camera: its lines, zones and
+    settings, and optionally its `source`. It changes only the keys it names, so shared
+    settings stay in the base config.
+    """
+    raw = read_yaml(Path(path) if path else DEFAULT_CONFIG)
+    if scene:
+        layer = read_yaml(Path(scene))
+        layer.pop("source", None)
+        for section, values in layer.items():
+            if isinstance(values, dict) and isinstance(raw.get(section), dict):
+                raw[section] = {**raw[section], **values}
+            else:
+                raw[section] = values
+    for override in overrides or []:
+        apply_override(raw, override)
+    return from_dict(raw)
+
+
+def read_yaml(path: Path) -> dict[str, Any]:
     try:
         raw = yaml.safe_load(path.read_text()) or {}
     except FileNotFoundError:
         raise ConfigError(f"Config file not found: {path}") from None
     if not isinstance(raw, dict):
         raise ConfigError(f"{path}: expected a mapping at the top level")
-    for override in overrides or []:
-        apply_override(raw, override)
-    return from_dict(raw)
+    return raw
+
+
+def scene_source(scene: str | Path) -> str | None:
+    """The video a scene file names (`source:`), if any."""
+    source = read_yaml(Path(scene)).get("source")
+    return None if source is None else str(source)
 
 
 def apply_override(raw: dict[str, Any], override: str) -> None:

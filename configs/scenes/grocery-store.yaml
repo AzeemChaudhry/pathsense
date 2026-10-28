@@ -1,0 +1,17 @@
+# Supermarket aisle, camera at eye level at the near end (grocery-store.mp4, 3840x2160,
+# 30 FPS, 33 s). One shopper pushes a cart down the aisle towards the camera and stops to
+# browse around 20 s. The cart hides the shopper's legs (analytics.hidden_legs).
+# Use case: did shoppers come down this aisle, and how long did they browse.
+#   uv run pathsense run --scene configs/scenes/grocery-store.yaml
+#
+# Line: across the aisle floor between the shelf bases at y = 1450, drawn left to right,
+# so walking towards the camera is IN. Expected: 1 IN.
+# Zone "aisle": the aisle floor between the shelf bases, from the far end to the camera.
+# Expected: 1 enter, and a dwell close to the time the shopper is in view.
+source: data/samples/grocery-store.mp4
+
+analytics:
+  line: [[1733, 1450], [2618, 1450]]
+  zones:
+    - name: aisle
+      polygon: [[1850, 1250], [2420, 1250], [3320, 2160], [1320, 2160]]

@@ -15,6 +15,8 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
   when the video starts count as entered unless `analytics.zone_count_present` is false.
 - `pathsense run --heatmap runs/heat.png` saves where people spent time over the last
   frame.
+- `pathsense run --scene configs/scenes/subway.yaml`: a camera's lines, zones and video in
+  one file, laid over the config. Scenes for the four public sample clips are included.
 - `analytics.line` takes more than two points, to follow an edge a wide lens has curved.
   `analytics.line_margin_height` can make the margin grow with the person's height.
 - `analytics.hidden_legs` (0.25): when a cart or another person hides someone's legs and

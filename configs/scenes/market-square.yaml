@@ -1,0 +1,26 @@
+# Town square from a high window, almost top down (market-square.mp4, 2160x3840 portrait,
+# 60 FPS, 8 s). A patterned square with a fountain; plain grey paving (a street) along the
+# bottom, separated by a curved kerb.
+# Use case: how many walked into the square from the street and out of it; who gathers
+# at the fountain and for how long.
+#   uv run pathsense run --scene configs/scenes/market-square.yaml
+#
+# Line: along the curved kerb (lowest at y 3100 in the middle, 2890 at the left edge,
+# 2975 at the right), drawn right to left, so walking up into the square is IN and down
+# into the street is OUT.
+# Zone "fountain": the basin and its rim, where people sit and stand.
+source: data/samples/market-square.mp4
+
+# People are about 175 px tall in a 3840 px frame; at the default input size almost nobody
+# is detected (8 boxes for about 60 people; 109 at 1920, NOTES.md). Not changed here: this
+# scene tunes the lines and zones, not the detector.
+# detector:
+#   imgsz: 1920
+
+analytics:
+  line: [[2160, 2975], [1920, 3015], [1440, 3090], [1200, 3100], [960, 3075], [480, 3000],
+         [0, 2890]]
+  zones:
+    - name: fountain
+      polygon: [[820, 1130], [1350, 1130], [1500, 1260], [1520, 1520], [1400, 1640],
+                [850, 1640], [720, 1530], [700, 1250]]
