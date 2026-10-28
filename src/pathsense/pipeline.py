@@ -1,8 +1,13 @@
 """Glues the stages together, one frame at a time.
 
-    frame -> Detector -> Tracker -> analytics -> FrameResult (people, events, timings)
+    frame -> Detector -> Tracker -> Stitcher -> analytics -> FrameResult (people, events)
 
-Analytics turn tracks into events: a `LineCounter` when the config has `analytics.line`.
+The Stitcher gives people the tracker lost for a moment their old ID back, so analytics
+see one person, not a new one each time they are hidden.
+
+Analytics turn tracks into events: a `LineCounter` when the config has `analytics.line`,
+and a `ZoneCounter` for each of `analytics.zones`. Call `finish()` at the end of the video
+for the events still waiting (crossings to confirm, dwell of people still inside).
 Drawing and display stay outside, in the CLI, so the same pipeline runs headless in tests,
 evaluation and the app.
 """
@@ -15,11 +20,13 @@ from dataclasses import dataclass, field
 
 import supervision as sv
 
-from pathsense.analytics import Event, LineCounter
-from pathsense.config import Config, ConfigError
+from pathsense.analytics import Event, LineCounter, ZoneCounter
+from pathsense.config import AnalyticsConfig, Config, ConfigError
 from pathsense.detect import DETECTORS, Detector, build_detector
+from pathsense.detect.base import drop_partial_duplicates
 from pathsense.io import Frame, VideoSource
 from pathsense.track import TRACKERS, Tracker, build_tracker
+from pathsense.track.stitch import Stitcher
 
 
 @dataclass(frozen=True)
@@ -33,11 +40,20 @@ class FrameResult:
 
 class Pipeline:
     def __init__(
-        self, detector: Detector, tracker: Tracker, line_counter: LineCounter | None = None
+        self,
+        detector: Detector,
+        tracker: Tracker,
+        line_counter: LineCounter | None = None,
+        zones: list[ZoneCounter] | None = None,
+        stitcher: Stitcher | None = None,
+        drop_partial: bool = False,
     ) -> None:
+        self.drop_partial = drop_partial
         self.detector = detector
         self.tracker = tracker
+        self.stitcher = stitcher
         self.line_counter = line_counter  # running totals: line_counter.entered / .exited
+        self.zones = zones or []  # each with .entered, .exited, .occupancy
 
     @staticmethod
     def check(config: Config) -> None:
@@ -58,33 +74,74 @@ class Pipeline:
         detector = build_detector(config.detector)
         tracker = build_tracker(config.tracker.name, frame_rate, config.tracker.params)
         analytics = config.analytics
-        line_counter = (
-            LineCounter(
-                *analytics.line,
-                margin=analytics.line_margin,
-                confirm=analytics.line_confirm,
-                # Forget a person one frame after the tracker does, so their ID cannot return.
-                lost=tracker.lost_seconds + 1 / frame_rate,
-            )
-            if analytics.line
+        stitch = config.tracker.stitch_seconds
+        stitcher = (
+            Stitcher(stitch, config.tracker.stitch_distance, config.tracker.stitch_size)
+            if stitch > 0
             else None
         )
-        return cls(detector, tracker, line_counter)
+        # Forget a person one frame after their ID can no longer return, from the tracker or
+        # the stitcher.
+        lost = max(tracker.lost_seconds, stitch) + 1 / frame_rate
+        line_counter, zones = build_counters(analytics, lost)
+        return cls(detector, tracker, line_counter, zones, stitcher, config.detector.drop_partial)
 
     def process(self, frame: Frame) -> FrameResult:
         start = time.perf_counter()
         detections = self.detector(frame.image)
+        if self.drop_partial:
+            detections = drop_partial_duplicates(detections)
         detected = time.perf_counter()
         tracked = self.tracker.update(detections, frame=frame.image, timestamp=frame.timestamp)
+        if self.stitcher:
+            tracked = self.stitcher(tracked, frame.timestamp)
         done = time.perf_counter()
-        events = (
-            self.line_counter.update(tracked, frame.timestamp, frame.index)
-            if self.line_counter
-            else []
-        )
+        events = []
+        for counter in self.counters:
+            events += counter.update(tracked, frame.timestamp, frame.index)
         detect_ms, track_ms = (detected - start) * 1000, (done - detected) * 1000
         return FrameResult(frame, tracked, detect_ms, track_ms, events)
 
     def run(self, source: VideoSource) -> Iterator[FrameResult]:
         for frame in source:
             yield self.process(frame)
+
+    @property
+    def counters(self) -> list[LineCounter | ZoneCounter]:
+        return ([self.line_counter] if self.line_counter else []) + self.zones
+
+    def finish(self) -> list[Event]:
+        """Events still waiting at the end of the video, from every counter."""
+        return [event for counter in self.counters for event in counter.finish()]
+
+
+def build_counters(
+    analytics: AnalyticsConfig, lost: float
+) -> tuple[LineCounter | None, list[ZoneCounter]]:
+    """The line counter and zone counters `analytics` asks for. `lost` is how long a person
+    can be unseen before they are gone. Evaluation builds them the same way to count ground
+    truth tracks."""
+    line_counter = (
+        LineCounter(
+            *analytics.line,
+            margin=analytics.line_margin,
+            margin_height=analytics.line_margin_height,
+            confirm=analytics.line_confirm,
+            lost=lost,
+            hidden_legs=analytics.hidden_legs,
+        )
+        if analytics.line
+        else None
+    )
+    zones = [
+        ZoneCounter(
+            zone.name,
+            list(zone.polygon),
+            confirm=analytics.zone_confirm,
+            lost=lost,
+            count_present=analytics.zone_count_present,
+            hidden_legs=analytics.hidden_legs,
+        )
+        for zone in analytics.zones
+    ]
+    return line_counter, zones

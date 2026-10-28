@@ -1,0 +1,12 @@
+# MOT17-09: shop fronts in a mall street, eye level (1920x1080, 30 FPS, 17.5 s). Evaluation
+# only (CC BY-NC-SA). Make the video with scripts/mot_counts.py prepare.
+# Use case: footfall past the shops, and who stops at the phone shop's door.
+# Line: vertical across the pavement at x = 1000.
+# Zone "doorway": the floor in front of the phone shop's door.
+source: data/mot/videos/MOT17-09.mp4
+
+analytics:
+  line: [[1000, 620], [1000, 1080]]
+  zones:
+    - name: doorway
+      polygon: [[150, 690], [1080, 650], [1080, 770], [150, 810]]

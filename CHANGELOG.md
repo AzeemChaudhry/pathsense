@@ -10,6 +10,36 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Added
 
+- `scripts/mot_counts.py` scores line and zone counts against MOT17 and MOT20 ground
+  truth: the hand labelled tracks go through the same counters as the pipeline, so a
+  scene's count error needs no hand counting. MOT data is for evaluation only.
+- Zones: `analytics.zones` gives each named polygon `zone_enter`, `zone_exit` and `dwell`
+  events (seconds inside), and the window shows how many are inside. People already inside
+  when the video starts count as entered unless `analytics.zone_count_present` is false.
+- `pathsense run --heatmap runs/heat.png` saves where people spent time over the last
+  frame.
+- `pathsense run --scene configs/scenes/subway.yaml`: a camera's lines, zones and video in
+  one file, laid over the config. Scenes for the four public sample clips are included.
+- The live window opens scaled to fit the screen (at most 1600x900) and can be resized,
+  so 4K and portrait videos no longer run off the screen.
+- `detector.slice`: detect on overlapping tiles as well as the whole frame, for many small
+  people in large frames. On the market square clip it finds 78 trackable people in a frame
+  where the default input size finds none.
+- People the tracker loses for up to 2 s (`tracker.stitch_seconds`) keep their ID when they
+  reappear where they were heading, so lines and zones do not count them twice. Only
+  position, motion and box size are used.
+- `detector.drop_partial`: drop a box that is a partial view of a person also boxed whole
+  (upper body behind a shopping cart) before tracking. On in the grocery scene, which goes
+  from 3 IN and 1 OUT to the correct 1 IN; off by default, because in a crowd seen from
+  above it also drops people standing behind others.
+- Scene files set the detector input size their video needs (1920 for the 4K subway and
+  grocery clips, tiles for the market square).
+- `analytics.line` takes more than two points, to follow an edge a wide lens has curved.
+  `analytics.line_margin_height` can make the margin grow with the person's height.
+- `analytics.hidden_legs` (0.25): when a cart or another person hides someone's legs and
+  their box suddenly shrinks, their feet are placed from their head instead of jumping up
+  to the cart. A box that also gets narrower is someone walking away, not hidden legs.
+  Lines and zones use it.
 - Line counting: `analytics.line` in the config counts people crossing it in each
   direction. The window shows the line and IN and OUT totals, and the summary line ends
   with `in=… out=…`. Each crossing is an event with time, frame and track ID, the start

@@ -207,3 +207,157 @@ This becomes the "Design decisions" section of the README.
   default's job: no hold removes waving completely. The clip has nobody hesitating at the
   line, so a busier clip (a doorway where people pause) is still needed to show the hold
   helping on real footage.
+
+### 2026-10-28: three more public clips, and why one line position fits none of them
+- **Tried:** `grocery-store.mp4` (4K, 33 s), `subway.mp4` (portrait 4K, 43 s) and
+  `market-square.mp4` (portrait 4K, 8 s, 60 FPS), from the same supervision sample assets
+  as `people-walking.mp4`. First with a horizontal line mid frame on each, then with a line
+  placed from each scene's use case after looking at it over time: subway, boarding and
+  getting off along the train's doors; grocery-store, a shopper entering the aisle; market,
+  people walking into the square from the street.
+- **Result:**
+  1. A line not placed for the scene's question gives numbers that mean nothing; all
+     three first runs were discarded.
+  2. Subway: at `imgsz=640` the 4K portrait frame is shrunk 6 times and only about 10 of
+     the 30 or more people at the doors are detected (24 at `imgsz=1280`). Boarding and
+     getting off were 2 and 5 with a straight line, 4 and 4 with a polyline, far below
+     what the video shows. People leaving the train in a cluster are mostly never
+     detected; that is a detector limit for Phases 3 and 4, not something counting fixes.
+  3. Subway: the train's lower edge is curved by the wide lens (x 345 at y 3120 where a
+     straight line through its top half gives 550), so a two point line ran through the
+     waiting crowd. Lines now take more points.
+  4. Grocery: one shopper walking past a line once was counted IN, OUT, IN, OUT, IN. His
+     cart hides his legs, so his box shrinks (709 px to 429 px at 16.3 s) and the box
+     bottom jumps to the cart handle. `analytics.hidden_legs` now places the feet from the
+     head when a box is more than 25 % shorter than the person's full height.
+  5. Market: at `imgsz=640` almost nobody is detected (8 boxes for about 60 people); at
+     1920, 109. The early crossings that looked suspicious were real people walking across
+     the border; each counted once in the right direction.
+  6. A waiting person shuffling near a line crosses it slowly and is counted each time;
+     a 5 px margin is under 1 % of a person 680 px tall. `line_margin_height` is
+     available to test during tuning; off by default until hand counts show it helps.
+- **Decision:** Tune each scene by placing its lines and zones from the use case (and
+  `detector.imgsz` for large frames), not by changing the model. Build all of Phase 2
+  first (zones, dwell, occupancy, polylines, hidden legs, heatmap), then tune and hand
+  count each clip. `people-walking.mp4` is unchanged: line 11 in, 7 out; a floor zone below
+  the line gives 28 enters, 20 exits and 8 people inside at the end.
+
+### 2026-10-28: tuning the four scenes (detection, ID stitching, partial boxes, margins)
+- **Tried:** one scene file per clip (`configs/scenes/`), placed from its use case; then,
+  per clip, fixing what its trace showed: the detector input size or tiles, a stitcher
+  that gives a person lost for up to 2 s their ID back, dropping a partial box of a person
+  also boxed whole, and a margin that grows with the person's height.
+- **Result:** people found in a single frame (confidence 0.6 or more, enough to start a
+  track), and the scene counts:
+
+  | Frame | Default 640 | imgsz 1920 | Tiles 960 at 960 |
+  | --- | --- | --- | --- |
+  | subway doors, 26 s | 5 | 17 (40 ms) | 14 (265 ms) |
+  | market square, 2 s | 0 | 57 (41 ms) | 78 (266 ms) |
+  | grocery shopper far away, 0.5 to 3 s | 0.33 to 0.68 | 0.61 to 0.83 | |
+
+  | Scene | First scene run | Now | Settings |
+  | --- | --- | --- | --- |
+  | people-walking | 11 IN, 7 OUT | 11 IN, 7 OUT (hand count 11, 7) | defaults |
+  | grocery-store | 3 IN, 1 OUT; 2 aisle visits | **1 IN**; one 31.7 s aisle visit | imgsz 1920, drop_partial, line_margin_height 0.1 |
+  | subway | 2 boarded, 3 got off | 5 boarded, 10 got off; platform 63 in, 61 out | imgsz 1920, 11 point line to the far end |
+  | market-square | nothing detected | 1 IN, 20 OUT; fountain 5 people | tiles 960 at 960 |
+
+  1. Tiles hurt the subway: people near the camera are taller than a tile's overlap, so
+     every tile cuts them. Tiles suit many small people seen from above.
+  2. Grocery: with the cart hiding his legs, the detector boxed the shopper's upper body
+     and whole body (same sides and top within 2 px); the tracker followed the second box
+     as a phantom person across the line. Dropping such boxes fixed it, but the first rule
+     (80 % shared width, tops within 10 %) dropped 23 % of boxes at the subway doors, most
+     of them people standing behind others; a tight rule still dropped 4 %, some real. So
+     `detector.drop_partial` is per scene, on only for the grocery camera.
+  3. Grocery: the shopper browses with the cart at the line from 10.5 to 13.5 s and his
+     feet flip across it; a margin of 10 % of his height gives the single correct IN.
+  4. Market: of the tracks that cross the kerb, 16 walk down into the street and 1 up, so
+     1 IN and 20 OUT follows the tracks; to be checked by eye.
+  5. The stitcher changes nothing on people-walking (39 IDs either way).
+- **Decision:** settings belong to the scene; Phase 3 builds scene tuning (`pathsense
+  tune`) to choose them from a profile of each video, and reference counts per scene to
+  score them. Ideas beyond that are in docs/BACKLOG.md. Subway and market counts still
+  need a hand count; subway is mostly limited by people leaving the train in a cluster.
+
+## 2026-10-28: half precision, and true counts from MOT
+
+- **Tried:** FP16 inference (`quantize="fp16"`, formerly `half=True`) with yolo26n on the
+  GTX 1650, 100 subway frames.
+- **Result:** slower, with the same boxes. 1920: 97.7 ms against 40.7 ms per frame; 640:
+  16.2 ms against 7.1 ms. Boxes at 0.5 or more: 1167 against 1161.
+- **Decision:** stay in FP32 on this GPU. Speed for the product comes from the browser
+  export (Phase 5), not from PyTorch settings.
+- **Next:** four sample clips are too few to say the counting works. MOT17 (02, 04, 09)
+  and MOT20 (01, 02, 03, 05) are fixed cameras with every person labelled by hand;
+  `scripts/mot_counts.py` counts those tracks through the same lines and zones for the true
+  counts. Evaluation only (CC BY-NC-SA): no frames in public docs.
+
+## 2026-10-28: first true counts (MOT17), and the PR 10 review
+
+- **MOT17, lines and zones placed per scene** (configs/scenes/mot/), truth from the hand
+  labelled tracks through the same counters:
+
+  | Scene, imgsz | People truth / ours | Line in, out truth / ours | Zone in, out truth / ours |
+  | --- | --- | --- | --- |
+  | 02 square, 640 | 74 / 24 | 1, 10 / 2, 9 | tree 48, 21 / 6, 4 |
+  | 02 square, 1920 | 74 / 78 | 1, 10 / 0, 10 | tree 48, 21 / 39, 31 |
+  | 04 street, 640 | 88 / 24 | 8, 5 / 6, 4 | shop front 34, 16 / 3, 3 |
+  | 04 street, 1920 | 88 / 83 | 8, 5 / 8, 4 | shop front 34, 16 / 40, 24 |
+  | 09 shop fronts, 640 | 27 / 28 | 1, 7 / 3, 6 | doorway 3, 3 / 5, 4 |
+
+- **Result:** lines are within 2 everywhere. Zones far from the camera fail at 640 (people
+  too small), and at 1920 overcount exits: of 31 tree exits, 20 are tracks that vanished
+  inside the zone (truth: 12), people lost in the group under the tree for longer than the
+  stitcher waits. A stitch window of 8 s only brings exits from 31 to 23.
+- **Decision:** imgsz 1920 in the two far scenes. The extra zone exits are a detection limit
+  in groups (with the cluster problem in docs/BACKLOG.md), not a zone bug.
+- **Review fixes:** stitcher could give two people one ID (order of detections); feet kept
+  an old height forever (now it shrinks with the box's width, so walking away is not hidden
+  legs); drop_partial depended on box order; zone finish twice repeated dwell.
+- **Sample scenes after the fixes:** people-walking and grocery unchanged (correct); subway
+  5 to 7 boarded and market 20 to 16 OUT, from the feet change in crowds seen from above.
+  Neither has a true count; MOT20 (crowds from above) will show which way it moved.
+- **Speed:** headless runs reach 22 FPS on the 4K clips against 10 with the window, so
+  drawing and display cost as much as detection.
+
+## 2026-10-28: truth, seen and ours (second PR 10 review)
+
+- **Change:** the scorer gives truth without the hidden legs estimate (it moved MOT17-09's
+  true line out from 7 to 10), adds a `seen` truth (boxes at least 25 % visible), and
+  scores dwell and mean occupancy, not only enters and exits.
+- **Result** (imgsz 1920): MOT17-04 ours matches seen (shop front dwell 450 s against 448,
+  13 inside against 13.1, line within 1); the gap to truth (565 s, 16 inside) is people
+  hidden behind others. MOT17-02's tree group: truth 26.5 inside, seen 13.7, ours 8.4, so
+  half is hidden and we find 60 % of the rest.
+- **Decision:** the street scene is solved within what a camera sees. Groups at a distance
+  are our real error: detection in clusters, the next target after Phase 2.
+
+## 2026-10-28: crowds (MOT20), and the Phase 2 gate evidence
+
+- **MOT20 at imgsz 1920** (truth / seen / ours):
+
+  | Scene | Line in | Line out | Zone mean inside |
+  | --- | --- | --- | --- |
+  | 01 station gates | 14 / 12 / 11 | 21 / 13 / 12 | 12.6 / 9.9 / 9 |
+  | 02 station hall | 157 / 131 / 155 | 33 / 25 / 61 | 25.3 / 17.9 / 15.4 |
+  | 03 stadium exit | 4 / 4 / 28 | 376 / 346 / 332 | 19.5 / 15.9 / 12.8 |
+  | 05 stadium forecourt | 46 / 35 / 156 | 594 / 533 / 517 | 48.2 / 41.4 / 31.6 |
+
+- **Result:** the main direction is close to `seen` everywhere; crowds add false crossings
+  the wrong way (03: 28 against 4; 05: 156 against 46). On 03 they are not the hidden legs
+  estimate (29 without it) or the stitcher (29 without it): 28 of 29 are an ID that exited
+  and then came back, the signature of ByteTrack swapping IDs between neighbours.
+- **Tried:** counting each ID's net crossing (a crossing back within a window cancels the
+  last). Window 10 s: in 3, but out 344 to 318 against 346 seen, because a swap also gives
+  the other person an early exit. Total error unchanged (27 against 29). **Not adopted.**
+- **Also:** without the hidden legs estimate, 03 is closer everywhere (out 344 against 332,
+  crossing zone dwell 1052 s against 945, seen 1165): a box cut by the person in front, seen
+  from above, is not hidden legs. 03 now sets `hidden_legs: 0`; the tuner should choose it.
+- **Decision:** wrong-way crossings in crowds are an ID swap problem. Phase 3 compares
+  ByteTrack, BoT-SORT and OC-SORT on MOT20-03 and 05 with this scorer.
+- **Gate evidence:** people-walking line 11 IN, 7 OUT matches the hand count. MOT17-04
+  against the hand labelled truth: line 8 IN (8), 4 OUT (5); shop front 37 enters (42
+  seen), 21 exits (26 seen), dwell 450 s (448 seen), 13 inside (13.1 seen). On both clips
+  the event log alone gives the same counts and the same total dwell (`load_events`).

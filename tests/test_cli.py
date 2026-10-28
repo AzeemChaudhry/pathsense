@@ -14,7 +14,7 @@ def test_version(capsys):
 
 def test_run_defaults():
     args = build_parser().parse_args(["run"])
-    assert args.source == "0" and args.overrides == [] and not args.no_show
+    assert args.source is None and args.overrides == [] and not args.no_show  # webcam 0
 
 
 def test_summary_line():
@@ -258,3 +258,62 @@ def test_a_failing_last_write_still_closes_the_log_and_video(monkeypatch, tiny_v
               "--set", "analytics.line=[[25, 48], [25, 0]]",
               "--set", "analytics.line_confirm=5"])  # fmt: skip
     assert closed == ["log"] and video.stat().st_size > 0  # the video was finished too
+
+
+def test_summary_lists_each_zone():
+    summary = Summary("yolo26n", "bytetrack", 10, 1.0, 8.0, 0.5, 2, zones=(("door", 3, 1, 2),))
+    assert str(summary).endswith("unique_ids=2 door:in=3,out=1,inside=2")
+
+
+def test_run_with_a_zone_writes_zone_and_dwell_events(monkeypatch, tiny_video, tmp_path, capsys):
+    from pathsense.analytics import load_events
+
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    events = tmp_path / "events.jsonl"
+    right = "analytics.zones=[{name: right, polygon: [[25, 0], [64, 0], [64, 48], [25, 48]]}]"
+    main(["run", "--source", str(tiny_video), "--no-show", "--events", str(events),
+          "--save", str(tmp_path / "out.mp4"), "--set", "detector.name=fake",
+          "--set", right])  # fmt: skip
+    assert [e.type for e in load_events(events)] == ["zone_enter", "dwell"]
+    assert "right:in=1,out=0,inside=1" in capsys.readouterr().out
+
+
+def test_run_saves_a_heatmap(monkeypatch, tiny_video, tmp_path, capsys):
+    import cv2
+
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    heat = tmp_path / "maps" / "heat.png"
+    main(["run", "--source", str(tiny_video), "--no-show", "--heatmap", str(heat),
+          "--set", "detector.name=fake"])  # fmt: skip
+    image = cv2.imread(str(heat))
+    assert image is not None and image.shape[:2] == (48, 64)
+    assert f"saved {heat}" in capsys.readouterr().out
+
+
+def test_a_scene_names_its_video_and_lines_and_source_can_override_it(
+    monkeypatch, tiny_video, tmp_path, capsys
+):
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    scene = tmp_path / "scene.yaml"
+    scene.write_text(
+        f"source: {tiny_video}\n"
+        "detector: {name: fake}\n"
+        "analytics: {line: [[25, 48], [25, 0]]}\n"
+    )
+    main(["run", "--scene", str(scene), "--no-show"])
+    assert capsys.readouterr().out.splitlines()[0].endswith("in=1 out=0")
+    with pytest.raises(SystemExit, match="missing.mp4"):
+        main(["run", "--scene", str(scene), "--source", "missing.mp4", "--no-show"])
+
+
+def test_the_window_is_scaled_to_fit_the_screen(monkeypatch):
+    import cv2
+
+    from pathsense.io.display import open_window
+
+    sizes = []
+    monkeypatch.setattr(cv2, "namedWindow", lambda name, flags: None)
+    monkeypatch.setattr(cv2, "resizeWindow", lambda name, w, h: sizes.append((w, h)))
+    open_window("PathSense", 2160, 3840)  # 4K portrait: 900 px tall
+    open_window("PathSense", 1280, 720)  # already fits: unchanged
+    assert sizes == [(506, 900), (1280, 720)]

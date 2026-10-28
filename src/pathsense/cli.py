@@ -4,6 +4,8 @@
     pathsense run --source clip.mp4 --save runs/clip.mp4
     pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]]" \
         --events runs/clip.jsonl                    # count crossings, keep the event log
+    pathsense run --source clip.mp4 --heatmap runs/heat.png   # where people spent time
+    pathsense run --scene configs/scenes/subway.yaml          # one camera's lines and zones
     pathsense run --set detector.name=rfdetr-nano --set tracker.name=botsort
     pathsense run --source clip.mp4 --no-show --max-frames 300   # quick benchmark
     pathsense calibrate                             # measure webcam 0 again and save it
@@ -40,6 +42,7 @@ class Summary:
     unique_ids: int
     line_in: int | None = None  # set when analytics.line is configured
     line_out: int | None = None
+    zones: tuple[tuple[str, int, int, int], ...] = ()  # (name, entered, exited, inside at end)
 
     @property
     def fps(self) -> float:
@@ -51,7 +54,9 @@ class Summary:
             f"seconds={self.seconds:.1f} mean_fps={self.fps:.1f} "
             f"detect_ms={self.detect_ms:.1f} track_ms={self.track_ms:.1f} "
             f"unique_ids={self.unique_ids}"
-        ) + (f" in={self.line_in} out={self.line_out}" if self.line_in is not None else "")
+            + (f" in={self.line_in} out={self.line_out}" if self.line_in is not None else "")
+            + "".join(f" {n}:in={i},out={o},inside={c}" for n, i, o, c in self.zones)
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -62,7 +67,9 @@ def build_parser() -> argparse.ArgumentParser:
     run = commands.add_parser("run", help="detect and track people in a video or webcam")
     calibrate = commands.add_parser("calibrate", help="measure a webcam's best mode and save it")
     for command in (run, calibrate):
-        command.add_argument("--source", default="0", help="camera index, video file or stream URL")
+        command.add_argument(
+            "--source", default=None, help="camera index, video file or stream URL (default: 0)"
+        )
         command.add_argument(
             "--config", type=Path, default=None, help="YAML config (default: configs/default.yaml)"
         )
@@ -75,10 +82,20 @@ def build_parser() -> argparse.ArgumentParser:
             help="override a config value, e.g. detector.name=rfdetr-nano (repeatable)",
         )
     run.add_argument(
+        "--scene",
+        type=Path,
+        default=None,
+        help="a camera's lines, zones and settings over the config (configs/scenes/*.yaml); "
+        "its source is used when --source is not given",
+    )
+    run.add_argument(
         "--save", type=Path, default=None, help="write the annotated video to this mp4"
     )
     run.add_argument(
         "--events", type=Path, default=None, help="write the event log to this .jsonl file"
+    )
+    run.add_argument(
+        "--heatmap", type=Path, default=None, help="save where people spent time to this .png"
     )
     run.add_argument("--no-show", action="store_true", help="do not open a window")
     run.add_argument("--max-frames", type=int, default=None, help="stop after this many frames")
@@ -102,6 +119,14 @@ def camera_settings(config: Config, source: str, recalibrate: bool = False):
     return load_or_calibrate(index, request, CalibrationStore(cam.store), recalibrate)
 
 
+def save_image(path: Path, image) -> None:
+    import cv2
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not cv2.imwrite(str(path), image):
+        raise OSError(f"could not write {path} (use a .png or .jpg name)")
+
+
 def check_camera_size(image, camera) -> None:
     """Warn if the camera delivers another size than its calibration (same USB ids, but new
     firmware or another driver). Uses a real frame: some backends report a stale size
@@ -118,34 +143,37 @@ def run(args: argparse.Namespace) -> Summary:
     # Heavy imports here, so `pathsense --help` and the tests of this module stay fast.
     import cv2
 
-    from pathsense.analytics import EventLog
-    from pathsense.annotate import Annotator, draw_line
-    from pathsense.config import load_config
+    from pathsense.analytics import EventLog, Heatmap
+    from pathsense.annotate import Annotator, draw_line, draw_zone
+    from pathsense.config import load_config, scene_source
     from pathsense.io import RealTimeVideoWriter, VideoSource
-    from pathsense.io.display import configure_qt
+    from pathsense.io.display import configure_qt, open_window
     from pathsense.pipeline import Pipeline
     from pathsense.timing import FpsMeter
 
-    config = load_config(args.config, args.overrides)
+    config = load_config(args.config, args.overrides, args.scene)
+    source_name = args.source or (scene_source(args.scene) if args.scene else None) or "0"
     Pipeline.check(config)  # before the camera turns on or weights download
-    camera = camera_settings(config, args.source, args.recalibrate)
+    camera = camera_settings(config, source_name, args.recalibrate)
     if args.recalibrate and camera is None:
         print("pathsense: --recalibrate only applies to cameras; ignored for this source")
     configure_qt()
 
-    with VideoSource(args.source, camera=camera) as source:
+    with VideoSource(source_name, camera=camera) as source:
         pipeline = Pipeline.from_config(config, frame_rate=source.fps)
         annotator = Annotator(trail_length=args.trail)
         writer = RealTimeVideoWriter(args.save, source.fps) if args.save else None
         loop_fps, detect_fps = FpsMeter(), FpsMeter()
         frames, detect_total, track_total, ids = 0, 0.0, 0.0, set()
         started = last = time.perf_counter()
-        counter, flash_until = pipeline.line_counter, -1.0
-        if args.events and not counter:
-            print("pathsense: no analytics.line is set, so the event log will be empty")
+        counter = pipeline.line_counter
+        flash_until: dict[str | None, float] = {}  # line (None) or zone name -> until when
+        if args.events and not pipeline.counters:
+            print("pathsense: no analytics.line or zones are set, so the event log will be empty")
         if args.events and args.events.exists():
             print(f"pathsense: replacing the event log {args.events}")
         log = EventLog(args.events) if args.events else None
+        heatmap, last_image = None, None
         try:
             for result in pipeline.run(source):
                 frames += 1
@@ -156,6 +184,12 @@ def run(args: argparse.Namespace) -> Summary:
                 ids.update(int(t) for t in result.tracked.tracker_id)
                 if log:
                     log.write(result.events)
+                if args.heatmap:
+                    if heatmap is None:
+                        height, width = result.frame.image.shape[:2]
+                        heatmap = Heatmap(width, height, hidden_legs=config.analytics.hidden_legs)
+                    heatmap.add(result.tracked, result.frame.timestamp)
+                    last_image = result.frame.image
 
                 if writer or not args.no_show:
                     now = time.perf_counter()
@@ -167,16 +201,23 @@ def run(args: argparse.Namespace) -> Summary:
                         f"people {len(result.tracked)}"
                     )
                     image = annotator.draw(result.frame.image, result.tracked, stats)
+                    now_t = result.frame.timestamp
+                    for event in result.events:  # green for half a second after an event
+                        flash_until[event.zone] = now_t + 0.5
+                    for zone in pipeline.zones:
+                        flash = now_t <= flash_until.get(zone.name, -1.0)
+                        draw_zone(
+                            image, zone.name, zone.polygon, zone.occupancy, zone.entered,
+                            zone.exited, flash,
+                        )  # fmt: skip
                     if counter:
-                        if result.events:  # keep the line green for half a second
-                            flash_until = result.frame.timestamp + 0.5
-                        flash = result.frame.timestamp <= flash_until
-                        draw_line(
-                            image, config.analytics.line, counter.entered, counter.exited, flash
-                        )
+                        flash = now_t <= flash_until.get(None, -1.0)
+                        draw_line(image, counter.points, counter.entered, counter.exited, flash)
                     if writer:
                         writer.write(image, result.frame.timestamp)
                     if not args.no_show:
+                        if frames == 1:
+                            open_window("PathSense", image.shape[1], image.shape[0])
                         cv2.imshow("PathSense", image)
                         if cv2.waitKey(1) & 0xFF in (ord("q"), 27):  # q or Esc
                             break
@@ -187,12 +228,14 @@ def run(args: argparse.Namespace) -> Summary:
         finally:
             seconds = time.perf_counter() - started
             try:
-                late = counter.finish() if counter else []  # still waiting for confirmation
+                late = pipeline.finish()  # crossings to confirm, dwell of people inside
                 if log:
                     log.write(late)
             finally:  # close everything even if the last write fails (a full disk)
                 if log:
                     log.close()
+                if heatmap is not None:
+                    save_image(args.heatmap, heatmap.render(last_image))
                 if writer:
                     writer.close()
                 if not args.no_show:
@@ -208,6 +251,7 @@ def run(args: argparse.Namespace) -> Summary:
         unique_ids=len(ids),
         line_in=counter.entered if counter else None,
         line_out=counter.exited if counter else None,
+        zones=tuple((z.name, z.entered, z.exited, z.occupancy) for z in pipeline.zones),
     )
 
 
@@ -218,7 +262,7 @@ def main(argv: list[str] | None = None) -> None:
     try:
         if args.command == "calibrate":
             config = load_config(args.config, args.overrides)
-            if camera_settings(config, args.source, recalibrate=True) is None:
+            if camera_settings(config, args.source or "0", recalibrate=True) is None:
                 raise SystemExit("pathsense: calibrate needs a camera index, e.g. --source 0")
             return
         summary = run(args)
@@ -229,6 +273,8 @@ def main(argv: list[str] | None = None) -> None:
         print(f"saved {args.save}")
     if args.events:
         print(f"saved {args.events}")
+    if args.heatmap:
+        print(f"saved {args.heatmap}")
 
 
 if __name__ == "__main__":

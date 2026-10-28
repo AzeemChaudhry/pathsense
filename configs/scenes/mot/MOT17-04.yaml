@@ -1,0 +1,15 @@
+# MOT17-04: a pedestrian street at night from above (1920x1080, 30 FPS, 35 s). Evaluation
+# only (CC BY-NC-SA). Make the video with scripts/mot_counts.py prepare.
+# Use case: flow up and down the street, and people waiting at the shop fronts.
+# Line: across the whole street at y = 700, drawn left to right, so walking down is IN.
+# Zone "shop front": the pavement by the shops on the left, where people stand.
+source: data/mot/videos/MOT17-04.mp4
+
+detector:
+  imgsz: 1920       # people at the far end are small: 640 finds a third of them (NOTES.md)
+
+analytics:
+  line: [[0, 700], [1920, 700]]
+  zones:
+    - name: shop front
+      polygon: [[100, 100], [620, 100], [620, 420], [100, 420]]

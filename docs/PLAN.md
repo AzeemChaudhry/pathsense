@@ -73,11 +73,19 @@ Each phase has one gate. Do not start the next phase until the gate passes.
 | 0 | **Webcam baseline** in Python: YOLO26n + ByteTrack, IDs and trails on screen | Stable ID on a 15 s recording; FPS and two failures logged in NOTES.md |
 | 1 | Pipeline package: `Detector` protocol, YOLO26 and RF-DETR adapters, tracker wrapper, frame sources, tests | Swap detector or tracker with one config line |
 | 2 | Analytics + **event log**: line crossings, zones, dwell, heatmap; events as JSON lines (`enter`, `exit`, `zone_enter`, `zone_exit`, `dwell`) with track ID and timestamp | Counts match a hand count on one clip; event log reproduces them |
-| 3 | Evaluation: TrackEval on MOT17 val half; compare ByteTrack, BoT-SORT, OC-SORT; FPS on GTX 1650 and CPU | Baseline HOTA, IDF1, MOTA in README table |
+| 3 | Evaluation: TrackEval on MOT17 val half; compare ByteTrack, BoT-SORT, OC-SORT; FPS on GTX 1650 and CPU. **Scene tuning** (`pathsense tune`): profile each sample scene (people size, density, motion, occlusion, hard segments), run 5 to 10 candidate configs from cached detections, score them against reference counts and label free measures, and say whether an error is a scene limit, a setting or a logic bug | Baseline HOTA, IDF1, MOTA in README table; every sample scene has a tuned config and its count error against a hand count in a README table |
 | 4 | **Train on Kaggle**: fine tune YOLO26n and RF-DETR Nano on Open Images people; export ONNX; push weights + model card to the Hub | Fine tuned model beats COCO baseline on held out data; ONNX runs in onnxruntime (Python) |
 | 5 | **Browser app (A)**: Static Space; ONNX detector in the browser; TypeScript ByteTrack; line counter, heatmap, event log; webcam and clip upload; WebGPU with WASM fallback | Same detections in Python and browser give the same track IDs and counts on a test clip |
 | 6 | **Ask your footage (B)**: query tools over the event log; small in browser LLM picks tools and answers; optional "bring your own API key" mode | 20 question test set answered with correct numbers |
 | 7 | Hardening and showcase: CI deploy of the Space on tag, README GIF, model card, write up | Public demo, model card and write up linked from the README |
+
+Ideas for after the current phase, kept apart so they do not pull work forward:
+[BACKLOG.md](BACKLOG.md).
+
+**Plan change 2026-10-28:** testing on four public clips showed that every scene has its
+own problems (small far people, crowds at train doors, a cart hiding the legs, curved
+edges from a wide lens). Phase 3 now also builds scene tuning, so each scene is measured
+and tuned on its own, and a wrong count can be traced to the scene, a setting or the code.
 
 **Stretch (C):** on a cloud GPU, auto label real security camera frames from MEVA
 (CC BY 4.0) with SAM 3 or a large RF-DETR, train the nano model on them, publish before and
@@ -93,5 +101,9 @@ after numbers on CCTV style video.
 - **Phase 1 gate passed (2026-10-27), v0.2.0.** `pathsense run` swaps YOLO26n, RF-DETR
   Nano, ByteTrack, BoT-SORT and OC-SORT with one config line; all six combinations
   measured in NOTES.md.
-- **Next task: Phase 2 analytics and event log** (line crossings, zones, dwell, heatmap,
-  events as JSON lines).
+- **Phase 2 in progress.** Line crossings, zones, dwell, occupancy, heatmap and the JSON
+  lines event log are built; a line matches the hand count on `people-walking.mp4`
+  (11 IN, 7 OUT). Scene files for four public clips set each camera's lines, zones and
+  detector input; ID stitching and dropping partial duplicate boxes fixed the grocery
+  scene (1 IN, one 31.7 s aisle visit). Gate still to check: every event type against a
+  hand count on one clip.

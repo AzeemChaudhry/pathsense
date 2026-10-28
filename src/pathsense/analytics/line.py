@@ -1,10 +1,12 @@
 """Count people crossing a line.
 
-Each person is reduced to one point, the bottom centre of their box (roughly their feet,
-which is where they are on the floor). The line goes from `start` to `end`. For every
-point we compute which side of the line it is on:
+Each person is reduced to one point, their feet (the bottom centre of their box, or an
+estimate from the head when their legs are hidden: pathsense.analytics.feet). The line
+goes through two or more points, from `start` (the first) to `end` (the last); more than
+two follow a curved edge, such as a train's side bent by a wide lens. For every person we
+find the nearest segment and compute which side of it they are on:
 
-    side = (end - start) x (point - start)      (2D cross product)
+    side = (b - a) x (point - a)      (2D cross product, segment from a to b)
 
 The sign is the side. When a person's side flips between two observations, they crossed.
 
@@ -17,7 +19,9 @@ Three rules keep the count honest:
 
 - **Margin.** Points closer than `margin` pixels to the line count as "on the line" and do
   not change the side. Someone standing on the line, whose box jitters by a few pixels,
-  would otherwise produce enter, exit, enter, exit...
+  would otherwise produce enter, exit, enter, exit... With `margin_height` above 0 the
+  margin is also at least that share of the person's height, so it grows with people
+  close to the camera (for example 0.15: 100 px for someone 680 px tall).
 - **Segment, not infinite line.** A flip only counts if the point where it is seen lies
   within the ends of the line, so the line can cover one doorway, not the whole frame.
 - **Confirmation.** A flip is only a crossing once the person has stayed on the new side
@@ -41,19 +45,15 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from itertools import pairwise
 
-import numpy as np
 import supervision as sv
 
 from pathsense.analytics.events import Event
+from pathsense.analytics.feet import Feet, anchor_points
 
 Point = tuple[float, float]
-
-
-def anchor_points(tracked: sv.Detections) -> np.ndarray:
-    """Bottom centre of each box, shape (n, 2)."""
-    xyxy = tracked.xyxy
-    return np.column_stack(((xyxy[:, 0] + xyxy[:, 2]) / 2, xyxy[:, 3]))
+__all__ = ["LineCounter", "anchor_points", "polyline_side", "side_of_line", "within_segment"]
 
 
 def side_of_line(point: Point, start: Point, end: Point) -> float:
@@ -70,6 +70,25 @@ def within_segment(point: Point, start: Point, end: Point) -> bool:
     return 0.0 <= t <= 1.0
 
 
+def polyline_side(point: Point, points: list[Point]) -> tuple[float, bool]:
+    """Signed distance to the nearest segment (sign as in side_of_line), and whether the
+    point is within the polyline's ends rather than beyond its first or last point."""
+    best: tuple[float, float, int, float] | None = None  # (distance, signed, segment, t)
+    last = len(points) - 2
+    for i, (a, b) in enumerate(pairwise(points)):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        t = ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / (dx * dx + dy * dy)
+        c = min(1.0, max(0.0, t))
+        distance = math.hypot(point[0] - (a[0] + c * dx), point[1] - (a[1] + c * dy))
+        if best is None or distance < best[0]:
+            best = (distance, side_of_line(point, a, b), i, t)
+    distance, signed, segment, t = best  # type: ignore[misc]
+    within = not ((segment == 0 and t < 0) or (segment == last and t > 1))
+    if len(points) == 2:  # one segment: the perpendicular distance, as before
+        return signed, within
+    return math.copysign(distance, signed), within
+
+
 # Time comparisons allow for float rounding: frame / fps can give 0.49999999999999994.
 EPS = 1e-6
 
@@ -84,7 +103,7 @@ class _Pending:
 class LineCounter:
     """Feed it each frame's tracked people; it returns the crossings as events.
 
-    counter = LineCounter((0, 540), (1920, 540), confirm=0.5)
+    counter = LineCounter((0, 540), (1920, 540), confirm=0.5)  # or 3+ points
     for result in pipeline.run(source):
         events = counter.update(result.tracked, result.frame.timestamp, result.frame.index)
     events = counter.finish()  # crossings still waiting for confirmation
@@ -93,16 +112,22 @@ class LineCounter:
 
     def __init__(
         self,
-        start: Point,
-        end: Point,
+        *points: Point,
         margin: float = 5.0,
+        margin_height: float = 0.0,
         confirm: float = 0.0,
         lost: float = 1.0,
+        hidden_legs: float = 0.0,
     ) -> None:
-        if start == end:
-            raise ValueError("A counting line needs two different points")
-        self.start, self.end = start, end
-        self.margin, self.confirm, self.lost = margin, confirm, lost
+        if len(points) < 2 or any(a == b for a, b in pairwise(points)):
+            raise ValueError(
+                "A counting line needs two or more points, each different from the next"
+            )
+        self.points = [(float(x), float(y)) for x, y in points]
+        self.start, self.end = self.points[0], self.points[-1]
+        self.margin, self.margin_height = margin, margin_height
+        self.confirm, self.lost = confirm, lost
+        self.feet = Feet(hidden_legs)
         self.entered = 0
         self.exited = 0
         self._side: dict[int, int] = {}  # track id -> confirmed side: +1 or -1
@@ -114,12 +139,13 @@ class LineCounter:
         seen: set[int] = set()
         clear: dict[int, int] = {}  # track id -> side, for feet clearly off the line now
         if tracked.tracker_id is not None:
-            for track_id, point in zip(tracked.tracker_id, anchor_points(tracked), strict=True):
+            feet, heights = self.feet(tracked, t)
+            for track_id, point, height in zip(tracked.tracker_id, feet, heights, strict=True):
                 track_id, point = int(track_id), (float(point[0]), float(point[1]))
                 seen.add(track_id)
                 self._last_seen[track_id] = t
-                distance = side_of_line(point, self.start, self.end)
-                if abs(distance) <= self.margin:
+                distance, within = polyline_side(point, self.points)
+                if abs(distance) <= max(self.margin, self.margin_height * float(height)):
                     continue  # on the line: wait until they are clearly on one side
                 side = clear[track_id] = 1 if distance > 0 else -1
                 confirmed = self._side.get(track_id)
@@ -128,7 +154,7 @@ class LineCounter:
                 elif side == confirmed:
                     self._pending.pop(track_id, None)  # came back: it never happened
                 elif track_id not in self._pending:
-                    if within_segment(point, self.start, self.end):
+                    if within:
                         self._pending[track_id] = _Pending(side, t, frame)
                     else:
                         self._side[track_id] = side  # passed beside the line, not over it
@@ -147,6 +173,7 @@ class LineCounter:
     def _forget(self, track_id: int) -> list[Event]:
         """The track is gone; a flip still waiting means they walked off on the new side."""
         del self._last_seen[track_id]
+        self.feet.forget(track_id)
         pending = self._pending.get(track_id)
         events = [self._count(track_id, pending)] if pending else []
         self._side.pop(track_id, None)  # never off the line: no side yet

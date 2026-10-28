@@ -1,0 +1,15 @@
+# MOT17-02: a square at eye level (1920x1080, 30 FPS, 20 s). Evaluation only (CC BY-NC-SA).
+# Make the video with scripts/mot_counts.py prepare; score with scripts/mot_counts.py score.
+# Use case: footfall across the square, and who stops under the tree.
+# Line: vertical through the open paving, from the far edge of the walkway to the bottom.
+# Zone "tree": the paving under the tree, where people stand and talk.
+source: data/mot/videos/MOT17-02.mp4
+
+detector:
+  imgsz: 1920       # people at the far end are small: 640 finds a third of them (NOTES.md)
+
+analytics:
+  line: [[1000, 600], [1000, 1080]]
+  zones:
+    - name: tree
+      polygon: [[550, 500], [1300, 500], [1300, 620], [550, 620]]

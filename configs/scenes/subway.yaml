@@ -1,0 +1,31 @@
+# Subway platform, camera above the platform looking along the train (subway.mp4,
+# 2160x3840 portrait, 30 FPS, 43 s). Empty track until about 12 s, the train stops, its
+# doors are open roughly 22 to 31 s, then it leaves.
+# Use case: how many boarded and how many got off; how long people wait on the platform.
+#   uv run pathsense run --scene configs/scenes/subway.yaml
+#
+# Line: follows the train's lower edge 120 px out on the platform, in front of the doors,
+# from the far end of the platform (y 520, by the stairs) to the bottom of the picture.
+# The wide lens curves that edge (x 345 at y 3120, where a straight line through its top
+# half gives 550), so the line has eleven points. Drawn from the far end (top) to the near
+# end (bottom): platform to train is IN (boarded), train to platform is OUT (got off).
+# Someone who boards disappears into the train right after crossing; the line counts them
+# when their track ends on the train side.
+# Zone "platform": everything right of the line, the waiting area. Dwell is waiting time;
+# occupancy shows the platform filling and emptying around the train.
+source: data/samples/subway.mp4
+
+# The 4K portrait frame is shrunk 6 times at the default input size: only 5 people at the
+# doors are confident enough to track. At 1920, 17 (NOTES.md). Tiles (detector.slice) do
+# worse here: people near the camera are taller than a tile's overlap and get cut.
+detector:
+  imgsz: 1920
+
+analytics:
+  line: [[1265, 520], [1250, 600], [1220, 720], [1178, 960], [1092, 1440], [962, 1920],
+         [844, 2400], [640, 2880], [465, 3120], [250, 3480], [120, 3700]]
+  zones:
+    - name: platform
+      polygon: [[1265, 520], [1250, 600], [1220, 720], [1178, 960], [1092, 1440], [962, 1920],
+                [844, 2400], [640, 2880], [465, 3120], [250, 3480], [120, 3700], [60, 3840],
+                [2160, 3840], [2160, 520]]

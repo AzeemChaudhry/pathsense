@@ -53,7 +53,12 @@ def build_detector(cfg: DetectorConfig) -> Detector:
         raise ConfigError(
             f"Unknown detector {cfg.name!r}; choose one of {sorted(DETECTORS)}"
         ) from None
-    return builder(cfg)
+    detector = builder(cfg)
+    if cfg.slice:
+        from pathsense.detect.slice import SlicedDetector
+
+        detector = SlicedDetector(detector, cfg.slice)
+    return detector
 
 
 __all__ = ["DETECTORS", "PERSON_CLASS_ID", "Detector", "build_detector", "select_people"]

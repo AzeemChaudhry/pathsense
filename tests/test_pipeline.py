@@ -81,23 +81,54 @@ def test_from_config_adds_the_line_counter_only_when_a_line_is_set(monkeypatch):
     assert counter.start == (0.0, 675.0) and counter.margin == 8
 
 
-def test_the_line_forgets_people_just_after_the_tracker_does(monkeypatch):
+def test_lines_forget_people_once_their_id_cannot_return(monkeypatch):
     monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
     line = "analytics.line=[[0, 675], [1920, 675]]"
-    default = Pipeline.from_config(load_config(overrides=["detector.name=fake", line]), 25)
-    assert default.line_counter.lost == pytest.approx(30 / 30 + 1 / 25)
-    longer = load_config(
-        overrides=["detector.name=fake", line, "tracker.params={lost_track_buffer: 60}"]
-    )
-    assert Pipeline.from_config(longer, 25).line_counter.lost == pytest.approx(2 + 1 / 25)
+
+    def lost(*overrides):
+        config = load_config(overrides=["detector.name=fake", line, *overrides])
+        return Pipeline.from_config(config, 25).line_counter.lost
+
+    assert lost() == pytest.approx(2.0 + 1 / 25)  # the stitcher's 2 s window
+    assert lost("tracker.stitch_seconds=0") == pytest.approx(30 / 30 + 1 / 25)  # tracker
+    longer = "tracker.params={track_activation_threshold: 0.6, lost_track_buffer: 90}"
+    assert lost("tracker.stitch_seconds=0", longer) == pytest.approx(3 + 1 / 25)
 
 
-def test_draw_line_marks_the_line_and_the_totals():
-    from pathsense.annotate import FLASH_COLOUR, LINE_COLOUR, draw_line
+def test_from_config_builds_each_zone_and_finish_collects_their_events(monkeypatch, tiny_video):
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    # The fake's feet walk right along y = 40: x = 5, 9, 13... Zone "right" starts at x = 25.
+    right = "{name: right, polygon: [[25, 0], [64, 0], [64, 48], [25, 48]]}"
+    config = load_config(overrides=["detector.name=fake", f"analytics.zones=[{right}]"])
+    pipeline = Pipeline.from_config(config, frame_rate=10)
+    (zone,) = pipeline.zones
+    assert zone.name == "right" and pipeline.counters == [zone]
+    with VideoSource(str(tiny_video)) as source:
+        events = [e for r in pipeline.run(source) for e in r.events]
+    events += pipeline.finish()
+    assert [(e.type, e.zone) for e in events] == [("zone_enter", "right"), ("dwell", "right")]
+    assert zone.occupancy == 1
+
+
+def test_draw_zone_fills_and_labels_without_failing():
+    from pathsense.annotate import draw_zone
 
     image = np.zeros((200, 400, 3), np.uint8)
-    draw_line(image, ((0.0, 150.0), (400.0, 150.0)), entered=3, exited=1)
-    assert tuple(image[150, 380]) == LINE_COLOUR
-    assert image[10:70, 10:330].any()  # the IN / OUT box
-    draw_line(image, ((0.0, 150.0), (400.0, 150.0)), 3, 1, flash=True)
-    assert tuple(image[150, 380]) == FLASH_COLOUR
+    draw_zone(image, "door", ((50.0, 80.0), (350.0, 80.0), (350.0, 180.0), (50.0, 180.0)), 2, 3, 1)
+    assert image[130, 200].any() and image[40:80, 50:400].any()  # filled, labelled above
+
+
+def test_partial_duplicates_are_dropped_only_when_the_scene_asks(monkeypatch, tiny_video):
+    class UpperAndWhole:
+        name = "fake"
+
+        def __call__(self, frame):
+            return detections([[5, 5, 25, 20], [5, 5, 25, 45]])  # upper body and whole
+
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: UpperAndWhole())
+    for drop, people in (("false", 2), ("true", 1)):
+        config = load_config(overrides=["detector.name=fake", f"detector.drop_partial={drop}"])
+        pipeline = Pipeline.from_config(config, frame_rate=10)
+        with VideoSource(str(tiny_video)) as source:
+            last = list(pipeline.run(source))[-1]
+        assert len(last.tracked) == people

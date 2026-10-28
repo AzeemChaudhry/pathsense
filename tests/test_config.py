@@ -108,3 +108,72 @@ def test_margin_and_confirm_must_be_numbers_from_zero(key, value):
 def test_analytics_typos_are_errors_now():
     with pytest.raises(ConfigError, match=r"Unknown keys in \[analytics\]"):
         load_config(overrides=["analytics.lien=[[0, 1], [2, 3]]"])
+
+
+def test_a_line_can_have_more_than_two_points():
+    config = load_config(overrides=["analytics.line=[[0, 650], [900, 600], [1920, 700]]"])
+    assert config.analytics.line == ((0.0, 650.0), (900.0, 600.0), (1920.0, 700.0))
+
+
+def test_zones_are_read_and_checked():
+    floor = "{name: floor, polygon: [[0, 675], [1920, 675], [1920, 1080], [0, 1080]]}"
+    config = load_config(overrides=[f"analytics.zones=[{floor}]"])
+    (zone,) = config.analytics.zones
+    assert zone.name == "floor" and zone.polygon[2] == (1920.0, 1080.0)
+    assert config.analytics.zone_confirm == 0.5 and config.analytics.zone_count_present is True
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        ("7", "must be a list"),
+        ("[{name: a}]", "exactly name and polygon"),
+        ("[{name: '', polygon: [[0, 0], [1, 0], [1, 1]]}]", "non empty text"),
+        ("[{name: a, polygon: [[0, 0], [1, 0]]}]", "at least 3 points"),
+        ("[{name: a, polygon: [[0, 0], [1, 0], [1, 0]]}]", "repeats a point"),
+        ("[{name: a, polygon: [[0, 0], [1, 0], [1, 1]]},"
+         " {name: a, polygon: [[0, 0], [1, 0], [1, 1]]}]", "unique"),
+    ],
+)  # fmt: skip
+def test_bad_zones_are_config_errors(value, message):
+    with pytest.raises(ConfigError, match=message):
+        load_config(overrides=[f"analytics.zones={value}"])
+
+
+@pytest.mark.parametrize(
+    ("override", "message"),
+    [
+        ("analytics.hidden_legs=1", "below 1"),
+        ("analytics.hidden_legs=-0.1", ">= 0"),
+        ("analytics.zone_count_present=maybe", "true or false"),
+        ("analytics.line_margin_height=-1", ">= 0"),
+        ("analytics.zone_confirm=abc", ">= 0"),
+    ],
+)
+def test_new_analytics_settings_are_checked(override, message):
+    with pytest.raises(ConfigError, match=message):
+        load_config(overrides=[override])
+
+
+def test_a_scene_changes_only_the_keys_it_names(tmp_path):
+    from pathsense.config import scene_source
+
+    scene = tmp_path / "door.yaml"
+    scene.write_text(
+        "source: clips/door.mp4\nanalytics:\n  line: [[0, 10], [100, 10]]\n  line_confirm: 1.0\n"
+    )
+    config = load_config(scene=scene, overrides=["analytics.line_margin=9"])
+    assert config.analytics.line == ((0.0, 10.0), (100.0, 10.0))
+    assert config.analytics.line_confirm == 1.0 and config.analytics.line_margin == 9
+    assert config.analytics.zone_confirm == 0.5  # from the base config
+    assert config.tracker.params == {"track_activation_threshold": 0.6}  # untouched section
+    assert scene_source(scene) == "clips/door.mp4"
+
+
+def test_a_scene_with_a_typo_is_a_config_error(tmp_path):
+    scene = tmp_path / "bad.yaml"
+    scene.write_text("analytics: {lien: [[0, 1], [2, 3]]}\n")
+    with pytest.raises(ConfigError, match="Unknown keys in \\[analytics\\]"):
+        load_config(scene=scene)
+    with pytest.raises(ConfigError, match="not found"):
+        load_config(scene=tmp_path / "missing.yaml")

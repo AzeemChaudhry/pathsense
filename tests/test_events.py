@@ -69,3 +69,13 @@ def test_wrong_field_types_name_the_line(tmp_path):
     path.write_text(good + '\n{"t": "x", "frame": null, "track_id": 1, "type": "enter"}\n')
     with pytest.raises(ValueError, match="line 2: not an event"):
         load_events(path)
+
+
+def test_zone_name_is_written_only_for_zone_events(tmp_path):
+    path = tmp_path / "log.jsonl"
+    line, zone = Event(1.0, 25, 1, "enter"), Event(2.0, 50, 2, "zone_enter", "floor")
+    with EventLog(path) as log:
+        log.write([line, zone])
+    first, second = (json.loads(text) for text in path.read_text().splitlines())
+    assert "zone" not in first and second["zone"] == "floor"
+    assert load_events(path) == [line, zone]

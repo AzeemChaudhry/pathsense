@@ -1,0 +1,16 @@
+# MOT20-02: the same station from a lower, closer camera (1920x1080, 25 FPS, 111 s).
+# Evaluation only (CC BY-NC-SA). Make the video with scripts/mot_counts.py prepare.
+# Use case: arrivals from the platforms, and how busy the hall by the gates is.
+# Line: across the concourse at y = 620, drawn left to right, so walking towards the camera
+# (arriving) is IN.
+# Zone "gate hall": the back of the hall between the gates and the kiosk.
+source: data/mot/videos/MOT20-02.mp4
+
+detector:
+  imgsz: 1920       # people at the back are small
+
+analytics:
+  line: [[300, 620], [1700, 620]]
+  zones:
+    - name: gate hall
+      polygon: [[600, 250], [1150, 250], [1150, 560], [600, 560]]

@@ -1,0 +1,30 @@
+# Supermarket aisle, camera at eye level at the near end (grocery-store.mp4, 3840x2160,
+# 30 FPS, 33 s). One shopper pushes a cart down the aisle towards the camera and stops to
+# browse around 20 s. The cart hides the shopper's legs (analytics.hidden_legs).
+# Use case: did shoppers come down this aisle, and how long did they browse.
+#   uv run pathsense run --scene configs/scenes/grocery-store.yaml
+#
+# Line: across the aisle floor between the shelf bases at y = 1450, drawn left to right,
+# so walking towards the camera is IN. Expected: 1 IN.
+# Zone "aisle": the aisle floor between the shelf bases, from the far end to the camera.
+# Expected: 1 enter, and a dwell close to the time the shopper is in view.
+source: data/samples/grocery-store.mp4
+
+# At the default input size the 4K frame is shrunk 6 times; the shopper at the far end of
+# the aisle drops to 0.33 confidence, is not tracked for 2.7 s and comes back with a new ID.
+# At 1920 he stays at 0.61 to 0.83 (NOTES.md).
+detector:
+  imgsz: 1920
+  # With the cart hiding his legs, the detector boxed the shopper's upper body and whole
+  # body; the tracker followed the second box as a phantom person who crossed the line.
+  drop_partial: true
+
+analytics:
+  line: [[1733, 1450], [2618, 1450]]
+  # The shopper browses with the cart at the line for several seconds (10.5 to 13.5 s);
+  # a 5 px margin let his feet flip OUT and back IN. 10 % of his height (about 50 px)
+  # gives the correct single IN; so does 15 %.
+  line_margin_height: 0.1
+  zones:
+    - name: aisle
+      polygon: [[1850, 1250], [2420, 1250], [3320, 2160], [1320, 2160]]

@@ -76,15 +76,20 @@ uv run pathsense run --source clip.mp4 --no-show --max-frames 300 # quick benchm
 uv run pathsense calibrate                                        # re-measure webcam 0
 uv run pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]]"  # count crossings
 uv run pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]]" --events runs/clip.jsonl  # and keep the event log
+uv run pathsense run --source clip.mp4 --set "analytics.zones=[{name: floor, polygon: [[0,675],[1920,675],[1920,1080],[0,1080]]}]"  # who is in an area, and for how long
+uv run pathsense run --source clip.mp4 --heatmap runs/heat.png      # where people spent time
+uv run pathsense run --scene configs/scenes/subway.yaml --events runs/subway.jsonl  # one camera's setup
 ```
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--source` | `0` | camera index, video file or stream URL |
+| `--scene` | none | one camera's lines, zones and settings, laid over the config (`configs/scenes/*.yaml`); its `source` is used when `--source` is not given |
 | `--config` | `configs/default.yaml` | YAML config |
 | `--set SECTION.KEY=VALUE` | none | override one config value; repeatable |
 | `--save` | off | write the annotated video to an mp4 that plays at real speed |
-| `--events` | off | write the event log (one JSON line per crossing) to this file |
+| `--events` | off | write the event log (one JSON line per event) to this file |
+| `--heatmap` | off | save a heatmap of where people spent time to this `.png` |
 | `--no-show` | off | run without a window (for example over SSH or for benchmarks) |
 | `--max-frames` | all | stop after this many frames |
 | `--trail` | `30` | trail length in frames |
@@ -102,11 +107,21 @@ swapping a model is one line, never a code change. Typos are errors, not silent 
 | `detector.imgsz` | model default | YOLO 640, RF-DETR Nano 384 |
 | `detector.conf` | `0.1` | kept low so ByteTrack can use low confidence boxes |
 | `detector.device` | `auto` | `auto`, `cpu`, `cuda`, `0` |
+| `detector.drop_partial` | `false` | drop a box that is a partial view of a person also boxed whole (upper body behind a cart); for eye level cameras, not crowds seen from above |
+| `detector.slice` | `null` | detect on overlapping tiles of this many pixels as well as the whole frame: finds many small people in large frames (a square seen from above), several times slower |
 | `tracker.name` | `bytetrack` | `bytetrack`, `botsort`, `ocsort` |
 | `tracker.params` | `{track_activation_threshold: 0.6}` | passed to the tracker, e.g. `{lost_track_buffer: 60}`; a setting the chosen tracker does not take is skipped with a warning |
-| `analytics.line` | `null` | counting line `[[x1, y1], [x2, y2]]` in pixels; crossing from left to right of start to end is IN |
+| `tracker.stitch_seconds` | `2` | a person the tracker lost for up to this long gets their old ID back when they reappear where they were heading; `0`: off |
+| `tracker.stitch_distance` | `1` | how far from where they were heading, in box heights |
+| `tracker.stitch_size` | `0.5` | how different their box height may be (from 1/1.5 to 1.5 times) |
+| `analytics.line` | `null` | counting line `[[x1, y1], [x2, y2], ...]` in pixels, two or more points (more follow a curved edge); crossing from left to right of start to end is IN |
 | `analytics.line_margin` | `5` | feet closer than this many pixels to the line do not change side |
+| `analytics.line_margin_height` | `0` | if above 0, the margin is at least this share of the person's height (0.15: 100 px for someone 680 px tall) |
 | `analytics.line_confirm` | `0.5` | seconds a person must stay on the new side before a crossing counts |
+| `analytics.zones` | `[]` | areas, `[{name: door, polygon: [[x1, y1], [x2, y2], [x3, y3], ...]}]`: enter, exit and dwell events, and how many are inside |
+| `analytics.zone_confirm` | `0.5` | seconds inside (or outside) before a zone enter (or exit) counts |
+| `analytics.zone_count_present` | `true` | people already inside when the video starts count as entered; `false`: inside, but not counted as entering |
+| `analytics.hidden_legs` | `0.25` | a box this much shorter than the person's full height (a cart or another person hides the legs) gets its feet placed from the head; `0`: off |
 | `camera.calibrate` | `true` | capture calibration: measure a new webcam once and reuse the result |
 | `camera.max_width` | `1280` | largest picture to try |
 | `camera.fps` | `30` | target frame rate |
@@ -168,11 +183,69 @@ which removes most of this. For close-up use raise it to 1 or 1.5
 (`--set analytics.line_confirm=1.5`); it never removes all of it, and the IN and OUT totals
 update that much later.
 
+### Lines, zones and the event log
+
+Place lines and zones from what the camera is for, not at a convenient spot: a subway
+camera counts boarding with a line along the train's doors, an aisle camera measures
+browsing with a zone over the aisle floor. Each person is reduced to their feet, so draw on
+the floor. A wide lens bends straight edges near the corners; give the line more points to
+follow them. Small, far people in a 4K or portrait video may need a larger
+`detector.imgsz` to be detected at all.
+
+Getting people detected comes first: no line or zone counts someone the detector misses.
+In a 4K or portrait frame people shrink 3 to 6 times at the default input size; set
+`detector.imgsz: 1920` (or `detector.slice` for many small people seen from above). Before
+tracking, `detector.drop_partial` can drop a box that is a partial view of a person also
+boxed whole (upper body behind a shopping cart); leave it off for crowds seen from above,
+where it also drops people standing behind others. After tracking, a person lost for up to `tracker.stitch_seconds`
+keeps their ID when they reappear, using position, motion and box size only.
+
+`configs/scenes/` has one file per public sample clip, each starting with the scene's use
+case and what IN and OUT mean there: `people-walking` (concourse footfall), `subway`
+(boarding and getting off along the train's doors, waiting time on the platform),
+`grocery-store` (shoppers in an aisle and how long they browse) and `market-square`
+(people entering the square from the street, who gathers at the fountain). A scene changes
+only the keys it names; everything else comes from the config.
+
+With `--events`, each event is one JSON line:
+
+```json
+{"t": 6.64, "frame": 166, "track_id": 21, "type": "enter"}
+{"t": 7.08, "frame": 177, "track_id": 30, "type": "zone_enter", "zone": "floor"}
+{"t": 9.52, "frame": 238, "track_id": 30, "type": "zone_exit", "zone": "floor"}
+{"t": 9.52, "frame": 238, "track_id": 30, "type": "dwell", "zone": "floor", "duration": 2.44}
+```
+
+`enter` and `exit` are line crossings. `dwell` comes with every zone exit, and at the end of
+the video for people still inside (their time so far, with no exit). `load_events` and
+`count_events` in `pathsense.analytics` read a log back.
+
 Each track ID gets its own colour, so an ID switch shows up as a colour change. The tracker
 gets real capture timestamps, so it forgets a lost person after the same time whatever the
 frame rate. `scripts/webcam_baseline.py` is the single file Phase 0 version, kept as a
 commented walkthrough of the same loop. Measured numbers and failure cases are in
 [NOTES.md](NOTES.md).
+
+### Scoring counts against ground truth
+
+MOT17 and MOT20 label every person in every frame by hand. `scripts/mot_counts.py` feeds
+those tracks through the same lines and zones as the pipeline, so each scene in
+`configs/scenes/mot/` is scored without hand counting:
+
+```bash
+# MOT16.zip, MOT17Labels.zip and MOT20.zip from https://motchallenge.net/data/ in data/mot/
+uv run python scripts/mot_counts.py prepare
+uv run python scripts/mot_counts.py score configs/scenes/mot/*.yaml
+uv run python scripts/mot_counts.py score configs/scenes/mot/MOT17-02.yaml --set detector.imgsz=1280
+```
+
+For each line and zone it prints the enters, exits, total dwell and mean occupancy under:
+- `truth`: every labelled person, hidden ones included;
+- `seen`: only people at least a quarter visible;
+- `ours`: the pipeline.
+
+Truth minus seen is what the scene hides; seen minus ours is the pipeline's error. MOT data
+is CC BY-NC-SA: evaluation only, never redistributed, no frames in these docs.
 
 ### Checks
 
@@ -200,7 +273,7 @@ pathsense/
   configs/        YAML configs (model, tracker, zones)
   eval/           TrackEval scripts and MOT format export
   train/          Data download and fine tuning
-  scripts/        Phase 0 webcam baseline
+  scripts/        Phase 0 webcam baseline; MOT count scoring
   tests/          pytest suite
   NOTES.md        Experiment log: what was tried, the number, the decision
 ```
