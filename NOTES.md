@@ -280,3 +280,16 @@ This becomes the "Design decisions" section of the README.
   tune`) to choose them from a profile of each video, and reference counts per scene to
   score them. Ideas beyond that are in docs/BACKLOG.md. Subway and market counts still
   need a hand count; subway is mostly limited by people leaving the train in a cluster.
+
+## 2026-10-28: half precision, and true counts from MOT
+
+- **Tried:** FP16 inference (`quantize="fp16"`, formerly `half=True`) with yolo26n on the
+  GTX 1650, 100 subway frames.
+- **Result:** slower, with the same boxes. 1920: 97.7 ms against 40.7 ms per frame; 640:
+  16.2 ms against 7.1 ms. Boxes at 0.5 or more: 1167 against 1161.
+- **Decision:** stay in FP32 on this GPU. Speed for the product comes from the browser
+  export (Phase 5), not from PyTorch settings.
+- **Next:** four sample clips are too few to say the counting works. MOT17 (02, 04, 09)
+  and MOT20 (01, 02, 03, 05) are fixed cameras with every person labelled by hand;
+  `scripts/mot_counts.py` counts those tracks through the same lines and zones for the true
+  counts. Evaluation only (CC BY-NC-SA): no frames in public docs.

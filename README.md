@@ -252,7 +252,7 @@ pathsense/
   configs/        YAML configs (model, tracker, zones)
   eval/           TrackEval scripts and MOT format export
   train/          Data download and fine tuning
-  scripts/        Phase 0 webcam baseline
+  scripts/        Phase 0 webcam baseline; MOT count scoring
   tests/          pytest suite
   NOTES.md        Experiment log: what was tried, the number, the decision
 ```

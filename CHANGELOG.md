@@ -10,6 +10,9 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Added
 
+- `scripts/mot_counts.py` scores line and zone counts against MOT17 and MOT20 ground
+  truth: the hand labelled tracks go through the same counters as the pipeline, so a
+  scene's count error needs no hand counting. MOT data is for evaluation only.
 - Zones: `analytics.zones` gives each named polygon `zone_enter`, `zone_exit` and `dwell`
   events (seconds inside), and the window shows how many are inside. People already inside
   when the video starts count as entered unless `analytics.zone_count_present` is false.

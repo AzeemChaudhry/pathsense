@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 import supervision as sv
 
 from pathsense.analytics import Event, LineCounter, ZoneCounter
-from pathsense.config import Config, ConfigError
+from pathsense.config import AnalyticsConfig, Config, ConfigError
 from pathsense.detect import DETECTORS, Detector, build_detector
 from pathsense.detect.base import drop_partial_duplicates
 from pathsense.io import Frame, VideoSource
@@ -83,29 +83,7 @@ class Pipeline:
         # Forget a person one frame after their ID can no longer return, from the tracker or
         # the stitcher.
         lost = max(tracker.lost_seconds, stitch) + 1 / frame_rate
-        line_counter = (
-            LineCounter(
-                *analytics.line,
-                margin=analytics.line_margin,
-                margin_height=analytics.line_margin_height,
-                confirm=analytics.line_confirm,
-                lost=lost,
-                hidden_legs=analytics.hidden_legs,
-            )
-            if analytics.line
-            else None
-        )
-        zones = [
-            ZoneCounter(
-                zone.name,
-                list(zone.polygon),
-                confirm=analytics.zone_confirm,
-                lost=lost,
-                count_present=analytics.zone_count_present,
-                hidden_legs=analytics.hidden_legs,
-            )
-            for zone in analytics.zones
-        ]
+        line_counter, zones = build_counters(analytics, lost)
         return cls(detector, tracker, line_counter, zones, stitcher, config.detector.drop_partial)
 
     def process(self, frame: Frame) -> FrameResult:
@@ -135,3 +113,35 @@ class Pipeline:
     def finish(self) -> list[Event]:
         """Events still waiting at the end of the video, from every counter."""
         return [event for counter in self.counters for event in counter.finish()]
+
+
+def build_counters(
+    analytics: AnalyticsConfig, lost: float
+) -> tuple[LineCounter | None, list[ZoneCounter]]:
+    """The line counter and zone counters `analytics` asks for. `lost` is how long a person
+    can be unseen before they are gone. Evaluation builds them the same way to count ground
+    truth tracks."""
+    line_counter = (
+        LineCounter(
+            *analytics.line,
+            margin=analytics.line_margin,
+            margin_height=analytics.line_margin_height,
+            confirm=analytics.line_confirm,
+            lost=lost,
+            hidden_legs=analytics.hidden_legs,
+        )
+        if analytics.line
+        else None
+    )
+    zones = [
+        ZoneCounter(
+            zone.name,
+            list(zone.polygon),
+            confirm=analytics.zone_confirm,
+            lost=lost,
+            count_present=analytics.zone_count_present,
+            hidden_legs=analytics.hidden_legs,
+        )
+        for zone in analytics.zones
+    ]
+    return line_counter, zones
