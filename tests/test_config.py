@@ -84,11 +84,25 @@ def test_analytics_line_is_read_and_checked():
 
 
 @pytest.mark.parametrize(
-    "value", ["[[0, 675]]", "[[0, 675], [1920]]", "[[a, 1], [2, 3]]", "[[5, 5], [5, 5]]", "7"]
-)
+    "value",
+    ["[[0, 675]]", "[[0, 675], [1920]]", "[[a, 1], [2, 3]]", "[[5, 5], [5, 5]]", "7",
+     "[[.nan, 1], [2, 3]]", "[[0, .inf], [2, 3]]"],
+)  # fmt: skip
 def test_bad_lines_are_config_errors(value):
     with pytest.raises(ConfigError, match="analytics.line"):
         load_config(overrides=[f"analytics.line={value}"])
+
+
+def test_margin_and_confirm_overrides_are_read():
+    config = load_config(overrides=["analytics.line_margin=8", "analytics.line_confirm=1.5"])
+    assert (config.analytics.line_margin, config.analytics.line_confirm) == (8.0, 1.5)
+
+
+@pytest.mark.parametrize("key", ["line_margin", "line_confirm"])
+@pytest.mark.parametrize("value", ["-1", "abc", ".nan", ".inf", "true", "null"])
+def test_margin_and_confirm_must_be_numbers_from_zero(key, value):
+    with pytest.raises(ConfigError, match=f"analytics.{key} must be a number >= 0"):
+        load_config(overrides=[f"analytics.{key}={value}"])
 
 
 def test_analytics_typos_are_errors_now():

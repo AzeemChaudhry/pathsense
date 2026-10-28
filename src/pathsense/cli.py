@@ -143,6 +143,8 @@ def run(args: argparse.Namespace) -> Summary:
         counter, flash_until = pipeline.line_counter, -1.0
         if args.events and not counter:
             print("pathsense: no analytics.line is set, so the event log will be empty")
+        if args.events and args.events.exists():
+            print(f"pathsense: replacing the event log {args.events}")
         log = EventLog(args.events) if args.events else None
         try:
             for result in pipeline.run(source):
@@ -183,15 +185,18 @@ def run(args: argparse.Namespace) -> Summary:
         except KeyboardInterrupt:
             pass
         finally:
-            late = counter.finish() if counter else []  # still waiting for confirmation
-            if log:
-                log.write(late)
-                log.close()
             seconds = time.perf_counter() - started
-            if writer:
-                writer.close()
-            if not args.no_show:
-                cv2.destroyAllWindows()
+            try:
+                late = counter.finish() if counter else []  # still waiting for confirmation
+                if log:
+                    log.write(late)
+            finally:  # close everything even if the last write fails (a full disk)
+                if log:
+                    log.close()
+                if writer:
+                    writer.close()
+                if not args.no_show:
+                    cv2.destroyAllWindows()
 
     return Summary(
         detector=pipeline.detector.name,

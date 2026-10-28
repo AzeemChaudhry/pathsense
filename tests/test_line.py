@@ -131,3 +131,98 @@ def test_coming_back_before_confirmation_cancels_and_a_later_crossing_counts():
     ys = [500, 580, 500] + [500] * 5 + [580] * 12  # step over and back, then walk across
     events = walk(counter, 5, 960, ys)
     assert events == [Event(0.8, 8, 5, "enter")]
+
+
+def empty():
+    tracked = detections([])
+    tracked.tracker_id = np.array([], dtype=int)
+    return tracked
+
+
+def test_a_diagonal_line_uses_the_same_sides_and_segment():
+    # From the top left to the bottom right corner of a 100 x 100 square.
+    counter = LineCounter((0.0, 0.0), (100.0, 100.0), margin=1)
+    assert side_of_line((20, 80), (0, 0), (100, 100)) > 0  # below the diagonal: right of it
+    feet = [(80, 20), (20, 80)]  # from above the diagonal to below it
+    events = []
+    for frame, (x, y) in enumerate(feet):
+        tracked = detections([[x - 5, y - 10, x + 5, y]])
+        tracked.tracker_id = np.array([1])
+        events += counter.update(tracked, t=frame / 10, frame=frame)
+    assert [e.type for e in events] == ["enter"]
+
+
+def test_the_ends_of_the_segment_count_and_just_beyond_does_not():
+    door = (800.0, 540.0), (1100.0, 540.0)
+    assert [e.type for e in walk(LineCounter(*door), 1, 800, [500, 580])] == ["enter"]
+    assert [e.type for e in walk(LineCounter(*door), 2, 1100, [500, 580])] == ["enter"]
+    assert walk(LineCounter(*door), 3, 1101, [500, 580]) == []
+
+
+def test_standing_on_the_line_after_a_flip_does_not_confirm_it():
+    counter = LineCounter(START, END, margin=5, confirm=0.5)
+    # Flip at 0.1 s, then stand on the line (within 5 px) for a second: not yet counted.
+    assert walk(counter, 1, 960, [500, 560] + [542] * 10) == []
+    # Then step clearly onto the new side: counted, dated at the flip.
+    assert counter.update(person(1, 960, 580), t=1.2, frame=12) == [Event(0.1, 1, 1, "enter")]
+
+
+def test_someone_hidden_for_less_than_lost_is_not_counted_on_the_old_side():
+    counter = LineCounter(START, END, confirm=0.5, lost=1.0)
+    walk(counter, 2, 960, [500, 580])  # flip at 0.1 s
+    assert counter.update(empty(), t=0.8, frame=8) == []  # hidden 0.7 s: past confirm
+    # Back, on the old side: the flip is cancelled, nothing was ever counted.
+    assert counter.update(person(2, 960, 500), t=0.9, frame=9) == []
+    assert counter.finish() == [] and (counter.entered, counter.exited) == (0, 0)
+
+
+def test_someone_hidden_then_back_on_the_new_side_counts_once():
+    counter = LineCounter(START, END, confirm=0.5, lost=1.0)
+    walk(counter, 3, 960, [500, 580])
+    counter.update(empty(), t=0.8, frame=8)
+    assert counter.update(person(3, 960, 590), t=0.9, frame=9) == [Event(0.1, 1, 3, "enter")]
+
+
+def test_a_flip_counts_on_the_same_frame_without_a_hold():
+    counter = LineCounter(START, END, confirm=0.0)
+    assert counter.update(person(4, 960, 500), t=0.0, frame=0) == []
+    assert counter.update(person(4, 960, 580), t=0.1, frame=1) == [Event(0.1, 1, 4, "enter")]
+
+
+def test_float_rounding_does_not_delay_confirmation():
+    counter = LineCounter(START, END, confirm=0.5)
+    counter.update(person(5, 960, 500), t=0.0, frame=0)
+    counter.update(person(5, 960, 580), t=0.1, frame=1)
+    assert counter.update(person(5, 960, 580), t=0.1 + 0.49999999999999994, frame=6) != []
+
+
+def test_finish_twice_counts_once():
+    counter = LineCounter(START, END, confirm=5.0)
+    walk(counter, 6, 960, [500, 580])
+    assert len(counter.finish()) == 1 and counter.finish() == []
+
+
+def test_two_people_waiting_one_confirms_one_steps_back():
+    counter = LineCounter(START, END, confirm=0.5)
+    feet = [(500, 500), (580, 580)] + [(580, 500)] * 6  # both flip at 0.1 s; #2 steps back
+    events = []
+    for frame, ys in enumerate(feet):
+        tracked = detections([[940, y - 100, 980, y] for y in ys])
+        tracked.tracker_id = np.array([1, 2])
+        events += counter.update(tracked, t=frame / 10, frame=frame)
+    assert events == [Event(0.1, 1, 1, "enter")]
+
+
+def test_a_frame_without_track_ids_still_lets_vanished_people_count():
+    counter = LineCounter(START, END, confirm=0.5, lost=1.0)
+    walk(counter, 7, 960, [500, 580])
+    no_ids = detections([[0, 0, 10, 10]])  # tracker_id is None
+    assert counter.update(no_ids, t=1.2, frame=12) == [Event(0.1, 1, 7, "enter")]
+
+
+def test_forgotten_tracks_are_dropped_from_memory():
+    counter = LineCounter(START, END, lost=1.0)
+    walk(counter, 8, 960, [500, 542])  # one frame clearly above, one on the line
+    walk(counter, 9, 960, [542])  # only ever on the line: no side
+    counter.update(empty(), t=2.0, frame=20)
+    assert counter._side == {} and counter._last_seen == {}

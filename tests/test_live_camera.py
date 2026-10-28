@@ -3,7 +3,8 @@
     PATHSENSE_CAMERA=1 uv run pytest tests/test_live_camera.py -s
 
 A window shows the camera with a vertical line down the middle. Walk or lean across it
-(left to right or right to left). The test passes on the first crossing, and fails if
+(left to right or right to left) and stay there for the confirmation hold
+(`analytics.line_confirm`, 0.5 s). The test passes on the first crossing, and fails if
 nobody crosses within 60 s or if you press q or Esc. Skipped in CI and in a plain
 `pytest` run, which have no camera.
 """
@@ -43,7 +44,10 @@ def test_crossing_the_line_on_the_webcam():
                 height, width = result.frame.image.shape[:2]
                 if counter is None:  # a vertical line through the middle, top to bottom
                     start, end = (width / 2, 0.0), (width / 2, float(height))
-                    counter = LineCounter(start, end)
+                    analytics = config.analytics  # the same hold as `pathsense run`
+                    counter = LineCounter(
+                        start, end, margin=analytics.line_margin, confirm=analytics.line_confirm
+                    )
 
                 events = counter.update(result.tracked, result.frame.timestamp, result.frame.index)
                 left = TIMEOUT - (time.perf_counter() - started)

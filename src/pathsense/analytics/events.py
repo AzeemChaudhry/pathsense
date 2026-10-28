@@ -32,7 +32,7 @@ class EventLog:
 
     Lines are in the order events were confirmed, which is not always the order they
     happened: a crossing is dated when the person flipped side but confirmed later.
-    `load_events` sorts by time.
+    `load_events` sorts by time. An existing file is replaced.
     """
 
     def __init__(self, path: Path | str) -> None:
@@ -58,9 +58,24 @@ class EventLog:
 
 
 def load_events(path: Path | str) -> list[Event]:
-    """Every event in a log file, in time order."""
-    with Path(path).open(encoding="utf-8") as file:
-        events = [Event(**json.loads(line)) for line in file if line.strip()]
+    """Every event in a log file, in time order.
+
+    A last line cut short (the run was killed while writing it) is skipped; any other bad
+    line is a ValueError naming the line number.
+    """
+    lines = Path(path).read_text(encoding="utf-8").split("\n")
+    events = []
+    for number, line in enumerate(lines, 1):
+        if not line.strip():
+            continue
+        try:
+            events.append(Event(**json.loads(line)))
+        except json.JSONDecodeError:
+            if number == len(lines):  # no newline after it: an unfinished write
+                break
+            raise ValueError(f"{path}, line {number}: not JSON: {line[:80]!r}") from None
+        except TypeError as error:
+            raise ValueError(f"{path}, line {number}: not an event: {error}") from None
     return sorted(events, key=lambda e: (e.t, e.frame))
 
 

@@ -206,3 +206,33 @@ def test_events_without_a_line_warn_and_write_an_empty_log(
           "--set", "detector.name=fake"])  # fmt: skip
     assert "event log will be empty" in capsys.readouterr().out
     assert events.read_text() == ""
+
+
+def test_ctrl_c_still_writes_crossings_waiting_for_confirmation(
+    monkeypatch, tiny_video, tmp_path, capsys
+):
+    from pathsense.analytics import Event, load_events
+
+    class StoppedAfterNineFrames(WalkingPerson):
+        def __call__(self, frame):
+            if self.calls == 9:
+                raise KeyboardInterrupt
+            return super().__call__(frame)
+
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: StoppedAfterNineFrames())
+    events = tmp_path / "events.jsonl"
+    events.write_text("an older run\n")
+    main(["run", "--source", str(tiny_video), "--no-show", "--events", str(events),
+          "--set", "detector.name=fake", "--set", "analytics.line=[[25, 48], [25, 0]]",
+          "--set", "analytics.line_confirm=5"])  # fmt: skip
+    assert load_events(events) == [Event(0.7, 7, 0, "enter")]
+    assert "replacing the event log" in capsys.readouterr().out
+
+
+def test_events_folder_is_created(monkeypatch, tiny_video, tmp_path):
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    events = tmp_path / "runs" / "today" / "events.jsonl"
+    line = "analytics.line=[[25, 48], [25, 0]]"
+    main(["run", "--source", str(tiny_video), "--no-show", "--events", str(events),
+          "--set", "detector.name=fake", "--set", line])  # fmt: skip
+    assert events.exists()

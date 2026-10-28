@@ -36,7 +36,11 @@ USES_FRAME = {"botsort"}
 
 
 def accepted_params(name: str) -> set[str]:
-    return set(inspect.signature(TRACKERS[name].__init__).parameters) - {"self", "frame_rate"}
+    """Named settings of the tracker class (not *args or **kwargs, and not frame_rate, which
+    the wrapper sets from the video)."""
+    parameters = inspect.signature(TRACKERS[name].__init__).parameters.values()
+    named = {p.name for p in parameters if p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD)}
+    return named - {"self", "frame_rate"}
 
 
 def split_params(name: str, params: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
@@ -46,6 +50,8 @@ def split_params(name: str, params: dict[str, Any]) -> tuple[dict[str, Any], lis
     (ByteTrack and BoT-SORT only) must not break `tracker.name=ocsort`; it is skipped with
     a warning. A name no tracker knows is a typo and stays an error.
     """
+    if "frame_rate" in params:
+        raise ConfigError("tracker.params cannot set frame_rate; it comes from the video")
     known = set().union(*(accepted_params(n) for n in TRACKERS))
     typos = sorted(set(params) - known)
     if typos:

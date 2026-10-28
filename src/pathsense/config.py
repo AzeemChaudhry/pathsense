@@ -13,6 +13,7 @@ back to a default.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any
@@ -73,6 +74,19 @@ class AnalyticsConfig:
     def __post_init__(self) -> None:
         if self.line is not None:
             object.__setattr__(self, "line", parse_line(self.line))
+        for key in ("line_margin", "line_confirm"):
+            object.__setattr__(self, key, non_negative(f"analytics.{key}", getattr(self, key)))
+
+
+def non_negative(name: str, value: Any) -> float:
+    """A finite number >= 0, or a ConfigError naming the setting."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = math.nan
+    if isinstance(value, bool) or not (math.isfinite(number) and number >= 0):
+        raise ConfigError(f"{name} must be a number >= 0, got {value!r}")
+    return number
 
 
 def parse_line(value: Any) -> Line:
@@ -80,6 +94,8 @@ def parse_line(value: Any) -> Line:
     try:
         (x1, y1), (x2, y2) = value
         line = ((float(x1), float(y1)), (float(x2), float(y2)))
+        if not all(math.isfinite(v) for point in line for v in point):
+            raise ValueError
     except (TypeError, ValueError):
         raise ConfigError(f"analytics.line must be [[x1, y1], [x2, y2]], got {value!r}") from None
     if line[0] == line[1]:

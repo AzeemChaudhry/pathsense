@@ -93,3 +93,14 @@ def test_every_tracker_runs_with_the_default_config(name):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         build_tracker(name, params=params)
+
+
+def test_split_params_per_tracker():
+    from pathsense.track import split_params
+
+    setting = {"track_activation_threshold": 0.6}
+    assert split_params("bytetrack", setting) == (setting, [])
+    assert split_params("botsort", setting) == (setting, [])
+    assert split_params("ocsort", setting) == ({}, ["track_activation_threshold"])
+    with pytest.raises(ConfigError, match="comes from the video"):
+        split_params("bytetrack", {"frame_rate": 25})
