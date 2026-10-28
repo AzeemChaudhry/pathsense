@@ -10,6 +10,12 @@
 # Expected: 1 enter, and a dwell close to the time the shopper is in view.
 source: data/samples/grocery-store.mp4
 
+# At the default input size the 4K frame is shrunk 6 times; the shopper at the far end of
+# the aisle drops to 0.33 confidence, is not tracked for 2.7 s and comes back with a new ID.
+# At 1920 he stays at 0.61 to 0.83 (NOTES.md).
+detector:
+  imgsz: 1920
+
 analytics:
   line: [[1733, 1450], [2618, 1450]]
   zones:

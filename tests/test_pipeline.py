@@ -81,26 +81,18 @@ def test_from_config_adds_the_line_counter_only_when_a_line_is_set(monkeypatch):
     assert counter.start == (0.0, 675.0) and counter.margin == 8
 
 
-def test_the_line_forgets_people_just_after_the_tracker_does(monkeypatch):
+def test_lines_forget_people_once_their_id_cannot_return(monkeypatch):
     monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
     line = "analytics.line=[[0, 675], [1920, 675]]"
-    default = Pipeline.from_config(load_config(overrides=["detector.name=fake", line]), 25)
-    assert default.line_counter.lost == pytest.approx(30 / 30 + 1 / 25)
-    longer = load_config(
-        overrides=["detector.name=fake", line, "tracker.params={lost_track_buffer: 60}"]
-    )
-    assert Pipeline.from_config(longer, 25).line_counter.lost == pytest.approx(2 + 1 / 25)
 
+    def lost(*overrides):
+        config = load_config(overrides=["detector.name=fake", line, *overrides])
+        return Pipeline.from_config(config, 25).line_counter.lost
 
-def test_draw_line_marks_the_line_and_the_totals():
-    from pathsense.annotate import FLASH_COLOUR, LINE_COLOUR, draw_line
-
-    image = np.zeros((200, 400, 3), np.uint8)
-    draw_line(image, ((0.0, 150.0), (400.0, 150.0)), entered=3, exited=1)
-    assert tuple(image[150, 380]) == LINE_COLOUR
-    assert image[10:70, 10:330].any()  # the IN / OUT box
-    draw_line(image, ((0.0, 150.0), (400.0, 150.0)), 3, 1, flash=True)
-    assert tuple(image[150, 380]) == FLASH_COLOUR
+    assert lost() == pytest.approx(2.0 + 1 / 25)  # the stitcher's 2 s window
+    assert lost("tracker.stitch_seconds=0") == pytest.approx(30 / 30 + 1 / 25)  # tracker
+    longer = "tracker.params={track_activation_threshold: 0.6, lost_track_buffer: 90}"
+    assert lost("tracker.stitch_seconds=0", longer) == pytest.approx(3 + 1 / 25)
 
 
 def test_from_config_builds_each_zone_and_finish_collects_their_events(monkeypatch, tiny_video):

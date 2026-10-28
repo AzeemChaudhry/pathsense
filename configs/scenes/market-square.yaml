@@ -11,11 +11,13 @@
 # Zone "fountain": the basin and its rim, where people sit and stand.
 source: data/samples/market-square.mp4
 
-# People are about 175 px tall in a 3840 px frame; at the default input size almost nobody
-# is detected (8 boxes for about 60 people; 109 at 1920, NOTES.md). Not changed here: this
-# scene tunes the lines and zones, not the detector.
-# detector:
-#   imgsz: 1920
+# People are about 175 px tall in a 3840 px frame; at the default input size nobody is
+# confident enough to track. Tiles of 960 px, each detected at 960, find 78 trackable
+# people in a frame (57 with imgsz 1920 alone) at about 270 ms a frame on a GTX 1650:
+# fine for recorded video (NOTES.md).
+detector:
+  imgsz: 960
+  slice: 960
 
 analytics:
   line: [[2160, 2975], [1920, 3015], [1440, 3090], [1200, 3100], [960, 3075], [480, 3000],

@@ -1,6 +1,9 @@
 """Glues the stages together, one frame at a time.
 
-    frame -> Detector -> Tracker -> analytics -> FrameResult (people, events, timings)
+    frame -> Detector -> Tracker -> Stitcher -> analytics -> FrameResult (people, events)
+
+The Stitcher gives people the tracker lost for a moment their old ID back, so analytics
+see one person, not a new one each time they are hidden.
 
 Analytics turn tracks into events: a `LineCounter` when the config has `analytics.line`,
 and a `ZoneCounter` for each of `analytics.zones`. Call `finish()` at the end of the video
@@ -22,6 +25,7 @@ from pathsense.config import Config, ConfigError
 from pathsense.detect import DETECTORS, Detector, build_detector
 from pathsense.io import Frame, VideoSource
 from pathsense.track import TRACKERS, Tracker, build_tracker
+from pathsense.track.stitch import Stitcher
 
 
 @dataclass(frozen=True)
@@ -40,9 +44,11 @@ class Pipeline:
         tracker: Tracker,
         line_counter: LineCounter | None = None,
         zones: list[ZoneCounter] | None = None,
+        stitcher: Stitcher | None = None,
     ) -> None:
         self.detector = detector
         self.tracker = tracker
+        self.stitcher = stitcher
         self.line_counter = line_counter  # running totals: line_counter.entered / .exited
         self.zones = zones or []  # each with .entered, .exited, .occupancy
 
@@ -65,8 +71,15 @@ class Pipeline:
         detector = build_detector(config.detector)
         tracker = build_tracker(config.tracker.name, frame_rate, config.tracker.params)
         analytics = config.analytics
-        # Forget a person one frame after the tracker does, so their ID cannot return.
-        lost = tracker.lost_seconds + 1 / frame_rate
+        stitch = config.tracker.stitch_seconds
+        stitcher = (
+            Stitcher(stitch, config.tracker.stitch_distance, config.tracker.stitch_size)
+            if stitch > 0
+            else None
+        )
+        # Forget a person one frame after their ID can no longer return, from the tracker or
+        # the stitcher.
+        lost = max(tracker.lost_seconds, stitch) + 1 / frame_rate
         line_counter = (
             LineCounter(
                 *analytics.line,
@@ -90,13 +103,15 @@ class Pipeline:
             )
             for zone in analytics.zones
         ]
-        return cls(detector, tracker, line_counter, zones)
+        return cls(detector, tracker, line_counter, zones, stitcher)
 
     def process(self, frame: Frame) -> FrameResult:
         start = time.perf_counter()
         detections = self.detector(frame.image)
         detected = time.perf_counter()
         tracked = self.tracker.update(detections, frame=frame.image, timestamp=frame.timestamp)
+        if self.stitcher:
+            tracked = self.stitcher(tracked, frame.timestamp)
         done = time.perf_counter()
         events = []
         for counter in self.counters:

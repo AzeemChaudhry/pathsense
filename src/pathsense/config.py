@@ -56,6 +56,15 @@ class TrackerConfig:
     # Extra keyword arguments for the tracker class, e.g. {lost_track_buffer: 60}.
     # configs/default.yaml sets track_activation_threshold: 0.6 (ByteTrack's own is 0.7).
     params: dict[str, Any] = field(default_factory=dict)
+    # Give a person the tracker lost for up to this many seconds their old ID back when they
+    # reappear where they were heading (pathsense.track.stitch). 0: off.
+    stitch_seconds: float = 2.0
+    stitch_distance: float = 1.0  # how far from the expected spot, in box heights
+    stitch_size: float = 0.5  # box height within 1/(1 + this) to 1 + this times theirs
+
+    def __post_init__(self) -> None:
+        for key in ("stitch_seconds", "stitch_distance", "stitch_size"):
+            object.__setattr__(self, key, non_negative(f"tracker.{key}", getattr(self, key)))
 
 
 @dataclass(frozen=True)
