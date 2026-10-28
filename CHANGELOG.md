@@ -8,6 +8,8 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-28
+
 ### Added
 
 - `scripts/mot_counts.py` scores line and zone counts against MOT17 and MOT20 ground
@@ -167,6 +169,7 @@ Phase 0: webcam baseline. Gate passed: one person kept the same ID for 76 s.
   event log, instead of a server side counting demo.
 - The package version is defined once, in `src/pathsense/__init__.py`.
 
-[Unreleased]: https://github.com/AzeemChaudhry/pathsense/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/AzeemChaudhry/pathsense/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/AzeemChaudhry/pathsense/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AzeemChaudhry/pathsense/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/AzeemChaudhry/pathsense/releases/tag/v0.1.0
