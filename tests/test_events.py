@@ -59,3 +59,13 @@ def test_an_existing_log_is_replaced_and_ties_keep_frame_order(tmp_path):
     with EventLog(path) as log:
         log.write([Event(1.0, 26, 2, "exit"), Event(1.0, 25, 1, "enter")])
     assert [e.frame for e in load_events(path)] == [25, 26]
+
+
+def test_wrong_field_types_name_the_line(tmp_path):
+    import pytest
+
+    path = tmp_path / "types.jsonl"
+    good = '{"t": 1.0, "frame": 25, "track_id": 1, "type": "enter"}'
+    path.write_text(good + '\n{"t": "x", "frame": null, "track_id": 1, "type": "enter"}\n')
+    with pytest.raises(ValueError, match="line 2: not an event"):
+        load_events(path)

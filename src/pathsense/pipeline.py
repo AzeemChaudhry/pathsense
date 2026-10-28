@@ -60,7 +60,11 @@ class Pipeline:
         analytics = config.analytics
         line_counter = (
             LineCounter(
-                *analytics.line, margin=analytics.line_margin, confirm=analytics.line_confirm
+                *analytics.line,
+                margin=analytics.line_margin,
+                confirm=analytics.line_confirm,
+                # Forget a person one frame after the tracker does, so their ID cannot return.
+                lost=tracker.lost_seconds + 1 / frame_rate,
             )
             if analytics.line
             else None

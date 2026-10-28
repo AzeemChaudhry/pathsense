@@ -88,6 +88,11 @@ class Tracker:
         tracked = self._tracker.update(detections, frame=frame, timestamp=timestamp)
         return tracked[tracked.tracker_id != -1]
 
+    @property
+    def lost_seconds(self) -> float:
+        """How long a hidden person keeps their ID: `lost_track_buffer` frames at 30 FPS."""
+        return float(getattr(self._tracker, "maximum_time_without_update", 1.0))
+
     def reset(self) -> None:
         """Forget every track, e.g. before processing a new video."""
         self._tracker.reset()

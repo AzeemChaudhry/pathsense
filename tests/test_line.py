@@ -226,3 +226,25 @@ def test_forgotten_tracks_are_dropped_from_memory():
     walk(counter, 9, 960, [542])  # only ever on the line: no side
     counter.update(empty(), t=2.0, frame=20)
     assert counter._side == {} and counter._last_seen == {}
+
+
+def test_a_track_dropped_right_after_a_flip_counts():
+    # Chosen trade off (module docstring): one clear frame on the new side, then gone.
+    counter = LineCounter(START, END, confirm=0.5, lost=1.0)
+    walk(counter, 10, 960, [500, 580])
+    assert counter.update(empty(), t=1.1, frame=11) == [Event(0.1, 1, 10, "enter")]
+
+
+def test_an_id_back_after_lost_is_a_new_first_sighting():
+    # The pipeline sets lost past the tracker's buffer, so this only happens with a hand
+    # built counter; the returning id is not counted as a crossing.
+    counter = LineCounter(START, END, lost=1.0)
+    walk(counter, 11, 960, [500])
+    counter.update(empty(), t=1.5, frame=15)  # forgotten
+    assert counter.update(person(11, 960, 580), t=1.6, frame=16) == []
+
+
+def test_finish_counts_a_waiting_flip_even_with_the_feet_on_the_line():
+    counter = LineCounter(START, END, margin=5, confirm=5.0)
+    walk(counter, 12, 960, [500, 580, 542])
+    assert counter.finish() == [Event(0.1, 1, 12, "enter")]

@@ -236,3 +236,25 @@ def test_events_folder_is_created(monkeypatch, tiny_video, tmp_path):
     main(["run", "--source", str(tiny_video), "--no-show", "--events", str(events),
           "--set", "detector.name=fake", "--set", line])  # fmt: skip
     assert events.exists()
+
+
+def test_a_failing_last_write_still_closes_the_log_and_video(monkeypatch, tiny_video, tmp_path):
+    from pathsense.analytics import EventLog
+
+    closed = []
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+
+    def write(self, events):
+        if list(events):  # only the crossing confirmed at the end
+            raise OSError("disk full")
+
+    monkeypatch.setattr(EventLog, "write", write)
+    real_close = EventLog.close
+    monkeypatch.setattr(EventLog, "close", lambda self: (closed.append("log"), real_close(self)))
+    video = tmp_path / "out.mp4"
+    with pytest.raises(SystemExit, match="disk full"):
+        main(["run", "--source", str(tiny_video), "--no-show", "--save", str(video),
+              "--events", str(tmp_path / "e.jsonl"), "--set", "detector.name=fake",
+              "--set", "analytics.line=[[25, 48], [25, 0]]",
+              "--set", "analytics.line_confirm=5"])  # fmt: skip
+    assert closed == ["log"] and video.stat().st_size > 0  # the video was finished too

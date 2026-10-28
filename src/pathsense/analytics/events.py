@@ -69,7 +69,12 @@ def load_events(path: Path | str) -> list[Event]:
         if not line.strip():
             continue
         try:
-            events.append(Event(**json.loads(line)))
+            event = Event(**json.loads(line))
+            if not (_number(event.t) and _number(event.frame) and _number(event.track_id)):
+                raise TypeError("t, frame and track_id must be numbers")
+            if not isinstance(event.type, str):
+                raise TypeError("type must be a string")
+            events.append(event)
         except json.JSONDecodeError:
             if number == len(lines):  # no newline after it: an unfinished write
                 break
@@ -77,6 +82,10 @@ def load_events(path: Path | str) -> list[Event]:
         except TypeError as error:
             raise ValueError(f"{path}, line {number}: not an event: {error}") from None
     return sorted(events, key=lambda e: (e.t, e.frame))
+
+
+def _number(value: object) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
 
 
 def count_events(events: Iterable[Event]) -> Counter[str]:

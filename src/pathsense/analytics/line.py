@@ -28,10 +28,13 @@ Three rules keep the count honest:
   of the flip, not of the confirmation. On a close-up webcam, 53 false crossings from
   waving became 14 at 1 s and 4 at 1.5 s, while the sample clip's counts did not change
   from 0 to 3 s (NOTES.md).
-- **Vanishing.** A person not seen for `lost` seconds is forgotten (about when ByteTrack
-  forgets the ID). A flip still waiting then counts: they walked out of view on the new
-  side. A shorter gap, someone hidden behind another person, changes nothing. `finish()`
-  counts flips still waiting when the video ends.
+- **Vanishing.** A person not seen for `lost` seconds is forgotten; the pipeline sets it
+  just past the tracker's `lost_track_buffer`, so the ID cannot come back. A flip still
+  waiting then counts: they walked out of view on the new side. This also counts a track
+  the tracker drops right after a flip, trading a rare false crossing for not missing
+  people who leave the picture just past the line. A shorter gap, someone hidden behind
+  another person, changes nothing. `finish()` counts flips still waiting when the video
+  ends, even if the feet are on the line.
 """
 
 from __future__ import annotations

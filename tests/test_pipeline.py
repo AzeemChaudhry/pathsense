@@ -81,6 +81,17 @@ def test_from_config_adds_the_line_counter_only_when_a_line_is_set(monkeypatch):
     assert counter.start == (0.0, 675.0) and counter.margin == 8
 
 
+def test_the_line_forgets_people_just_after_the_tracker_does(monkeypatch):
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    line = "analytics.line=[[0, 675], [1920, 675]]"
+    default = Pipeline.from_config(load_config(overrides=["detector.name=fake", line]), 25)
+    assert default.line_counter.lost == pytest.approx(30 / 30 + 1 / 25)
+    longer = load_config(
+        overrides=["detector.name=fake", line, "tracker.params={lost_track_buffer: 60}"]
+    )
+    assert Pipeline.from_config(longer, 25).line_counter.lost == pytest.approx(2 + 1 / 25)
+
+
 def test_draw_line_marks_the_line_and_the_totals():
     from pathsense.annotate import FLASH_COLOUR, LINE_COLOUR, draw_line
 
