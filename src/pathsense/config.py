@@ -37,6 +37,17 @@ class DetectorConfig:
     # following people who are partly hidden (see NOTES.md, Phase 0).
     conf: float = 0.1
     device: str | None = None  # None: GPU if available. "cpu", "cuda", "0"...
+    # Detect on overlapping tiles of this many pixels (pathsense.detect.slice): finds small
+    # and crowded people in large frames, several times slower. None: whole frame.
+    slice: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.slice is not None and (
+            isinstance(self.slice, bool) or not isinstance(self.slice, int) or self.slice < 160
+        ):
+            raise ConfigError(
+                f"detector.slice must be a tile size of 160 px or more, got {self.slice!r}"
+            )
 
 
 @dataclass(frozen=True)
