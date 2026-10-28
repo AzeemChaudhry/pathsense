@@ -61,3 +61,12 @@ def test_an_old_id_coming_back_next_to_its_stitched_one_is_kept_apart():
     stitch(boxes((5, 100, 500, 200)), t=0.5)  # stitched to 1
     both = stitch(boxes((1, 100, 500, 200), (5, 100, 500, 200)), t=0.6)
     assert ids(both) == [1, 5]  # ID 1 is back, so 5 is its own person again
+
+
+def test_an_old_id_coming_back_first_in_the_frame_keeps_its_person():
+    # Review of PR 10: with the stitched ID listed first, both came out as person 1.
+    stitch = Stitcher(seconds=2.0)
+    stitch(boxes((1, 100, 500, 200)), t=0.0)
+    stitch(boxes((5, 100, 500, 200)), t=0.5)  # stitched to 1
+    both = stitch(boxes((5, 100, 500, 200), (1, 100, 500, 200)), t=0.6)
+    assert ids(both) == [5, 1]

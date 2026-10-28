@@ -293,3 +293,31 @@ This becomes the "Design decisions" section of the README.
   and MOT20 (01, 02, 03, 05) are fixed cameras with every person labelled by hand;
   `scripts/mot_counts.py` counts those tracks through the same lines and zones for the true
   counts. Evaluation only (CC BY-NC-SA): no frames in public docs.
+
+## 2026-10-28: first true counts (MOT17), and the PR 10 review
+
+- **MOT17, lines and zones placed per scene** (configs/scenes/mot/), truth from the hand
+  labelled tracks through the same counters:
+
+  | Scene, imgsz | People truth / ours | Line in, out truth / ours | Zone in, out truth / ours |
+  | --- | --- | --- | --- |
+  | 02 square, 640 | 74 / 24 | 1, 10 / 2, 9 | tree 48, 21 / 6, 4 |
+  | 02 square, 1920 | 74 / 78 | 1, 10 / 0, 10 | tree 48, 21 / 39, 31 |
+  | 04 street, 640 | 88 / 24 | 8, 5 / 6, 4 | shop front 34, 16 / 3, 3 |
+  | 04 street, 1920 | 88 / 83 | 8, 5 / 8, 4 | shop front 34, 16 / 40, 24 |
+  | 09 shop fronts, 640 | 27 / 28 | 1, 7 / 3, 6 | doorway 3, 3 / 5, 4 |
+
+- **Result:** lines are within 2 everywhere. Zones far from the camera fail at 640 (people
+  too small), and at 1920 overcount exits: of 31 tree exits, 20 are tracks that vanished
+  inside the zone (truth: 12), people lost in the group under the tree for longer than the
+  stitcher waits. A stitch window of 8 s only brings exits from 31 to 23.
+- **Decision:** imgsz 1920 in the two far scenes. The extra zone exits are a detection limit
+  in groups (with the cluster problem in docs/BACKLOG.md), not a zone bug.
+- **Review fixes:** stitcher could give two people one ID (order of detections); feet kept
+  an old height forever (now it shrinks with the box's width, so walking away is not hidden
+  legs); drop_partial depended on box order; zone finish twice repeated dwell.
+- **Sample scenes after the fixes:** people-walking and grocery unchanged (correct); subway
+  5 to 7 boarded and market 20 to 16 OUT, from the feet change in crowds seen from above.
+  Neither has a true count; MOT20 (crowds from above) will show which way it moved.
+- **Speed:** headless runs reach 22 FPS on the 4K clips against 10 with the window, so
+  drawing and display cost as much as detection.

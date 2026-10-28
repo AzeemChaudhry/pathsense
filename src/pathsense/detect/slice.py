@@ -14,6 +14,11 @@ inside one another would also merge two people in a crowd. So:
    person small enough to be cut appears whole in the neighbouring tile;
 3. boxes found twice (whole frame and tile, or two tiles) are reduced to one by NMS.
 
+A person taller than the overlap (192 px for 960 px tiles) on a seam is cut in both tiles,
+so only the whole frame pass can find them. Tiles therefore suit many small people seen
+from above, not people close to the camera (the subway doors: NOTES.md). NMS across tiles
+can also merge two people standing very close; that is the price of merging duplicates.
+
 On the GTX 1650, tiles of 960 px on a 4K portrait frame find 100 people on the market
 square (2 at the default input size) and 39 at the subway doors (14), at about 160 ms a
 frame instead of 12 ms (NOTES.md). Meant for recorded video; for live cameras a larger

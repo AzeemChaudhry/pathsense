@@ -65,13 +65,21 @@ class Stitcher:
             self._person[tracker_ids[k]] = person
             present.add(person)
             self.stitched += 1
-        out, used = [], set()
-        for k, tracker_id in enumerate(tracker_ids):
+        out, used = [0] * len(tracker_ids), set()
+        # People under their own tracker ID go first, so when an old tracker ID comes back
+        # next to the one stitched to it, the stitched one gives the person ID up. It falls
+        # back to its own tracker ID, which no one else can hold: it was stitched at birth.
+        owners_first = sorted(
+            range(len(tracker_ids)),
+            key=lambda k: self._person.get(tracker_ids[k], tracker_ids[k]) != tracker_ids[k],
+        )
+        for k in owners_first:
+            tracker_id = tracker_ids[k]
             person = self._person.setdefault(tracker_id, tracker_id)
-            if person in used:  # an old tracker ID came back next to its stitched one
+            if person in used:
                 person = self._person[tracker_id] = tracker_id
             used.add(person)
-            out.append(person)
+            out[k] = person
             self._remember(person, feet[k], float(heights[k]), t)
         self._prune(t)
         result = tracked[np.arange(len(tracked))]  # a copy

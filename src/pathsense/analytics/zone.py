@@ -86,6 +86,7 @@ class ZoneCounter:
         self._pending: dict[int, _Change] = {}  # change waiting for confirmation
         self._last_seen: dict[int, tuple[float, int]] = {}  # track id -> (t, frame)
         self._t0: float | None = None  # time of the first frame
+        self._finished = False
 
     @property
     def occupancy(self) -> int:
@@ -121,7 +122,14 @@ class ZoneCounter:
 
     def finish(self) -> list[Event]:
         """At the end of the video: confirm changes still waiting, and give people still
-        inside a dwell event for their time so far (no exit: they had not left)."""
+        inside a dwell event for their time so far (no exit: they had not left).
+
+        A change still waiting counts without its hold: the video ended, not the person's
+        stay, so they cannot be shown to have stepped back. Calling it again returns nothing.
+        """
+        if self._finished:
+            return []
+        self._finished = True
         events = []
         for track_id, change in list(self._pending.items()):
             events += self._apply(track_id, change)

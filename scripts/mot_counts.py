@@ -7,7 +7,7 @@ for any line or zone, so a scene's count error needs no hand counting.
 The data is CC BY-NC-SA: evaluation only, never redistributed, no frames in public docs.
 
     uv run python scripts/mot_counts.py prepare     # unzip data/mot/*.zip, make the videos
-    uv run python scripts/mot_counts.py score configs/scenes/mot/*.yaml
+    uv run python scripts/mot_counts.py score configs/scenes/mot/*.yaml --set detector.imgsz=1280
 
 `prepare` expects MOT16.zip (frames), MOT17Labels.zip (the corrected labels for the same
 sequences) and MOT20.zip in data/mot/, from https://motchallenge.net/data/. It writes
@@ -116,8 +116,8 @@ def totals(line, zones) -> dict[str, int]:
     return counts
 
 
-def score(scene: Path) -> None:
-    config = load_config(scene=scene)
+def score(scene: Path, overrides: list[str]) -> None:
+    config = load_config(overrides=overrides, scene=scene)
     video = Path(scene_source(scene))
     truth_tracks = ground_truth(ROOT / "gt" / f"{video.stem}.txt")
     with VideoSource(str(video)) as source:
@@ -153,12 +153,13 @@ def main() -> None:
     sub.add_parser("prepare")
     scores = sub.add_parser("score")
     scores.add_argument("scenes", nargs="+", type=Path)
+    scores.add_argument("--set", dest="overrides", action="append", default=[], metavar="KEY=VALUE")
     args = parser.parse_args()
     if args.command == "prepare":
         prepare()
     else:
         for scene in args.scenes:
-            score(scene)
+            score(scene, args.overrides)
 
 
 if __name__ == "__main__":

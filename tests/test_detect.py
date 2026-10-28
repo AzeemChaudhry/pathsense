@@ -123,3 +123,14 @@ def test_a_partial_view_of_the_same_person_is_dropped():
     # A child in front of an adult: inside the adult's box, but the tops differ.
     child = detections([[100, 100, 200, 400], [110, 250, 190, 400]])
     assert len(drop_partial_duplicates(child)) == 2
+
+
+def test_dropping_partial_boxes_does_not_depend_on_their_order():
+    from pathsense.detect.base import drop_partial_duplicates
+
+    # Review of PR 10: B is a partial view of A, and C one of B but not of A. Once B is
+    # dropped it cannot drop C, whichever order the detector listed them in.
+    a, b, c = [100, 100, 200, 500], [102, 105, 198, 400], [106, 113, 194, 300]
+    for boxes in ([a, b, c], [c, b, a], [b, c, a]):
+        kept = drop_partial_duplicates(detections(boxes)).xyxy.tolist()
+        assert sorted(kept) == sorted([a, c])

@@ -38,7 +38,8 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
   `analytics.line_margin_height` can make the margin grow with the person's height.
 - `analytics.hidden_legs` (0.25): when a cart or another person hides someone's legs and
   their box suddenly shrinks, their feet are placed from their head instead of jumping up
-  to the cart. Lines and zones use it.
+  to the cart. A box that also gets narrower is someone walking away, not hidden legs.
+  Lines and zones use it.
 - Line counting: `analytics.line` in the config counts people crossing it in each
   direction. The window shows the line and IN and OUT totals, and the summary line ends
   with `in=… out=…`. Each crossing is an event with time, frame and track ID, the start

@@ -5,8 +5,8 @@ from conftest import detections
 from pathsense.analytics import Feet
 
 
-def person(track_id, top, bottom, x=100.0):
-    tracked = detections([[x - 20, top, x + 20, bottom]])
+def person(track_id, top, bottom, x=100.0, width=40.0):
+    tracked = detections([[x - width / 2, top, x + width / 2, bottom]])
     tracked.tracker_id = np.array([track_id])
     return tracked
 
@@ -39,6 +39,15 @@ def test_a_slowly_changing_height_is_trusted():
     for i, height in enumerate(range(400, 700, 10)):
         points, _ = feet(person(1, 100, 100 + height), t=i / 10)
     assert points[0, 1] == 100 + 690
+
+
+def test_walking_away_shrinks_the_box_without_hiding_the_legs():
+    # Review of PR 10: a box 40 % shorter for good stayed at the old height. Walking away
+    # shrinks the width too, so the feet stay at the bottom of the box.
+    feet = Feet(hidden_legs=0.25)
+    feet(person(1, 100, 800, width=200), t=0.0)
+    points, heights = feet(person(1, 300, 720, width=120), t=5.0)  # 0.6 times the size
+    assert points[0, 1] == 720 and heights[0] == 420
 
 
 def test_zero_turns_the_estimate_off_and_forget_clears_memory():

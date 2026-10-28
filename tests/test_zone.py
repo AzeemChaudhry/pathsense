@@ -137,3 +137,10 @@ def test_hidden_legs_keep_a_shopper_inside():
             tracked.tracker_id = np.array([1])
             zone.update(tracked, t=frame / 10, frame=frame)
         assert zone.exited == exits
+
+
+def test_finish_twice_gives_nothing_more():
+    zone = ZoneCounter("z", FLOOR)
+    zone.update(people((1, 960, 800)), t=0.0, frame=0)
+    assert len(zone.finish()) == 1  # a dwell for the person still inside
+    assert zone.finish() == []

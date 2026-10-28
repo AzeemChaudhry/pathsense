@@ -29,6 +29,10 @@ picked into a phase in [PLAN.md](PLAN.md). Most came from the four public sample
   scene tuning (Phase 3) rather than one default.
 - **Entry and exit points.** A new track that starts in the middle of the floor, away from
   doors and picture edges, is probably a lost person; prefer stitching it.
+- **Stitching across an exit.** The stitcher can hand a person's ID to someone else who
+  steps into the spot they just left within 2 s, at a door or the picture's edge. Refuse to
+  stitch a person last seen at an exit, and cap how far their last speed is carried
+  (review of PR 10). The MOT scores show how often it happens.
 
 ## Zones and lines
 

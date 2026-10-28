@@ -13,6 +13,10 @@ than that, the legs are taken as hidden and the feet are placed at top + remembe
 height. During a long occlusion the last full height is kept, so a cart that hides the
 legs for many seconds is still handled. `hidden_legs=0` turns the estimate off.
 
+Hidden legs make a box shorter but not narrower; walking away from the camera makes it
+both. So the remembered height shrinks with the box's width (never grows with it): someone
+walking away is not mistaken for someone behind a cart, and is never stuck at an old height.
+
 Someone who sits or crouches also gets a shorter box; their feet are then placed lower
 than they are. A top down camera barely changes box heights, so the estimate rarely acts
 there.
@@ -37,28 +41,32 @@ class Feet:
         if not 0.0 <= hidden_legs < 1.0:
             raise ValueError("hidden_legs must be from 0 up to (not including) 1")
         self.hidden_legs, self.window = hidden_legs, window
-        self._whole: dict[int, deque[tuple[float, float]]] = {}  # (t, height) of whole frames
-        self._height: dict[int, float] = {}  # remembered full height
+        self._whole: dict[int, deque[tuple[float, float, float]]] = {}  # whole frames' t, h, w
+        self._height: dict[int, tuple[float, float]] = {}  # full height, its box's width
 
     def __call__(self, tracked: sv.Detections, t: float) -> tuple[np.ndarray, np.ndarray]:
         """Feet points (n, 2) and full body heights (n,) for each tracked person."""
         points = anchor_points(tracked)
         heights = tracked.xyxy[:, 3] - tracked.xyxy[:, 1]
+        widths = tracked.xyxy[:, 2] - tracked.xyxy[:, 0]
         if tracked.tracker_id is None or self.hidden_legs == 0:
             return points, heights
         full = heights.copy()
         for i, track_id in enumerate(int(tid) for tid in tracked.tracker_id):
-            height = float(heights[i])
-            remembered = self._height.get(track_id)
-            if remembered is not None and height < (1 - self.hidden_legs) * remembered:
-                points[i, 1] = tracked.xyxy[i, 1] + remembered  # legs hidden: from the head
-                full[i] = remembered
-                continue
+            height, width = float(heights[i]), float(widths[i])
+            if track_id in self._height:
+                remembered, remembered_width = self._height[track_id]
+                expected = remembered * min(1.0, width / remembered_width)
+                if height < (1 - self.hidden_legs) * expected:
+                    points[i, 1] = tracked.xyxy[i, 1] + expected  # legs hidden: from the head
+                    full[i] = expected
+                    continue
             whole = self._whole.setdefault(track_id, deque())
-            whole.append((t, height))
+            whole.append((t, height, width))
             while whole and t - whole[0][0] > self.window:
                 whole.popleft()
-            self._height[track_id] = max(h for _, h in whole)
+            _, tallest, its_width = max(whole, key=lambda w: w[1])
+            self._height[track_id] = (tallest, its_width)
         return points, full
 
     def forget(self, track_id: int) -> None:

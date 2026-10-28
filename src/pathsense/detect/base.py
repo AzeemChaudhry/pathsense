@@ -66,9 +66,10 @@ def drop_partial_duplicates(
     x1, y1, x2, y2 = detections.xyxy.T
     heights, widths = y2 - y1, x2 - x1
     keep = np.ones(len(detections), bool)
-    for i in range(len(detections)):
-        for j in range(len(detections)):
-            if i == j or heights[j] <= heights[i] or not keep[j]:
+    tallest_first = np.argsort(-heights, kind="stable")  # the same result in any box order
+    for n, i in enumerate(tallest_first):
+        for j in tallest_first[:n]:
+            if heights[j] <= heights[i] or not keep[j]:
                 continue
             sides = max(abs(x1[i] - x1[j]), abs(x2[i] - x2[j])) <= edges * widths[i]
             if sides and abs(y1[i] - y1[j]) <= top * heights[j]:
