@@ -17,6 +17,9 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
   A crossing counts once the person stays on the new side for `analytics.line_confirm`
   seconds (0.5 by default), so an arm waving across the line on a close-up webcam is not
   counted again and again.
+- `pathsense run --events runs/clip.jsonl` writes the event log, one JSON line per event
+  (time, frame, track ID, type), as events happen. `load_events` and `count_events` read
+  it back: the sample clip's log alone gives 11 in and 7 out.
 - `PATHSENSE_CAMERA=1 uv run pytest tests/test_live_camera.py -s`: a manual webcam test
   that passes when someone crosses a line within a minute.
 - Webcam capture calibration: the first run with a new camera measures its best capture mode in

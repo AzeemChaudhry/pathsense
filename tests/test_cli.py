@@ -180,3 +180,29 @@ def test_run_with_a_line_counts_and_draws(monkeypatch, tiny_video, tmp_path, cap
           "--set", "detector.name=fake", "--set", line])  # fmt: skip
     assert capsys.readouterr().out.splitlines()[0].endswith("in=1 out=0")
     assert out.stat().st_size > 0
+
+
+def test_events_are_written_including_crossings_confirmed_at_the_end(
+    monkeypatch, tiny_video, tmp_path, capsys
+):
+    from pathsense.analytics import Event, load_events
+
+    # Crossing at frame 7; a 5 s hold is never reached, so only finish() confirms it.
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    events = tmp_path / "events.jsonl"
+    main(["run", "--source", str(tiny_video), "--no-show", "--events", str(events),
+          "--set", "detector.name=fake", "--set", "analytics.line=[[25, 48], [25, 0]]",
+          "--set", "analytics.line_confirm=5"])  # fmt: skip
+    assert load_events(events) == [Event(0.7, 7, 0, "enter")]
+    assert f"saved {events}" in capsys.readouterr().out
+
+
+def test_events_without_a_line_warn_and_write_an_empty_log(
+    monkeypatch, tiny_video, tmp_path, capsys
+):
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    events = tmp_path / "events.jsonl"
+    main(["run", "--source", str(tiny_video), "--no-show", "--events", str(events),
+          "--set", "detector.name=fake"])  # fmt: skip
+    assert "event log will be empty" in capsys.readouterr().out
+    assert events.read_text() == ""

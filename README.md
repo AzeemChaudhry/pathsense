@@ -75,6 +75,7 @@ uv run pathsense run --config my.yaml --set detector.device=cpu   # own config f
 uv run pathsense run --source clip.mp4 --no-show --max-frames 300 # quick benchmark
 uv run pathsense calibrate                                        # re-measure webcam 0
 uv run pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]]"  # count crossings
+uv run pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]]" --events runs/clip.jsonl  # and keep the event log
 ```
 
 | Flag | Default | Meaning |
@@ -83,6 +84,7 @@ uv run pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]
 | `--config` | `configs/default.yaml` | YAML config |
 | `--set SECTION.KEY=VALUE` | none | override one config value; repeatable |
 | `--save` | off | write the annotated video to an mp4 that plays at real speed |
+| `--events` | off | write the event log (one JSON line per crossing) to this file |
 | `--no-show` | off | run without a window (for example over SSH or for benchmarks) |
 | `--max-frames` | all | stop after this many frames |
 | `--trail` | `30` | trail length in frames |
