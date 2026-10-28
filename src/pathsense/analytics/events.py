@@ -3,7 +3,8 @@ language. Answers in Phase 6 are computed from these records, never by the model
 
 On disk it is JSON Lines, one event per line:
 
-    {"t": 6.64, "frame": 166, "track_id": 23, "type": "enter"}
+    {"t": 6.64, "frame": 166, "track_id": 21, "type": "enter"}
+    {"t": 7.08, "frame": 177, "track_id": 30, "type": "zone_enter", "zone": "floor"}
 """
 
 from __future__ import annotations
@@ -20,10 +21,12 @@ class Event:
     t: float  # seconds since the first frame (Frame.timestamp)
     frame: int  # Frame.index
     track_id: int
-    type: str  # "enter" or "exit" for a line; zone events come later in Phase 2
+    type: str  # "enter", "exit" (line), "zone_enter", "zone_exit"
+    zone: str | None = None  # the zone's name, for zone events
 
     def to_dict(self) -> dict[str, float | int | str]:
-        return asdict(self)
+        """The JSON record; fields that are None are left out."""
+        return {key: value for key, value in asdict(self).items() if value is not None}
 
 
 class EventLog:
