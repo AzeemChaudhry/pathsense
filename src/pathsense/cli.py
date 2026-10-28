@@ -4,6 +4,7 @@
     pathsense run --source clip.mp4 --save runs/clip.mp4
     pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]]" \
         --events runs/clip.jsonl                    # count crossings, keep the event log
+    pathsense run --source clip.mp4 --heatmap runs/heat.png   # where people spent time
     pathsense run --set detector.name=rfdetr-nano --set tracker.name=botsort
     pathsense run --source clip.mp4 --no-show --max-frames 300   # quick benchmark
     pathsense calibrate                             # measure webcam 0 again and save it
@@ -83,6 +84,9 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--events", type=Path, default=None, help="write the event log to this .jsonl file"
     )
+    run.add_argument(
+        "--heatmap", type=Path, default=None, help="save where people spent time to this .png"
+    )
     run.add_argument("--no-show", action="store_true", help="do not open a window")
     run.add_argument("--max-frames", type=int, default=None, help="stop after this many frames")
     run.add_argument("--trail", type=int, default=30, help="trail length in frames")
@@ -105,6 +109,14 @@ def camera_settings(config: Config, source: str, recalibrate: bool = False):
     return load_or_calibrate(index, request, CalibrationStore(cam.store), recalibrate)
 
 
+def save_image(path: Path, image) -> None:
+    import cv2
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not cv2.imwrite(str(path), image):
+        raise OSError(f"could not write {path} (use a .png or .jpg name)")
+
+
 def check_camera_size(image, camera) -> None:
     """Warn if the camera delivers another size than its calibration (same USB ids, but new
     firmware or another driver). Uses a real frame: some backends report a stale size
@@ -121,7 +133,7 @@ def run(args: argparse.Namespace) -> Summary:
     # Heavy imports here, so `pathsense --help` and the tests of this module stay fast.
     import cv2
 
-    from pathsense.analytics import EventLog
+    from pathsense.analytics import EventLog, Heatmap
     from pathsense.annotate import Annotator, draw_line, draw_zone
     from pathsense.config import load_config
     from pathsense.io import RealTimeVideoWriter, VideoSource
@@ -150,6 +162,7 @@ def run(args: argparse.Namespace) -> Summary:
         if args.events and args.events.exists():
             print(f"pathsense: replacing the event log {args.events}")
         log = EventLog(args.events) if args.events else None
+        heatmap, last_image = None, None
         try:
             for result in pipeline.run(source):
                 frames += 1
@@ -160,6 +173,12 @@ def run(args: argparse.Namespace) -> Summary:
                 ids.update(int(t) for t in result.tracked.tracker_id)
                 if log:
                     log.write(result.events)
+                if args.heatmap:
+                    if heatmap is None:
+                        height, width = result.frame.image.shape[:2]
+                        heatmap = Heatmap(width, height, hidden_legs=config.analytics.hidden_legs)
+                    heatmap.add(result.tracked, result.frame.timestamp)
+                    last_image = result.frame.image
 
                 if writer or not args.no_show:
                     now = time.perf_counter()
@@ -202,6 +221,8 @@ def run(args: argparse.Namespace) -> Summary:
             finally:  # close everything even if the last write fails (a full disk)
                 if log:
                     log.close()
+                if heatmap is not None:
+                    save_image(args.heatmap, heatmap.render(last_image))
                 if writer:
                     writer.close()
                 if not args.no_show:
@@ -239,6 +260,8 @@ def main(argv: list[str] | None = None) -> None:
         print(f"saved {args.save}")
     if args.events:
         print(f"saved {args.events}")
+    if args.heatmap:
+        print(f"saved {args.heatmap}")
 
 
 if __name__ == "__main__":

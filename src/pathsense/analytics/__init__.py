@@ -9,6 +9,7 @@ it in TypeScript, and a parity test compares both (docs/PLAN.md).
 
 from pathsense.analytics.events import Event, EventLog, count_events, load_events
 from pathsense.analytics.feet import Feet, anchor_points
+from pathsense.analytics.heatmap import Heatmap
 from pathsense.analytics.line import LineCounter, polyline_side, side_of_line
 from pathsense.analytics.zone import ZoneCounter, inside_polygon
 
@@ -16,6 +17,7 @@ __all__ = [
     "Event",
     "EventLog",
     "Feet",
+    "Heatmap",
     "LineCounter",
     "anchor_points",
     "count_events",

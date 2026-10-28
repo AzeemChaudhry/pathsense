@@ -276,3 +276,15 @@ def test_run_with_a_zone_writes_zone_and_dwell_events(monkeypatch, tiny_video, t
           "--set", right])  # fmt: skip
     assert [e.type for e in load_events(events)] == ["zone_enter", "dwell"]
     assert "right:in=1,out=0,inside=1" in capsys.readouterr().out
+
+
+def test_run_saves_a_heatmap(monkeypatch, tiny_video, tmp_path, capsys):
+    import cv2
+
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    heat = tmp_path / "maps" / "heat.png"
+    main(["run", "--source", str(tiny_video), "--no-show", "--heatmap", str(heat),
+          "--set", "detector.name=fake"])  # fmt: skip
+    image = cv2.imread(str(heat))
+    assert image is not None and image.shape[:2] == (48, 64)
+    assert f"saved {heat}" in capsys.readouterr().out
