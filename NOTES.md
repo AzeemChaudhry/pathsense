@@ -207,3 +207,37 @@ This becomes the "Design decisions" section of the README.
   default's job: no hold removes waving completely. The clip has nobody hesitating at the
   line, so a busier clip (a doorway where people pause) is still needed to show the hold
   helping on real footage.
+
+### 2026-10-28: three more public clips, and why one line position fits none of them
+- **Tried:** `grocery-store.mp4` (4K, 33 s), `subway.mp4` (portrait 4K, 43 s) and
+  `market-square.mp4` (portrait 4K, 8 s, 60 FPS), from the same supervision sample assets
+  as `people-walking.mp4`. First with a horizontal line mid frame on each, then with a line
+  placed from each scene's use case after looking at it over time: subway, boarding and
+  getting off along the train's doors; grocery-store, a shopper entering the aisle; market,
+  people walking into the square from the street.
+- **Result:**
+  1. A line not placed for the scene's question gives numbers that mean nothing; all
+     three first runs were discarded.
+  2. Subway: at `imgsz=640` the 4K portrait frame is shrunk 6 times and only about 10 of
+     the 30 or more people at the doors are detected (24 at `imgsz=1280`). Boarding and
+     getting off were 2 and 5 with a straight line, 4 and 4 with a polyline, far below
+     what the video shows. People leaving the train in a cluster are mostly never
+     detected; that is a detector limit for Phases 3 and 4, not something counting fixes.
+  3. Subway: the train's lower edge is curved by the wide lens (x 345 at y 3120 where a
+     straight line through its top half gives 550), so a two point line ran through the
+     waiting crowd. Lines now take more points.
+  4. Grocery: one shopper walking past a line once was counted IN, OUT, IN, OUT, IN. His
+     cart hides his legs, so his box shrinks (709 px to 429 px at 16.3 s) and the box
+     bottom jumps to the cart handle. `analytics.hidden_legs` now places the feet from the
+     head when a box is more than 25 % shorter than the person's full height.
+  5. Market: at `imgsz=640` almost nobody is detected (8 boxes for about 60 people); at
+     1920, 109. The early crossings that looked suspicious were real people walking across
+     the border; each counted once in the right direction.
+  6. A waiting person shuffling near a line crosses it slowly and is counted each time;
+     a 5 px margin is under 1 % of a person 680 px tall. `line_margin_height` is
+     available to test during tuning; off by default until hand counts show it helps.
+- **Decision:** Tune each scene by placing its lines and zones from the use case (and
+  `detector.imgsz` for large frames), not by changing the model. Build all of Phase 2
+  first (zones, dwell, occupancy, polylines, hidden legs, heatmap), then tune and hand
+  count each clip. `people-walking.mp4` is unchanged: line 11 in, 7 out; a floor zone below
+  the line gives 28 enters, 20 exits and 8 people inside at the end.

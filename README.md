@@ -76,6 +76,8 @@ uv run pathsense run --source clip.mp4 --no-show --max-frames 300 # quick benchm
 uv run pathsense calibrate                                        # re-measure webcam 0
 uv run pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]]"  # count crossings
 uv run pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]]" --events runs/clip.jsonl  # and keep the event log
+uv run pathsense run --source clip.mp4 --set "analytics.zones=[{name: floor, polygon: [[0,675],[1920,675],[1920,1080],[0,1080]]}]"  # who is in an area, and for how long
+uv run pathsense run --source clip.mp4 --heatmap runs/heat.png      # where people spent time
 ```
 
 | Flag | Default | Meaning |
@@ -84,7 +86,8 @@ uv run pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]
 | `--config` | `configs/default.yaml` | YAML config |
 | `--set SECTION.KEY=VALUE` | none | override one config value; repeatable |
 | `--save` | off | write the annotated video to an mp4 that plays at real speed |
-| `--events` | off | write the event log (one JSON line per crossing) to this file |
+| `--events` | off | write the event log (one JSON line per event) to this file |
+| `--heatmap` | off | save a heatmap of where people spent time to this `.png` |
 | `--no-show` | off | run without a window (for example over SSH or for benchmarks) |
 | `--max-frames` | all | stop after this many frames |
 | `--trail` | `30` | trail length in frames |
@@ -104,9 +107,14 @@ swapping a model is one line, never a code change. Typos are errors, not silent 
 | `detector.device` | `auto` | `auto`, `cpu`, `cuda`, `0` |
 | `tracker.name` | `bytetrack` | `bytetrack`, `botsort`, `ocsort` |
 | `tracker.params` | `{track_activation_threshold: 0.6}` | passed to the tracker, e.g. `{lost_track_buffer: 60}`; a setting the chosen tracker does not take is skipped with a warning |
-| `analytics.line` | `null` | counting line `[[x1, y1], [x2, y2]]` in pixels; crossing from left to right of start to end is IN |
+| `analytics.line` | `null` | counting line `[[x1, y1], [x2, y2], ...]` in pixels, two or more points (more follow a curved edge); crossing from left to right of start to end is IN |
 | `analytics.line_margin` | `5` | feet closer than this many pixels to the line do not change side |
+| `analytics.line_margin_height` | `0` | if above 0, the margin is at least this share of the person's height (0.15: 100 px for someone 680 px tall) |
 | `analytics.line_confirm` | `0.5` | seconds a person must stay on the new side before a crossing counts |
+| `analytics.zones` | `[]` | areas, `[{name: door, polygon: [[x1, y1], [x2, y2], [x3, y3], ...]}]`: enter, exit and dwell events, and how many are inside |
+| `analytics.zone_confirm` | `0.5` | seconds inside (or outside) before a zone enter (or exit) counts |
+| `analytics.zone_count_present` | `true` | people already inside when the video starts count as entered; `false`: inside, but not counted as entering |
+| `analytics.hidden_legs` | `0.25` | a box this much shorter than the person's full height (a cart or another person hides the legs) gets its feet placed from the head; `0`: off |
 | `camera.calibrate` | `true` | capture calibration: measure a new webcam once and reuse the result |
 | `camera.max_width` | `1280` | largest picture to try |
 | `camera.fps` | `30` | target frame rate |
@@ -167,6 +175,28 @@ once the person stays on the new side for `analytics.line_confirm` seconds (0.5 
 which removes most of this. For close-up use raise it to 1 or 1.5
 (`--set analytics.line_confirm=1.5`); it never removes all of it, and the IN and OUT totals
 update that much later.
+
+### Lines, zones and the event log
+
+Place lines and zones from what the camera is for, not at a convenient spot: a subway
+camera counts boarding with a line along the train's doors, an aisle camera measures
+browsing with a zone over the aisle floor. Each person is reduced to their feet, so draw on
+the floor. A wide lens bends straight edges near the corners; give the line more points to
+follow them. Small, far people in a 4K or portrait video may need a larger
+`detector.imgsz` to be detected at all.
+
+With `--events`, each event is one JSON line:
+
+```json
+{"t": 6.64, "frame": 166, "track_id": 21, "type": "enter"}
+{"t": 7.08, "frame": 177, "track_id": 30, "type": "zone_enter", "zone": "floor"}
+{"t": 9.52, "frame": 238, "track_id": 30, "type": "zone_exit", "zone": "floor"}
+{"t": 9.52, "frame": 238, "track_id": 30, "type": "dwell", "zone": "floor", "duration": 2.44}
+```
+
+`enter` and `exit` are line crossings. `dwell` comes with every zone exit, and at the end of
+the video for people still inside (their time so far, with no exit). `load_events` and
+`count_events` in `pathsense.analytics` read a log back.
 
 Each track ID gets its own colour, so an ID switch shows up as a colour change. The tracker
 gets real capture timestamps, so it forgets a lost person after the same time whatever the

@@ -10,6 +10,16 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Added
 
+- Zones: `analytics.zones` gives each named polygon `zone_enter`, `zone_exit` and `dwell`
+  events (seconds inside), and the window shows how many are inside. People already inside
+  when the video starts count as entered unless `analytics.zone_count_present` is false.
+- `pathsense run --heatmap runs/heat.png` saves where people spent time over the last
+  frame.
+- `analytics.line` takes more than two points, to follow an edge a wide lens has curved.
+  `analytics.line_margin_height` can make the margin grow with the person's height.
+- `analytics.hidden_legs` (0.25): when a cart or another person hides someone's legs and
+  their box suddenly shrinks, their feet are placed from their head instead of jumping up
+  to the cart. Lines and zones use it.
 - Line counting: `analytics.line` in the config counts people crossing it in each
   direction. The window shows the line and IN and OUT totals, and the summary line ends
   with `in=… out=…`. Each crossing is an event with time, frame and track ID, the start
