@@ -145,3 +145,65 @@ This becomes the "Design decisions" section of the README.
   camera. Never set the buffer size to 1. A background capture thread is not added yet: it
   only helps when the detector is slower than the camera (RF-DETR Nano at 38 ms against
   33 ms per frame), not with YOLO26n at 8 to 20 ms.
+
+## Phase 2: analytics and event log
+
+### 2026-10-27: line counter against a hand count
+- **Tried:** `LineCounter` on `people-walking.mp4` (341 frames, 25 FPS) with a horizontal
+  line at y = 675 across the full 1920 width; walking down the image is `enter`, up is
+  `exit`. Picked after tracing every track's feet: almost everyone walks up or down, and
+  tracks in the top third are sparse (small, far people rarely reach 0.7 confidence). The
+  hand count was done on a copy of the clip with only the line and a timer drawn, then
+  checked against a review video with each counted crossing labelled.
+- **Result:**
+
+  | | Hand count | Counter, activation 0.7 | Counter, activation 0.6 |
+  | --- | --- | --- | --- |
+  | enter | 14 (11 crossing the line) | 10 | **11** |
+  | exit | 7 | 7 | **7** |
+  | false counts | | 0 | 0 |
+
+  Every track seen on both sides of the line was counted, in the right direction, once.
+  The 4 missing enters were tracks that started below the line:
+  1. Three people walked in from the left edge below the line (tracks start at x = 37
+     to 42). They never cross the line; they enter the area. That is a zone question,
+     not a line question.
+  2. One woman was detected at 0.61 to 0.62 confidence while crossing, below ByteTrack's
+     0.7 `track_activation_threshold`, so her track started after the line. At 0.6
+     exactly this one enter is added (t = 6.64 s) and nothing else changes; 0.5 adds
+     nothing more. Unique IDs on the clip go from 32 to 39.
+- **Decision:**
+  1. A line counts crossings only. Entering an area from any side is a zone event
+     (`zone_enter`), the next Phase 2 piece.
+  2. `configs/default.yaml` sets `track_activation_threshold: 0.6`. OC-SORT has no such
+     setting (it starts tracks at `high_conf_det_threshold`, already 0.6), so the tracker
+     wrapper skips settings that only other trackers take, with a warning, and still
+     rejects names no tracker knows. Phase 3 checks the extra IDs against MOT17 ground
+     truth.
+
+### 2026-10-28: confirmation hold against arm waving
+- **Tried:** sitting at arm's length from the webcam with a vertical line through the
+  middle, waving a hand across it. One track (the person), box about 0.76 of the frame
+  wide; when an arm stretches out the box widens and its bottom centre jumps across the
+  line. Added a confirmation hold: a flip only counts once the person stays on the new
+  side for `line_confirm` seconds, and is cancelled if they come back sooner. Someone who
+  vanishes on the new side is counted after the same time, or at the end of the video.
+  Then swept the hold on `people-walking.mp4`.
+- **Result:**
+
+  | Hold | Webcam waving, false crossings | Sample clip in / out |
+  | --- | --- | --- |
+  | none | 53 | 11 / 7 |
+  | 0.5 s | about 11 (replayed from the first run) | 11 / 7 |
+  | 1.0 s | 14 (7 in, 7 out) | 11 / 7 |
+  | 1.5 s | 4 (2 in, 2 out) | 11 / 7 |
+  | 2.0 and 3.0 s | | 11 / 7 |
+
+  On the clip every real walker stayed on the new side for 1.48 to 11.64 s and nobody
+  stepped back; those who left the view sooner were counted by the "vanished" rule.
+- **Decision:** default `line_confirm: 0.5`. It removes most waving and jitter, costs
+  nothing on real footage, and the totals update only half a second late; 1.0 s already
+  felt slow on the webcam. Close-up use is a README note (raise it to 1 to 1.5 s), not the
+  default's job: no hold removes waving completely. The clip has nobody hesitating at the
+  line, so a busier clip (a doorway where people pause) is still needed to show the hold
+  helping on real footage.

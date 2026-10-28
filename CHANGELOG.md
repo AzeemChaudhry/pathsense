@@ -10,6 +10,20 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Added
 
+- Line counting: `analytics.line` in the config counts people crossing it in each
+  direction. The window shows the line and IN and OUT totals, and the summary line ends
+  with `in=… out=…`. Each crossing is an event with time, frame and track ID, the start
+  of the Phase 2 event log. On the sample clip it matches a hand count (11 in, 7 out).
+  A crossing counts once the person stays on the new side for `analytics.line_confirm`
+  seconds (0.5 by default), so an arm waving across the line on a close-up webcam is not
+  counted again and again. Standing on the line does not confirm a crossing, and someone
+  hidden behind another person for under a second is not counted on the wrong side.
+- `pathsense run --events runs/clip.jsonl` writes the event log, one JSON line per event
+  (time, frame, track ID, type), as events happen. `load_events` and `count_events` read
+  it back: the sample clip's log alone gives 11 in and 7 out. A run stopped with Ctrl+C
+  keeps its log; a last line cut short by a crash is skipped when reading.
+- `PATHSENSE_CAMERA=1 uv run pytest tests/test_live_camera.py -s`: a manual webcam test
+  that passes when someone crosses a line within a minute.
 - Webcam capture calibration: the first run with a new camera measures its best capture mode in
   about 4 seconds and saves it in `~/.config/pathsense/cameras.json`; later runs recognise
   the camera by its USB ids and reuse it. The test webcam goes from 640x480 to 1280x960 at
@@ -36,6 +50,13 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Changed
 
+- Tracks now start at 0.6 detector confidence instead of ByteTrack's 0.7
+  (`tracker.params.track_activation_threshold`), which missed a person crossing the line
+  at 0.61. Tracker settings that only another tracker takes are skipped with a warning,
+  so `tracker.name=ocsort` still works; unknown names are still errors, and
+  `tracker.params` cannot set `frame_rate`, which comes from the video.
+- The `analytics` config section is checked like the others: unknown keys, malformed or
+  non finite line points, and a margin or hold that is not a number from 0 are errors.
 - `CLAUDE.md` is no longer part of the repository (it holds local assistant
   instructions). The project rules it contained now live in `docs/DEVELOPMENT.md`.
 - `docs/PLAN.md` is now a public roadmap: pitch, architecture, phases, gates and status.

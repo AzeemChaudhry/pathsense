@@ -2,6 +2,8 @@
 
     pathsense run                                   # webcam 0, configs/default.yaml
     pathsense run --source clip.mp4 --save runs/clip.mp4
+    pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]]" \
+        --events runs/clip.jsonl                    # count crossings, keep the event log
     pathsense run --set detector.name=rfdetr-nano --set tracker.name=botsort
     pathsense run --source clip.mp4 --no-show --max-frames 300   # quick benchmark
     pathsense calibrate                             # measure webcam 0 again and save it
@@ -36,6 +38,8 @@ class Summary:
     detect_ms: float  # mean per frame
     track_ms: float
     unique_ids: int
+    line_in: int | None = None  # set when analytics.line is configured
+    line_out: int | None = None
 
     @property
     def fps(self) -> float:
@@ -47,7 +51,7 @@ class Summary:
             f"seconds={self.seconds:.1f} mean_fps={self.fps:.1f} "
             f"detect_ms={self.detect_ms:.1f} track_ms={self.track_ms:.1f} "
             f"unique_ids={self.unique_ids}"
-        )
+        ) + (f" in={self.line_in} out={self.line_out}" if self.line_in is not None else "")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -72,6 +76,9 @@ def build_parser() -> argparse.ArgumentParser:
         )
     run.add_argument(
         "--save", type=Path, default=None, help="write the annotated video to this mp4"
+    )
+    run.add_argument(
+        "--events", type=Path, default=None, help="write the event log to this .jsonl file"
     )
     run.add_argument("--no-show", action="store_true", help="do not open a window")
     run.add_argument("--max-frames", type=int, default=None, help="stop after this many frames")
@@ -111,7 +118,8 @@ def run(args: argparse.Namespace) -> Summary:
     # Heavy imports here, so `pathsense --help` and the tests of this module stay fast.
     import cv2
 
-    from pathsense.annotate import Annotator
+    from pathsense.analytics import EventLog
+    from pathsense.annotate import Annotator, draw_line
     from pathsense.config import load_config
     from pathsense.io import RealTimeVideoWriter, VideoSource
     from pathsense.io.display import configure_qt
@@ -132,6 +140,12 @@ def run(args: argparse.Namespace) -> Summary:
         loop_fps, detect_fps = FpsMeter(), FpsMeter()
         frames, detect_total, track_total, ids = 0, 0.0, 0.0, set()
         started = last = time.perf_counter()
+        counter, flash_until = pipeline.line_counter, -1.0
+        if args.events and not counter:
+            print("pathsense: no analytics.line is set, so the event log will be empty")
+        if args.events and args.events.exists():
+            print(f"pathsense: replacing the event log {args.events}")
+        log = EventLog(args.events) if args.events else None
         try:
             for result in pipeline.run(source):
                 frames += 1
@@ -140,6 +154,8 @@ def run(args: argparse.Namespace) -> Summary:
                 detect_total += result.detect_ms
                 track_total += result.track_ms
                 ids.update(int(t) for t in result.tracked.tracker_id)
+                if log:
+                    log.write(result.events)
 
                 if writer or not args.no_show:
                     now = time.perf_counter()
@@ -151,6 +167,13 @@ def run(args: argparse.Namespace) -> Summary:
                         f"people {len(result.tracked)}"
                     )
                     image = annotator.draw(result.frame.image, result.tracked, stats)
+                    if counter:
+                        if result.events:  # keep the line green for half a second
+                            flash_until = result.frame.timestamp + 0.5
+                        flash = result.frame.timestamp <= flash_until
+                        draw_line(
+                            image, config.analytics.line, counter.entered, counter.exited, flash
+                        )
                     if writer:
                         writer.write(image, result.frame.timestamp)
                     if not args.no_show:
@@ -163,10 +186,17 @@ def run(args: argparse.Namespace) -> Summary:
             pass
         finally:
             seconds = time.perf_counter() - started
-            if writer:
-                writer.close()
-            if not args.no_show:
-                cv2.destroyAllWindows()
+            try:
+                late = counter.finish() if counter else []  # still waiting for confirmation
+                if log:
+                    log.write(late)
+            finally:  # close everything even if the last write fails (a full disk)
+                if log:
+                    log.close()
+                if writer:
+                    writer.close()
+                if not args.no_show:
+                    cv2.destroyAllWindows()
 
     return Summary(
         detector=pipeline.detector.name,
@@ -176,6 +206,8 @@ def run(args: argparse.Namespace) -> Summary:
         detect_ms=detect_total / frames if frames else 0.0,
         track_ms=track_total / frames if frames else 0.0,
         unique_ids=len(ids),
+        line_in=counter.entered if counter else None,
+        line_out=counter.exited if counter else None,
     )
 
 
@@ -195,6 +227,8 @@ def main(argv: list[str] | None = None) -> None:
     print(summary)
     if args.save:
         print(f"saved {args.save}")
+    if args.events:
+        print(f"saved {args.events}")
 
 
 if __name__ == "__main__":

@@ -42,4 +42,7 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-markers = ["slow: loads real model weights; run with PATHSENSE_SLOW=1"]
+markers = [
+    "slow: loads real model weights; run with PATHSENSE_SLOW=1",
+    "camera: needs a webcam and a person in front of it; run with PATHSENSE_CAMERA=1",
+]

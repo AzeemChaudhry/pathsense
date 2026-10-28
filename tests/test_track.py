@@ -69,3 +69,38 @@ def test_params_reach_the_tracker_class():
 def test_unknown_tracker_lists_the_choices():
     with pytest.raises(ConfigError, match="bytetrack"):
         Tracker("deepsort")
+
+
+def test_a_setting_only_other_trackers_use_is_skipped_with_a_warning():
+    # The default config sets track_activation_threshold; OC-SORT has no such setting.
+    with pytest.warns(UserWarning, match="ocsort does not use"):
+        tracker = build_tracker("ocsort", params={"track_activation_threshold": 0.6})
+    assert tracker.name == "ocsort"
+
+
+def test_a_setting_no_tracker_knows_is_still_an_error():
+    with pytest.raises(ConfigError, match="Unknown tracker params"):
+        build_tracker("bytetrack", params={"track_activaton_threshold": 0.6})
+
+
+@pytest.mark.parametrize("name", ["bytetrack", "botsort", "ocsort"])
+def test_every_tracker_runs_with_the_default_config(name):
+    import warnings
+
+    from pathsense.config import load_config
+
+    params = load_config().tracker.params
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        build_tracker(name, params=params)
+
+
+def test_split_params_per_tracker():
+    from pathsense.track import split_params
+
+    setting = {"track_activation_threshold": 0.6}
+    assert split_params("bytetrack", setting) == (setting, [])
+    assert split_params("botsort", setting) == (setting, [])
+    assert split_params("ocsort", setting) == ({}, ["track_activation_threshold"])
+    with pytest.raises(ConfigError, match="comes from the video"):
+        split_params("bytetrack", {"frame_rate": 25})

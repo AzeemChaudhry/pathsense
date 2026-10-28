@@ -5,14 +5,21 @@ import numpy as np
 import pytest
 import supervision as sv
 
+# Opt in markers: tests that need more than CI has, and the variable that runs them.
+OPT_IN = {
+    "slow": ("PATHSENSE_SLOW", "loads real model weights"),
+    "camera": ("PATHSENSE_CAMERA", "needs a webcam and a person in front of it"),
+}
+
 
 def pytest_collection_modifyitems(config, items):
-    if os.environ.get("PATHSENSE_SLOW") == "1":
-        return
-    skip = pytest.mark.skip(reason="loads real model weights; set PATHSENSE_SLOW=1 to run")
-    for item in items:
-        if "slow" in item.keywords:
-            item.add_marker(skip)
+    for marker, (variable, reason) in OPT_IN.items():
+        if os.environ.get(variable) == "1":
+            continue
+        skip = pytest.mark.skip(reason=f"{reason}; set {variable}=1 to run")
+        for item in items:
+            if marker in item.keywords:
+                item.add_marker(skip)
 
 
 def detections(boxes, confidence=0.9, class_id=0):

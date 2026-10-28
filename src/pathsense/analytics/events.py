@@ -1,0 +1,93 @@
+"""The event log: one record per thing that happened, the interface between vision and
+language. Answers in Phase 6 are computed from these records, never by the model.
+
+On disk it is JSON Lines, one event per line:
+
+    {"t": 6.64, "frame": 166, "track_id": 23, "type": "enter"}
+"""
+
+from __future__ import annotations
+
+import json
+from collections import Counter
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+
+@dataclass(frozen=True)
+class Event:
+    t: float  # seconds since the first frame (Frame.timestamp)
+    frame: int  # Frame.index
+    track_id: int
+    type: str  # "enter" or "exit" for a line; zone events come later in Phase 2
+
+    def to_dict(self) -> dict[str, float | int | str]:
+        return asdict(self)
+
+
+class EventLog:
+    """Writes events to a JSON Lines file as they happen, so a run stopped with Ctrl+C or a
+    crash keeps everything up to that point.
+
+    Lines are in the order events were confirmed, which is not always the order they
+    happened: a crossing is dated when the person flipped side but confirmed later.
+    `load_events` sorts by time. An existing file is replaced.
+    """
+
+    def __init__(self, path: Path | str) -> None:
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._file = self.path.open("w", encoding="utf-8")
+        self.written = 0
+
+    def write(self, events: Iterable[Event]) -> None:
+        for event in events:
+            self._file.write(json.dumps(event.to_dict()) + "\n")
+            self.written += 1
+        self._file.flush()
+
+    def close(self) -> None:
+        self._file.close()
+
+    def __enter__(self) -> EventLog:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
+
+def load_events(path: Path | str) -> list[Event]:
+    """Every event in a log file, in time order.
+
+    A last line cut short (the run was killed while writing it) is skipped; any other bad
+    line is a ValueError naming the line number.
+    """
+    lines = Path(path).read_text(encoding="utf-8").split("\n")
+    events = []
+    for number, line in enumerate(lines, 1):
+        if not line.strip():
+            continue
+        try:
+            event = Event(**json.loads(line))
+            if not (_number(event.t) and _number(event.frame) and _number(event.track_id)):
+                raise TypeError("t, frame and track_id must be numbers")
+            if not isinstance(event.type, str):
+                raise TypeError("type must be a string")
+            events.append(event)
+        except json.JSONDecodeError:
+            if number == len(lines):  # no newline after it: an unfinished write
+                break
+            raise ValueError(f"{path}, line {number}: not JSON: {line[:80]!r}") from None
+        except TypeError as error:
+            raise ValueError(f"{path}, line {number}: not an event: {error}") from None
+    return sorted(events, key=lambda e: (e.t, e.frame))
+
+
+def _number(value: object) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def count_events(events: Iterable[Event]) -> Counter[str]:
+    """How many events of each type: count_events(events)["enter"]."""
+    return Counter(e.type for e in events)

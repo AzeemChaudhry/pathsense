@@ -1,4 +1,5 @@
-"""Draw tracked people on a frame: boxes, "#id" labels, trails and a stats line."""
+"""Draw tracked people on a frame: boxes, "#id" labels, trails, a stats line, and the
+counting line with its IN and OUT totals."""
 
 from __future__ import annotations
 
@@ -28,6 +29,31 @@ class Annotator:
         if stats:
             draw_stats(out, stats)
         return out
+
+
+LINE_COLOUR = (0, 200, 255)  # orange (BGR)
+FLASH_COLOUR = (60, 200, 60)  # green, just after someone crossed
+IN_COLOUR, OUT_COLOUR = (60, 200, 60), (60, 60, 230)
+
+
+def draw_line(
+    image: np.ndarray,
+    line: tuple[tuple[float, float], tuple[float, float]],
+    entered: int,
+    exited: int,
+    flash: bool = False,
+) -> None:
+    """The counting line (green and thicker for a moment after a crossing) and a top left
+    box with the totals."""
+    (x1, y1), (x2, y2) = line
+    colour, thickness = (FLASH_COLOUR, 6) if flash else (LINE_COLOUR, 3)
+    cv2.line(image, (int(x1), int(y1)), (int(x2), int(y2)), colour, thickness)
+    cv2.rectangle(image, (10, 10), (330, 70), (0, 0, 0), -1)
+    for text, x, text_colour in (
+        (f"IN {entered}", 22, IN_COLOUR),
+        (f"OUT {exited}", 165, OUT_COLOUR),
+    ):
+        cv2.putText(image, text, (x, 55), cv2.FONT_HERSHEY_SIMPLEX, 1.3, text_colour, 3)
 
 
 def draw_stats(image: np.ndarray, text: str) -> None:

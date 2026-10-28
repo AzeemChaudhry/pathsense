@@ -13,7 +13,8 @@ def test_default_file_loads_and_matches_code_defaults():
     config = load_config()
     assert DEFAULT_CONFIG.exists()
     assert config.detector == Config().detector  # "auto" device becomes None
-    assert config.tracker.name == "bytetrack" and config.tracker.params == {}
+    assert config.tracker.name == "bytetrack"
+    assert config.tracker.params == {"track_activation_threshold": 0.6}
 
 
 def test_one_override_swaps_the_detector_or_tracker():
@@ -72,3 +73,38 @@ def test_camera_section_defaults_and_overrides():
     assert config.camera.calibrate and config.camera.dynamic_framerate is False
     config = load_config(overrides=["camera.max_width=640", "camera.dynamic_framerate=null"])
     assert config.camera.max_width == 640 and config.camera.dynamic_framerate is None
+
+
+def test_analytics_line_is_read_and_checked():
+    assert load_config().analytics.line is None  # off by default
+    config = load_config(overrides=["analytics.line=[[0, 675], [1920, 675]]"])
+    assert config.analytics.line == ((0.0, 675.0), (1920.0, 675.0))
+    assert config.analytics.line_margin == 5
+    assert config.analytics.line_confirm == 0.5
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["[[0, 675]]", "[[0, 675], [1920]]", "[[a, 1], [2, 3]]", "[[5, 5], [5, 5]]", "7",
+     "[[.nan, 1], [2, 3]]", "[[0, .inf], [2, 3]]"],
+)  # fmt: skip
+def test_bad_lines_are_config_errors(value):
+    with pytest.raises(ConfigError, match="analytics.line"):
+        load_config(overrides=[f"analytics.line={value}"])
+
+
+def test_margin_and_confirm_overrides_are_read():
+    config = load_config(overrides=["analytics.line_margin=8", "analytics.line_confirm=1.5"])
+    assert (config.analytics.line_margin, config.analytics.line_confirm) == (8.0, 1.5)
+
+
+@pytest.mark.parametrize("key", ["line_margin", "line_confirm"])
+@pytest.mark.parametrize("value", ["-1", "abc", ".nan", ".inf", "true", "null"])
+def test_margin_and_confirm_must_be_numbers_from_zero(key, value):
+    with pytest.raises(ConfigError, match=f"analytics.{key} must be a number >= 0"):
+        load_config(overrides=[f"analytics.{key}={value}"])
+
+
+def test_analytics_typos_are_errors_now():
+    with pytest.raises(ConfigError, match=r"Unknown keys in \[analytics\]"):
+        load_config(overrides=["analytics.lien=[[0, 1], [2, 3]]"])

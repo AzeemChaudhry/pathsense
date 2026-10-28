@@ -74,6 +74,8 @@ uv run pathsense run --set tracker.name=botsort                   # swap the tra
 uv run pathsense run --config my.yaml --set detector.device=cpu   # own config file
 uv run pathsense run --source clip.mp4 --no-show --max-frames 300 # quick benchmark
 uv run pathsense calibrate                                        # re-measure webcam 0
+uv run pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]]"  # count crossings
+uv run pathsense run --source clip.mp4 --set "analytics.line=[[0,675],[1920,675]]" --events runs/clip.jsonl  # and keep the event log
 ```
 
 | Flag | Default | Meaning |
@@ -82,6 +84,7 @@ uv run pathsense calibrate                                        # re-measure w
 | `--config` | `configs/default.yaml` | YAML config |
 | `--set SECTION.KEY=VALUE` | none | override one config value; repeatable |
 | `--save` | off | write the annotated video to an mp4 that plays at real speed |
+| `--events` | off | write the event log (one JSON line per crossing) to this file |
 | `--no-show` | off | run without a window (for example over SSH or for benchmarks) |
 | `--max-frames` | all | stop after this many frames |
 | `--trail` | `30` | trail length in frames |
@@ -100,7 +103,10 @@ swapping a model is one line, never a code change. Typos are errors, not silent 
 | `detector.conf` | `0.1` | kept low so ByteTrack can use low confidence boxes |
 | `detector.device` | `auto` | `auto`, `cpu`, `cuda`, `0` |
 | `tracker.name` | `bytetrack` | `bytetrack`, `botsort`, `ocsort` |
-| `tracker.params` | `{}` | passed to the tracker, e.g. `{lost_track_buffer: 60}` |
+| `tracker.params` | `{track_activation_threshold: 0.6}` | passed to the tracker, e.g. `{lost_track_buffer: 60}`; a setting the chosen tracker does not take is skipped with a warning |
+| `analytics.line` | `null` | counting line `[[x1, y1], [x2, y2]]` in pixels; crossing from left to right of start to end is IN |
+| `analytics.line_margin` | `5` | feet closer than this many pixels to the line do not change side |
+| `analytics.line_confirm` | `0.5` | seconds a person must stay on the new side before a crossing counts |
 | `camera.calibrate` | `true` | capture calibration: measure a new webcam once and reuse the result |
 | `camera.max_width` | `1280` | largest picture to try |
 | `camera.fps` | `30` | target frame rate |
@@ -153,6 +159,14 @@ entry, which is harmless because they support the same modes. Without `v4l2-ctl`
 Capture calibration picks how the camera delivers frames (format, size, frame rate). It
 is not geometric calibration (lens distortion, focal length, camera position), which
 PathSense does not need while it measures in pixels.
+
+Line counting is made for a camera that sees people from a few metres away. Sitting at arm's
+length, the box covers most of the frame and widens when an arm stretches out, so its
+bottom centre jumps across a line and waving looks like crossing. A crossing only counts
+once the person stays on the new side for `analytics.line_confirm` seconds (0.5 by default),
+which removes most of this. For close-up use raise it to 1 or 1.5
+(`--set analytics.line_confirm=1.5`); it never removes all of it, and the IN and OUT totals
+update that much later.
 
 Each track ID gets its own colour, so an ID switch shows up as a colour change. The tracker
 gets real capture timestamps, so it forgets a lost person after the same time whatever the
