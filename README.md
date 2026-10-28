@@ -107,8 +107,12 @@ swapping a model is one line, never a code change. Typos are errors, not silent 
 | `detector.imgsz` | model default | YOLO 640, RF-DETR Nano 384 |
 | `detector.conf` | `0.1` | kept low so ByteTrack can use low confidence boxes |
 | `detector.device` | `auto` | `auto`, `cpu`, `cuda`, `0` |
+| `detector.slice` | `null` | detect on overlapping tiles of this many pixels as well as the whole frame: finds many small people in large frames (a square seen from above), several times slower |
 | `tracker.name` | `bytetrack` | `bytetrack`, `botsort`, `ocsort` |
 | `tracker.params` | `{track_activation_threshold: 0.6}` | passed to the tracker, e.g. `{lost_track_buffer: 60}`; a setting the chosen tracker does not take is skipped with a warning |
+| `tracker.stitch_seconds` | `2` | a person the tracker lost for up to this long gets their old ID back when they reappear where they were heading; `0`: off |
+| `tracker.stitch_distance` | `1` | how far from where they were heading, in box heights |
+| `tracker.stitch_size` | `0.5` | how different their box height may be (from 1/1.5 to 1.5 times) |
 | `analytics.line` | `null` | counting line `[[x1, y1], [x2, y2], ...]` in pixels, two or more points (more follow a curved edge); crossing from left to right of start to end is IN |
 | `analytics.line_margin` | `5` | feet closer than this many pixels to the line do not change side |
 | `analytics.line_margin_height` | `0` | if above 0, the margin is at least this share of the person's height (0.15: 100 px for someone 680 px tall) |
@@ -186,6 +190,13 @@ browsing with a zone over the aisle floor. Each person is reduced to their feet,
 the floor. A wide lens bends straight edges near the corners; give the line more points to
 follow them. Small, far people in a 4K or portrait video may need a larger
 `detector.imgsz` to be detected at all.
+
+Getting people detected comes first: no line or zone counts someone the detector misses.
+In a 4K or portrait frame people shrink 3 to 6 times at the default input size; set
+`detector.imgsz: 1920` (or `detector.slice` for many small people seen from above). Before
+tracking, a box that is a partial view of a person also boxed whole (upper body behind a
+shopping cart) is dropped. After tracking, a person lost for up to `tracker.stitch_seconds`
+keeps their ID when they reappear, using position, motion and box size only.
 
 `configs/scenes/` has one file per public sample clip, each starting with the scene's use
 case and what IN and OUT mean there: `people-walking` (concourse footfall), `subway`
