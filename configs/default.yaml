@@ -28,4 +28,5 @@ analytics:
   # drawn left to right, walking down the image (towards the camera) enters.
   line: null           # null: no line counting
   line_margin: 5       # feet closer than this many pixels to the line do not change side
+  line_confirm: 0.5    # seconds on the new side before a crossing counts (stops arm waving)
   zones: []            # list of polygons (next Phase 2 piece)

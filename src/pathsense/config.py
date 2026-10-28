@@ -67,6 +67,7 @@ class AnalyticsConfig:
     # the second, crossing from your left to your right is "enter" (pathsense.analytics.line).
     line: Line | None = None
     line_margin: float = 5.0  # feet closer than this to the line do not change side
+    line_confirm: float = 0.5  # seconds on the new side before a crossing counts
     zones: list[Any] = field(default_factory=list)  # Phase 2, next piece
 
     def __post_init__(self) -> None:

@@ -172,6 +172,8 @@ def run(args: argparse.Namespace) -> Summary:
         except KeyboardInterrupt:
             pass
         finally:
+            if counter:
+                counter.finish()  # crossings still waiting for confirmation at the end
             seconds = time.perf_counter() - started
             if writer:
                 writer.close()

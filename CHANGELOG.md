@@ -14,6 +14,9 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
   direction. The window shows the line and IN and OUT totals, and the summary line ends
   with `in=… out=…`. Each crossing is an event with time, frame and track ID, the start
   of the Phase 2 event log. On the sample clip it matches a hand count (11 in, 7 out).
+  A crossing counts once the person stays on the new side for `analytics.line_confirm`
+  seconds (0.5 by default), so an arm waving across the line on a close-up webcam is not
+  counted again and again.
 - `PATHSENSE_CAMERA=1 uv run pytest tests/test_live_camera.py -s`: a manual webcam test
   that passes when someone crosses a line within a minute.
 - Webcam capture calibration: the first run with a new camera measures its best capture mode in

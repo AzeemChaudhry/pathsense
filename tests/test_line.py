@@ -90,3 +90,44 @@ def test_untracked_detections_and_bad_lines():
     assert LineCounter(START, END).update(detections([[0, 0, 10, 10]]), 0.0, 0) == []
     with pytest.raises(ValueError, match="two different points"):
         LineCounter((5, 5), (5, 5))
+
+
+##### Confirmation ########################################################################
+
+
+def test_a_waving_arm_that_flips_back_quickly_is_not_counted():
+    counter = LineCounter(START, END, confirm=1.0)
+    # The box's bottom centre jumps across and back every 0.3 s (frames at 10 FPS).
+    ys = [500] * 3 + ([580] * 3 + [500] * 3) * 5
+    assert walk(counter, 0, 960, ys) == [] and counter.finish() == []
+    assert (counter.entered, counter.exited) == (0, 0)
+
+
+def test_a_held_crossing_counts_once_with_the_time_it_happened():
+    counter = LineCounter(START, END, confirm=1.0)
+    events = walk(counter, 7, 960, [500, 500, 580] + [600] * 12)
+    assert events == [Event(0.2, 2, 7, "enter")]  # reported at 1.2 s, dated 0.2 s
+    assert counter.finish() == []
+
+
+def test_someone_who_crosses_and_walks_out_of_view_still_counts():
+    counter = LineCounter(START, END, confirm=1.0)
+    walk(counter, 3, 960, [500, 580])  # crossed at 0.1 s, then gone
+    empty = detections([])
+    empty.tracker_id = np.array([], dtype=int)
+    assert counter.update(empty, t=0.5, frame=5) == []  # gone 0.4 s: maybe just occluded
+    assert counter.update(empty, t=1.2, frame=12) == [Event(0.1, 1, 3, "enter")]
+
+
+def test_finish_counts_crossings_still_waiting_when_the_video_ends():
+    counter = LineCounter(START, END, confirm=1.0)
+    walk(counter, 4, 960, [500, 580, 590])  # crossed at 0.1 s, video ends at 0.2 s
+    assert counter.finish() == [Event(0.1, 1, 4, "enter")]
+    assert counter.entered == 1
+
+
+def test_coming_back_before_confirmation_cancels_and_a_later_crossing_counts():
+    counter = LineCounter(START, END, confirm=1.0)
+    ys = [500, 580, 500] + [500] * 5 + [580] * 12  # step over and back, then walk across
+    events = walk(counter, 5, 960, ys)
+    assert events == [Event(0.8, 8, 5, "enter")]

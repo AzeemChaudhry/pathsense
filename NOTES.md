@@ -180,3 +180,30 @@ This becomes the "Design decisions" section of the README.
      wrapper skips settings that only other trackers take, with a warning, and still
      rejects names no tracker knows. Phase 3 checks the extra IDs against MOT17 ground
      truth.
+
+### 2026-10-28: confirmation hold against arm waving
+- **Tried:** sitting at arm's length from the webcam with a vertical line through the
+  middle, waving a hand across it. One track (the person), box about 0.76 of the frame
+  wide; when an arm stretches out the box widens and its bottom centre jumps across the
+  line. Added a confirmation hold: a flip only counts once the person stays on the new
+  side for `line_confirm` seconds, and is cancelled if they come back sooner. Someone who
+  vanishes on the new side is counted after the same time, or at the end of the video.
+  Then swept the hold on `people-walking.mp4`.
+- **Result:**
+
+  | Hold | Webcam waving, false crossings | Sample clip in / out |
+  | --- | --- | --- |
+  | none | 53 | 11 / 7 |
+  | 0.5 s | about 11 (replayed from the first run) | 11 / 7 |
+  | 1.0 s | 14 (7 in, 7 out) | 11 / 7 |
+  | 1.5 s | 4 (2 in, 2 out) | 11 / 7 |
+  | 2.0 and 3.0 s | | 11 / 7 |
+
+  On the clip every real walker stayed on the new side for 1.48 to 11.64 s and nobody
+  stepped back; those who left the view sooner were counted by the "vanished" rule.
+- **Decision:** default `line_confirm: 0.5`. It removes most waving and jitter, costs
+  nothing on real footage, and the totals update only half a second late; 1.0 s already
+  felt slow on the webcam. Close-up use is a README note (raise it to 1 to 1.5 s), not the
+  default's job: no hold removes waving completely. The clip has nobody hesitating at the
+  line, so a busier clip (a doorway where people pause) is still needed to show the hold
+  helping on real footage.

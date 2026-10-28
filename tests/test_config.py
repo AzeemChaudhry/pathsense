@@ -80,6 +80,7 @@ def test_analytics_line_is_read_and_checked():
     config = load_config(overrides=["analytics.line=[[0, 675], [1920, 675]]"])
     assert config.analytics.line == ((0.0, 675.0), (1920.0, 675.0))
     assert config.analytics.line_margin == 5
+    assert config.analytics.line_confirm == 0.5
 
 
 @pytest.mark.parametrize(

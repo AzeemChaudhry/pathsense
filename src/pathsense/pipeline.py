@@ -59,7 +59,11 @@ class Pipeline:
         tracker = build_tracker(config.tracker.name, frame_rate, config.tracker.params)
         analytics = config.analytics
         line_counter = (
-            LineCounter(*analytics.line, margin=analytics.line_margin) if analytics.line else None
+            LineCounter(
+                *analytics.line, margin=analytics.line_margin, confirm=analytics.line_confirm
+            )
+            if analytics.line
+            else None
         )
         return cls(detector, tracker, line_counter)
 
