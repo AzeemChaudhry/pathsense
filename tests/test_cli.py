@@ -258,3 +258,21 @@ def test_a_failing_last_write_still_closes_the_log_and_video(monkeypatch, tiny_v
               "--set", "analytics.line=[[25, 48], [25, 0]]",
               "--set", "analytics.line_confirm=5"])  # fmt: skip
     assert closed == ["log"] and video.stat().st_size > 0  # the video was finished too
+
+
+def test_summary_lists_each_zone():
+    summary = Summary("yolo26n", "bytetrack", 10, 1.0, 8.0, 0.5, 2, zones=(("door", 3, 1, 2),))
+    assert str(summary).endswith("unique_ids=2 door:in=3,out=1,inside=2")
+
+
+def test_run_with_a_zone_writes_zone_and_dwell_events(monkeypatch, tiny_video, tmp_path, capsys):
+    from pathsense.analytics import load_events
+
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    events = tmp_path / "events.jsonl"
+    right = "analytics.zones=[{name: right, polygon: [[25, 0], [64, 0], [64, 48], [25, 48]]}]"
+    main(["run", "--source", str(tiny_video), "--no-show", "--events", str(events),
+          "--save", str(tmp_path / "out.mp4"), "--set", "detector.name=fake",
+          "--set", right])  # fmt: skip
+    assert [e.type for e in load_events(events)] == ["zone_enter", "dwell"]
+    assert "right:in=1,out=0,inside=1" in capsys.readouterr().out

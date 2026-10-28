@@ -101,3 +101,26 @@ def test_draw_line_marks_the_line_and_the_totals():
     assert image[10:70, 10:330].any()  # the IN / OUT box
     draw_line(image, ((0.0, 150.0), (400.0, 150.0)), 3, 1, flash=True)
     assert tuple(image[150, 380]) == FLASH_COLOUR
+
+
+def test_from_config_builds_each_zone_and_finish_collects_their_events(monkeypatch, tiny_video):
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: WalkingPerson())
+    # The fake's feet walk right along y = 40: x = 5, 9, 13... Zone "right" starts at x = 25.
+    right = "{name: right, polygon: [[25, 0], [64, 0], [64, 48], [25, 48]]}"
+    config = load_config(overrides=["detector.name=fake", f"analytics.zones=[{right}]"])
+    pipeline = Pipeline.from_config(config, frame_rate=10)
+    (zone,) = pipeline.zones
+    assert zone.name == "right" and pipeline.counters == [zone]
+    with VideoSource(str(tiny_video)) as source:
+        events = [e for r in pipeline.run(source) for e in r.events]
+    events += pipeline.finish()
+    assert [(e.type, e.zone) for e in events] == [("zone_enter", "right"), ("dwell", "right")]
+    assert zone.occupancy == 1
+
+
+def test_draw_zone_fills_and_labels_without_failing():
+    from pathsense.annotate import draw_zone
+
+    image = np.zeros((200, 400, 3), np.uint8)
+    draw_zone(image, "door", ((50.0, 80.0), (350.0, 80.0), (350.0, 180.0), (50.0, 180.0)), 2, 3, 1)
+    assert image[130, 200].any() and image[40:80, 50:400].any()  # filled, labelled above

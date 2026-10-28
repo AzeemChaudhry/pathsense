@@ -2,7 +2,9 @@
 
     frame -> Detector -> Tracker -> analytics -> FrameResult (people, events, timings)
 
-Analytics turn tracks into events: a `LineCounter` when the config has `analytics.line`.
+Analytics turn tracks into events: a `LineCounter` when the config has `analytics.line`,
+and a `ZoneCounter` for each of `analytics.zones`. Call `finish()` at the end of the video
+for the events still waiting (crossings to confirm, dwell of people still inside).
 Drawing and display stay outside, in the CLI, so the same pipeline runs headless in tests,
 evaluation and the app.
 """
@@ -15,7 +17,7 @@ from dataclasses import dataclass, field
 
 import supervision as sv
 
-from pathsense.analytics import Event, LineCounter
+from pathsense.analytics import Event, LineCounter, ZoneCounter
 from pathsense.config import Config, ConfigError
 from pathsense.detect import DETECTORS, Detector, build_detector
 from pathsense.io import Frame, VideoSource
@@ -33,11 +35,16 @@ class FrameResult:
 
 class Pipeline:
     def __init__(
-        self, detector: Detector, tracker: Tracker, line_counter: LineCounter | None = None
+        self,
+        detector: Detector,
+        tracker: Tracker,
+        line_counter: LineCounter | None = None,
+        zones: list[ZoneCounter] | None = None,
     ) -> None:
         self.detector = detector
         self.tracker = tracker
         self.line_counter = line_counter  # running totals: line_counter.entered / .exited
+        self.zones = zones or []  # each with .entered, .exited, .occupancy
 
     @staticmethod
     def check(config: Config) -> None:
@@ -58,18 +65,32 @@ class Pipeline:
         detector = build_detector(config.detector)
         tracker = build_tracker(config.tracker.name, frame_rate, config.tracker.params)
         analytics = config.analytics
+        # Forget a person one frame after the tracker does, so their ID cannot return.
+        lost = tracker.lost_seconds + 1 / frame_rate
         line_counter = (
             LineCounter(
                 *analytics.line,
                 margin=analytics.line_margin,
+                margin_height=analytics.line_margin_height,
                 confirm=analytics.line_confirm,
-                # Forget a person one frame after the tracker does, so their ID cannot return.
-                lost=tracker.lost_seconds + 1 / frame_rate,
+                lost=lost,
+                hidden_legs=analytics.hidden_legs,
             )
             if analytics.line
             else None
         )
-        return cls(detector, tracker, line_counter)
+        zones = [
+            ZoneCounter(
+                zone.name,
+                list(zone.polygon),
+                confirm=analytics.zone_confirm,
+                lost=lost,
+                count_present=analytics.zone_count_present,
+                hidden_legs=analytics.hidden_legs,
+            )
+            for zone in analytics.zones
+        ]
+        return cls(detector, tracker, line_counter, zones)
 
     def process(self, frame: Frame) -> FrameResult:
         start = time.perf_counter()
@@ -77,14 +98,20 @@ class Pipeline:
         detected = time.perf_counter()
         tracked = self.tracker.update(detections, frame=frame.image, timestamp=frame.timestamp)
         done = time.perf_counter()
-        events = (
-            self.line_counter.update(tracked, frame.timestamp, frame.index)
-            if self.line_counter
-            else []
-        )
+        events = []
+        for counter in self.counters:
+            events += counter.update(tracked, frame.timestamp, frame.index)
         detect_ms, track_ms = (detected - start) * 1000, (done - detected) * 1000
         return FrameResult(frame, tracked, detect_ms, track_ms, events)
 
     def run(self, source: VideoSource) -> Iterator[FrameResult]:
         for frame in source:
             yield self.process(frame)
+
+    @property
+    def counters(self) -> list[LineCounter | ZoneCounter]:
+        return ([self.line_counter] if self.line_counter else []) + self.zones
+
+    def finish(self) -> list[Event]:
+        """Events still waiting at the end of the video, from every counter."""
+        return [event for counter in self.counters for event in counter.finish()]

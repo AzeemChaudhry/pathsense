@@ -5,6 +5,8 @@ On disk it is JSON Lines, one event per line:
 
     {"t": 6.64, "frame": 166, "track_id": 21, "type": "enter"}
     {"t": 7.08, "frame": 177, "track_id": 30, "type": "zone_enter", "zone": "floor"}
+    {"t": 9.52, "frame": 238, "track_id": 30, "type": "zone_exit", "zone": "floor"}
+    {"t": 9.52, "frame": 238, "track_id": 30, "type": "dwell", "zone": "floor", "duration": 2.44}
 """
 
 from __future__ import annotations
@@ -21,8 +23,9 @@ class Event:
     t: float  # seconds since the first frame (Frame.timestamp)
     frame: int  # Frame.index
     track_id: int
-    type: str  # "enter", "exit" (line), "zone_enter", "zone_exit"
-    zone: str | None = None  # the zone's name, for zone events
+    type: str  # "enter", "exit" (line), "zone_enter", "zone_exit", "dwell"
+    zone: str | None = None  # the zone's name, for zone and dwell events
+    duration: float | None = None  # seconds inside the zone, for dwell events
 
     def to_dict(self) -> dict[str, float | int | str]:
         """The JSON record; fields that are None are left out."""
@@ -77,6 +80,10 @@ def load_events(path: Path | str) -> list[Event]:
                 raise TypeError("t, frame and track_id must be numbers")
             if not isinstance(event.type, str):
                 raise TypeError("type must be a string")
+            if event.zone is not None and not isinstance(event.zone, str):
+                raise TypeError("zone must be a string")
+            if event.duration is not None and not _number(event.duration):
+                raise TypeError("duration must be a number")
             events.append(event)
         except json.JSONDecodeError:
             if number == len(lines):  # no newline after it: an unfinished write

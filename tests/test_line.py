@@ -88,7 +88,7 @@ def test_each_person_has_their_own_side():
 
 def test_untracked_detections_and_bad_lines():
     assert LineCounter(START, END).update(detections([[0, 0, 10, 10]]), 0.0, 0) == []
-    with pytest.raises(ValueError, match="two different points"):
+    with pytest.raises(ValueError, match="two or more points"):
         LineCounter((5, 5), (5, 5))
 
 
@@ -248,3 +248,56 @@ def test_finish_counts_a_waiting_flip_even_with_the_feet_on_the_line():
     counter = LineCounter(START, END, margin=5, confirm=5.0)
     walk(counter, 12, 960, [500, 580, 542])
     assert counter.finish() == [Event(0.1, 1, 12, "enter")]
+
+
+##### Polylines, size relative margin, hidden legs #########################################
+
+
+def test_a_polyline_follows_a_bend_and_counts_once():
+    # A bent line: from (0, 540) to (960, 540), then down to (1920, 900).
+    counter = LineCounter((0.0, 540.0), (960.0, 540.0), (1920.0, 900.0))
+    assert [e.type for e in walk(counter, 1, 400, [500, 580])] == ["enter"]
+    assert [e.type for e in walk(counter, 2, 1600, [700, 820])] == ["enter"]  # second leg
+    assert walk(counter, 3, 1600, [600, 620]) == []  # above the second leg, never crosses
+
+
+def test_beyond_the_ends_of_a_polyline_does_not_count():
+    counter = LineCounter((100.0, 540.0), (500.0, 540.0), (900.0, 600.0))
+    assert walk(counter, 1, 50, [500, 580]) == []  # before the first point
+    assert walk(counter, 2, 1000, [550, 650]) == []  # past the last point
+
+
+def test_polyline_side_matches_a_straight_line_for_two_points():
+    from pathsense.analytics import polyline_side
+
+    assert polyline_side((960, 600), [START, END]) == (pytest.approx(60), True)
+    assert polyline_side((2000, 600), [START, END])[1] is False
+
+
+def test_the_margin_can_grow_with_the_person():
+    # People 680 px tall shuffling 40 px either side of the line: 15 % gives 102 px.
+    def tall(track_id, ys):
+        events = []
+        for frame, y in enumerate(ys):
+            tracked = detections([[940, y - 680, 980, y]])
+            tracked.tracker_id = np.array([track_id])
+            events += counter.update(tracked, t=frame / 10, frame=frame)
+        return events
+
+    counter = LineCounter(START, END, margin=5, margin_height=0.15)
+    assert tall(1, [540 - 40, 540 + 40, 540 - 40, 540 + 40]) == []
+    assert [e.type for e in tall(2, [400, 700])] == ["enter"]  # 140 px past it: counted
+
+
+def test_hidden_legs_stop_a_cart_from_making_crossings():
+    # Head stays at y 400; full body 300 px (feet 700). A cart hides the legs every other
+    # frame, so the box bottom jumps to 580, across a line at y 640.
+    shopper = [(400, 700), (400, 580)] * 5
+    for hidden_legs, expected in ((0.0, 9), (0.25, 0)):
+        counter = LineCounter((0.0, 640.0), (1920.0, 640.0), hidden_legs=hidden_legs)
+        events = []
+        for frame, (top, bottom) in enumerate(shopper):
+            tracked = detections([[940, top, 980, bottom]])
+            tracked.tracker_id = np.array([1])
+            events += counter.update(tracked, t=frame / 10, frame=frame)
+        assert len(events) == expected

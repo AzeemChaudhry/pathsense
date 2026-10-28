@@ -40,6 +40,7 @@ class Summary:
     unique_ids: int
     line_in: int | None = None  # set when analytics.line is configured
     line_out: int | None = None
+    zones: tuple[tuple[str, int, int, int], ...] = ()  # (name, entered, exited, inside at end)
 
     @property
     def fps(self) -> float:
@@ -51,7 +52,9 @@ class Summary:
             f"seconds={self.seconds:.1f} mean_fps={self.fps:.1f} "
             f"detect_ms={self.detect_ms:.1f} track_ms={self.track_ms:.1f} "
             f"unique_ids={self.unique_ids}"
-        ) + (f" in={self.line_in} out={self.line_out}" if self.line_in is not None else "")
+            + (f" in={self.line_in} out={self.line_out}" if self.line_in is not None else "")
+            + "".join(f" {n}:in={i},out={o},inside={c}" for n, i, o, c in self.zones)
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -119,7 +122,7 @@ def run(args: argparse.Namespace) -> Summary:
     import cv2
 
     from pathsense.analytics import EventLog
-    from pathsense.annotate import Annotator, draw_line
+    from pathsense.annotate import Annotator, draw_line, draw_zone
     from pathsense.config import load_config
     from pathsense.io import RealTimeVideoWriter, VideoSource
     from pathsense.io.display import configure_qt
@@ -140,9 +143,10 @@ def run(args: argparse.Namespace) -> Summary:
         loop_fps, detect_fps = FpsMeter(), FpsMeter()
         frames, detect_total, track_total, ids = 0, 0.0, 0.0, set()
         started = last = time.perf_counter()
-        counter, flash_until = pipeline.line_counter, -1.0
-        if args.events and not counter:
-            print("pathsense: no analytics.line is set, so the event log will be empty")
+        counter = pipeline.line_counter
+        flash_until: dict[str | None, float] = {}  # line (None) or zone name -> until when
+        if args.events and not pipeline.counters:
+            print("pathsense: no analytics.line or zones are set, so the event log will be empty")
         if args.events and args.events.exists():
             print(f"pathsense: replacing the event log {args.events}")
         log = EventLog(args.events) if args.events else None
@@ -167,13 +171,18 @@ def run(args: argparse.Namespace) -> Summary:
                         f"people {len(result.tracked)}"
                     )
                     image = annotator.draw(result.frame.image, result.tracked, stats)
+                    now_t = result.frame.timestamp
+                    for event in result.events:  # green for half a second after an event
+                        flash_until[event.zone] = now_t + 0.5
+                    for zone in pipeline.zones:
+                        flash = now_t <= flash_until.get(zone.name, -1.0)
+                        draw_zone(
+                            image, zone.name, zone.polygon, zone.occupancy, zone.entered,
+                            zone.exited, flash,
+                        )  # fmt: skip
                     if counter:
-                        if result.events:  # keep the line green for half a second
-                            flash_until = result.frame.timestamp + 0.5
-                        flash = result.frame.timestamp <= flash_until
-                        draw_line(
-                            image, config.analytics.line, counter.entered, counter.exited, flash
-                        )
+                        flash = now_t <= flash_until.get(None, -1.0)
+                        draw_line(image, counter.points, counter.entered, counter.exited, flash)
                     if writer:
                         writer.write(image, result.frame.timestamp)
                     if not args.no_show:
@@ -187,7 +196,7 @@ def run(args: argparse.Namespace) -> Summary:
         finally:
             seconds = time.perf_counter() - started
             try:
-                late = counter.finish() if counter else []  # still waiting for confirmation
+                late = pipeline.finish()  # crossings to confirm, dwell of people inside
                 if log:
                     log.write(late)
             finally:  # close everything even if the last write fails (a full disk)
@@ -208,6 +217,7 @@ def run(args: argparse.Namespace) -> Summary:
         unique_ids=len(ids),
         line_in=counter.entered if counter else None,
         line_out=counter.exited if counter else None,
+        zones=tuple((z.name, z.entered, z.exited, z.occupancy) for z in pipeline.zones),
     )
 
 
