@@ -147,7 +147,7 @@ def run(args: argparse.Namespace) -> Summary:
     from pathsense.annotate import Annotator, draw_line, draw_zone
     from pathsense.config import load_config, scene_source
     from pathsense.io import RealTimeVideoWriter, VideoSource
-    from pathsense.io.display import configure_qt
+    from pathsense.io.display import configure_qt, open_window
     from pathsense.pipeline import Pipeline
     from pathsense.timing import FpsMeter
 
@@ -216,6 +216,8 @@ def run(args: argparse.Namespace) -> Summary:
                     if writer:
                         writer.write(image, result.frame.timestamp)
                     if not args.no_show:
+                        if frames == 1:
+                            open_window("PathSense", image.shape[1], image.shape[0])
                         cv2.imshow("PathSense", image)
                         if cv2.waitKey(1) & 0xFF in (ord("q"), 27):  # q or Esc
                             break

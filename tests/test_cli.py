@@ -304,3 +304,16 @@ def test_a_scene_names_its_video_and_lines_and_source_can_override_it(
     assert capsys.readouterr().out.splitlines()[0].endswith("in=1 out=0")
     with pytest.raises(SystemExit, match="missing.mp4"):
         main(["run", "--scene", str(scene), "--source", "missing.mp4", "--no-show"])
+
+
+def test_the_window_is_scaled_to_fit_the_screen(monkeypatch):
+    import cv2
+
+    from pathsense.io.display import open_window
+
+    sizes = []
+    monkeypatch.setattr(cv2, "namedWindow", lambda name, flags: None)
+    monkeypatch.setattr(cv2, "resizeWindow", lambda name, w, h: sizes.append((w, h)))
+    open_window("PathSense", 2160, 3840)  # 4K portrait: 900 px tall
+    open_window("PathSense", 1280, 720)  # already fits: unchanged
+    assert sizes == [(506, 900), (1280, 720)]

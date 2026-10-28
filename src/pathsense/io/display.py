@@ -28,3 +28,13 @@ def configure_qt() -> None:
         if os.path.isdir(font_dir):
             os.environ["QT_QPA_FONTDIR"] = font_dir
             return
+
+
+def open_window(name: str, width: int, height: int, fit: tuple[int, int] = (1600, 900)) -> None:
+    """A resizable window no larger than `fit`, keeping the picture's shape. A 4K or
+    portrait video would otherwise open at full size, larger than the screen."""
+    import cv2
+
+    scale = min(1.0, fit[0] / width, fit[1] / height)
+    cv2.namedWindow(name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+    cv2.resizeWindow(name, int(width * scale), int(height * scale))
