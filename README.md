@@ -292,8 +292,8 @@ Filled in during Phase 3 and Phase 4.
 
 - [x] **Phase 0** Webcam baseline (YOLO26n + ByteTrack)
 - [x] **Phase 1** Pipeline package (detector interface, tracker wrapper, tests)
-- [ ] **Phase 2** Analytics and event log
-- [ ] **Phase 3** Evaluation harness (TrackEval on MOT17, tracker comparison)
+- [x] **Phase 2** Analytics and event log
+- [ ] **Phase 3** Evaluation and scene tuning (tracker comparison on crowds, `pathsense tune`)
 - [ ] **Phase 4** Train on Kaggle (Open Images), export ONNX, weights on the Hub
 - [ ] **Phase 5** Browser app: in browser detection, tracking and analytics
 - [ ] **Phase 6** Ask your footage: plain language Q&A over the event log
