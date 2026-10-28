@@ -106,3 +106,17 @@ def test_real_detectors_find_people_in_the_sample_clip(name):
     out = build_detector(DetectorConfig(name=name, conf=0.3))(frame)
     assert len(out) >= 10  # the first frame shows about 20 people
     assert (out.class_id == PERSON_CLASS_ID).all()
+
+
+def test_a_partial_view_of_the_same_person_is_dropped():
+    from pathsense.detect.base import drop_partial_duplicates
+
+    # The grocery shopper at 6 s: upper body and whole body, same width and top.
+    shopper = detections([[2104, 900, 2305, 1149], [2102, 901, 2306, 1402]])
+    assert drop_partial_duplicates(shopper).xyxy.tolist() == [[2102, 901, 2306, 1402]]
+    # Two people in a crowd: one partly in front of the other, different tops and widths.
+    crowd = detections([[100, 100, 200, 400], [150, 180, 260, 420], [400, 100, 500, 400]])
+    assert len(drop_partial_duplicates(crowd)) == 3
+    # A child in front of an adult: inside the adult's box, but the tops differ.
+    child = detections([[100, 100, 200, 400], [110, 250, 190, 400]])
+    assert len(drop_partial_duplicates(child)) == 2

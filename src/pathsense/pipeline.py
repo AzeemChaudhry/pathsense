@@ -23,6 +23,7 @@ import supervision as sv
 from pathsense.analytics import Event, LineCounter, ZoneCounter
 from pathsense.config import Config, ConfigError
 from pathsense.detect import DETECTORS, Detector, build_detector
+from pathsense.detect.base import drop_partial_duplicates
 from pathsense.io import Frame, VideoSource
 from pathsense.track import TRACKERS, Tracker, build_tracker
 from pathsense.track.stitch import Stitcher
@@ -107,7 +108,7 @@ class Pipeline:
 
     def process(self, frame: Frame) -> FrameResult:
         start = time.perf_counter()
-        detections = self.detector(frame.image)
+        detections = drop_partial_duplicates(self.detector(frame.image))
         detected = time.perf_counter()
         tracked = self.tracker.update(detections, frame=frame.image, timestamp=frame.timestamp)
         if self.stitcher:
