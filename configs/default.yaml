@@ -7,6 +7,8 @@ detector:
   imgsz: null          # null: model default (YOLO 640, RF-DETR Nano 384)
   conf: 0.1            # kept low so ByteTrack can use low confidence boxes
   device: auto         # auto | cpu | cuda | 0
+  slice: null          # tile size in px: detect small people in large frames (slow)
+  drop_partial: false  # drop a partial box of a person also boxed whole (eye level, carts)
 
 tracker:
   name: bytetrack      # bytetrack | botsort | ocsort

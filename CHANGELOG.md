@@ -25,9 +25,10 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 - People the tracker loses for up to 2 s (`tracker.stitch_seconds`) keep their ID when they
   reappear where they were heading, so lines and zones do not count them twice. Only
   position, motion and box size are used.
-- A box that is a partial view of a person also boxed whole (upper body behind a shopping
-  cart) is dropped before tracking. The grocery scene goes from 3 IN and 1 OUT to the
-  correct 1 IN.
+- `detector.drop_partial`: drop a box that is a partial view of a person also boxed whole
+  (upper body behind a shopping cart) before tracking. On in the grocery scene, which goes
+  from 3 IN and 1 OUT to the correct 1 IN; off by default, because in a crowd seen from
+  above it also drops people standing behind others.
 - Scene files set the detector input size their video needs (1920 for the 4K subway and
   grocery clips, tiles for the market square).
 - `analytics.line` takes more than two points, to follow an edge a wide lens has curved.

@@ -46,7 +46,9 @@ class Pipeline:
         line_counter: LineCounter | None = None,
         zones: list[ZoneCounter] | None = None,
         stitcher: Stitcher | None = None,
+        drop_partial: bool = False,
     ) -> None:
+        self.drop_partial = drop_partial
         self.detector = detector
         self.tracker = tracker
         self.stitcher = stitcher
@@ -104,11 +106,13 @@ class Pipeline:
             )
             for zone in analytics.zones
         ]
-        return cls(detector, tracker, line_counter, zones, stitcher)
+        return cls(detector, tracker, line_counter, zones, stitcher, config.detector.drop_partial)
 
     def process(self, frame: Frame) -> FrameResult:
         start = time.perf_counter()
-        detections = drop_partial_duplicates(self.detector(frame.image))
+        detections = self.detector(frame.image)
+        if self.drop_partial:
+            detections = drop_partial_duplicates(detections)
         detected = time.perf_counter()
         tracked = self.tracker.update(detections, frame=frame.image, timestamp=frame.timestamp)
         if self.stitcher:

@@ -40,6 +40,10 @@ class DetectorConfig:
     # Detect on overlapping tiles of this many pixels (pathsense.detect.slice): finds small
     # and crowded people in large frames, several times slower. None: whole frame.
     slice: int | None = None
+    # Drop a box that is a partial view of a person also boxed whole (upper body behind a
+    # shopping cart; pathsense.detect.base.drop_partial_duplicates). Off by default: in a
+    # crowd seen from above it also drops people standing behind others.
+    drop_partial: bool = False
 
     def __post_init__(self) -> None:
         if self.slice is not None and (

@@ -116,3 +116,19 @@ def test_draw_zone_fills_and_labels_without_failing():
     image = np.zeros((200, 400, 3), np.uint8)
     draw_zone(image, "door", ((50.0, 80.0), (350.0, 80.0), (350.0, 180.0), (50.0, 180.0)), 2, 3, 1)
     assert image[130, 200].any() and image[40:80, 50:400].any()  # filled, labelled above
+
+
+def test_partial_duplicates_are_dropped_only_when_the_scene_asks(monkeypatch, tiny_video):
+    class UpperAndWhole:
+        name = "fake"
+
+        def __call__(self, frame):
+            return detections([[5, 5, 25, 20], [5, 5, 25, 45]])  # upper body and whole
+
+    monkeypatch.setitem(DETECTORS, "fake", lambda cfg: UpperAndWhole())
+    for drop, people in (("false", 2), ("true", 1)):
+        config = load_config(overrides=["detector.name=fake", f"detector.drop_partial={drop}"])
+        pipeline = Pipeline.from_config(config, frame_rate=10)
+        with VideoSource(str(tiny_video)) as source:
+            last = list(pipeline.run(source))[-1]
+        assert len(last.tracked) == people

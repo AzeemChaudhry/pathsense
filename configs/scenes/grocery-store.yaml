@@ -15,6 +15,9 @@ source: data/samples/grocery-store.mp4
 # At 1920 he stays at 0.61 to 0.83 (NOTES.md).
 detector:
   imgsz: 1920
+  # With the cart hiding his legs, the detector boxed the shopper's upper body and whole
+  # body; the tracker followed the second box as a phantom person who crossed the line.
+  drop_partial: true
 
 analytics:
   line: [[1733, 1450], [2618, 1450]]
