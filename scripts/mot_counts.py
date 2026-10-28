@@ -9,6 +9,13 @@ The data is CC BY-NC-SA: evaluation only, never redistributed, no frames in publ
     uv run python scripts/mot_counts.py prepare     # unzip data/mot/*.zip, make the videos
     uv run python scripts/mot_counts.py score configs/scenes/mot/*.yaml --set detector.imgsz=1280
 
+Two truths are printed. `truth` is every labelled person, also while fully hidden: what
+really happened. `seen` keeps only boxes at least `SEEN` visible: the best a counter that
+must see people could do. Truth minus seen is the scene's limit (people hidden behind
+others); seen minus ours is our error. Truth uses the feet of the labelled box as they are
+(no hidden legs estimate). Classes 2 and 7 (person on a vehicle, static person) are flagged
+"ignore" by the benchmark but are people, so they count.
+
 `prepare` expects MOT16.zip (frames), MOT17Labels.zip (the corrected labels for the same
 sequences) and MOT20.zip in data/mot/, from https://motchallenge.net/data/. It writes
 data/mot/videos/<sequence>.mp4 and data/mot/gt/<sequence>.txt for each sequence below.
@@ -18,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import dataclasses
 import shutil
 import subprocess
 import zipfile
@@ -44,21 +52,22 @@ SEQUENCES = {
 # Pedestrian, person on a vehicle, static person: everyone a person counter should see.
 # Distractors (reflections, mannequins) and non-people are left out.
 PEOPLE = {1, 2, 7}
+SEEN = 0.25  # visibility a box needs for the `seen` truth
 
 
 def prepare() -> None:
     for name in ("MOT16", "MOT17Labels", "MOT20"):
         archive, folder = ROOT / f"{name}.zip", ROOT / name
-        if not folder.exists():
-            print(f"unzipping {archive}")
-            with zipfile.ZipFile(archive) as z:
-                z.extractall(folder)
-            # Some archives hold a top folder of their own name: lift its contents.
-            inner = folder / name
-            if inner.is_dir():
-                for item in inner.iterdir():
-                    item.rename(folder / item.name)
-                inner.rmdir()
+        if folder.exists():
+            continue
+        print(f"unzipping {archive}")
+        partial = ROOT / f"{name}.partial"
+        shutil.rmtree(partial, ignore_errors=True)  # left by an interrupted run
+        with zipfile.ZipFile(archive) as z:
+            z.extractall(partial)
+        inner = partial / name  # some archives hold a top folder of their own name
+        (inner if inner.is_dir() else partial).rename(folder)
+        shutil.rmtree(partial, ignore_errors=True)
     (ROOT / "videos").mkdir(exist_ok=True)
     (ROOT / "gt").mkdir(exist_ok=True)
     for sequence, (frames, labels) in SEQUENCES.items():
@@ -67,33 +76,24 @@ def prepare() -> None:
         fps = info["Sequence"]["frameRate"]
         shutil.copy(ROOT / labels / "gt/gt.txt", ROOT / "gt" / f"{sequence}.txt")
         video = ROOT / "videos" / f"{sequence}.mp4"
-        if not video.exists():
-            print(f"making {video} at {fps} FPS")
-            subprocess.run(
-                [
-                    "ffmpeg",
-                    "-loglevel",
-                    "error",
-                    "-framerate",
-                    fps,
-                    "-i",
-                    str(ROOT / frames / "img1/%06d.jpg"),
-                    "-c:v",
-                    "libx264",
-                    "-crf",
-                    "16",
-                    "-pix_fmt",
-                    "yuv420p",
-                    str(video),
-                ],
-                check=True,
-            )
+        if video.exists():
+            continue
+        print(f"making {video} at {fps} FPS")
+        partial = video.with_suffix(".partial.mp4")  # renamed once ffmpeg has finished
+        command = ["ffmpeg", "-y", "-loglevel", "error", "-framerate", fps]
+        command += ["-i", str(ROOT / frames / "img1/%06d.jpg"), "-c:v", "libx264"]
+        command += ["-crf", "16", "-pix_fmt", "yuv420p", str(partial)]
+        subprocess.run(command, check=True)
+        partial.rename(video)
 
 
-def ground_truth(path: Path) -> dict[int, sv.Detections]:
-    """Frame index (from 0) -> the labelled people in it, with their IDs as tracker_id."""
+def ground_truth(path: Path, visibility: float = 0.0) -> dict[int, sv.Detections]:
+    """Frame index (from 0) -> the labelled people at least `visibility` visible, with
+    their IDs as tracker_id."""
     rows = np.loadtxt(path, delimiter=",", ndmin=2)
-    rows = rows[np.isin(rows[:, 7], list(PEOPLE))]
+    if rows.shape[1] < 9:
+        raise ValueError(f"{path}: expected MOT ground truth rows of 9 values")
+    rows = rows[np.isin(rows[:, 7], list(PEOPLE)) & (rows[:, 8] >= visibility)]
     frames = {}
     for frame in np.unique(rows[:, 0]).astype(int):
         r = rows[rows[:, 0] == frame]
@@ -107,44 +107,76 @@ def ground_truth(path: Path) -> dict[int, sv.Detections]:
     return frames
 
 
-def totals(line, zones) -> dict[str, int]:
-    counts = {}
-    if line:
-        counts["line in"], counts["line out"] = line.entered, line.exited
-    for zone in zones:
-        counts[f"{zone.name} in"], counts[f"{zone.name} out"] = zone.entered, zone.exited
-    return counts
+class Tally:
+    """One set of counters and what they saw: IDs, events, occupancy per frame."""
+
+    def __init__(self, line, zones) -> None:
+        self.line, self.zones = line, zones
+        self.ids: set[int] = set()
+        self.dwell = {zone.name: 0.0 for zone in zones}
+        self.inside = {zone.name: 0 for zone in zones}  # summed over frames
+        self.frames = 0
+
+    def update(self, tracked: sv.Detections, events) -> None:
+        if tracked.tracker_id is not None:
+            self.ids.update(int(i) for i in tracked.tracker_id)
+        self.add(events)
+        self.frames += 1
+        for zone in self.zones:
+            self.inside[zone.name] += zone.occupancy
+
+    def add(self, events) -> None:
+        for event in events:
+            if event.type == "dwell":
+                self.dwell[event.zone] += event.duration
+
+    def feed(self, tracked: sv.Detections, t: float, frame: int) -> None:
+        counters = ([self.line] if self.line else []) + self.zones
+        self.update(tracked, [e for c in counters for e in c.update(tracked, t, frame)])
+
+    def finish(self) -> None:
+        counters = ([self.line] if self.line else []) + self.zones
+        self.add([e for c in counters for e in c.finish()])
+
+    def rows(self) -> dict[str, float]:
+        out: dict[str, float] = {"people (IDs)": len(self.ids)}
+        if self.line:
+            out["line in"], out["line out"] = self.line.entered, self.line.exited
+        for zone in self.zones:
+            out[f"{zone.name} in"], out[f"{zone.name} out"] = zone.entered, zone.exited
+            out[f"{zone.name} dwell s"] = round(self.dwell[zone.name], 1)
+            out[f"{zone.name} mean inside"] = round(self.inside[zone.name] / max(self.frames, 1), 1)
+        return out
 
 
 def score(scene: Path, overrides: list[str]) -> None:
     config = load_config(overrides=overrides, scene=scene)
     video = Path(scene_source(scene))
-    truth_tracks = ground_truth(ROOT / "gt" / f"{video.stem}.txt")
+    labels = ROOT / "gt" / f"{video.stem}.txt"
+    tracks = {"truth": ground_truth(labels), "seen": ground_truth(labels, SEEN)}
+    # The labelled boxes already end at the feet: no hidden legs estimate for truth.
+    analytics = dataclasses.replace(config.analytics, hidden_legs=0.0)
+    empty = sv.Detections.empty()
+    empty.tracker_id = np.array([], int)
     with VideoSource(str(video)) as source:
         pipeline = Pipeline.from_config(config, frame_rate=source.fps)
-        lost = pipeline.zones[0].lost if pipeline.zones else pipeline.line_counter.lost
-        truth_line, truth_zones = build_counters(config.analytics, lost)
-        truth_counters = ([truth_line] if truth_line else []) + truth_zones
-        empty = sv.Detections.empty()
-        empty.tracker_id = np.array([], int)
-        ours_ids = set()
+        stitch = config.tracker.stitch_seconds
+        lost = max(pipeline.tracker.lost_seconds, stitch) + 1 / source.fps  # as the pipeline
+        truths = {name: Tally(*build_counters(analytics, lost)) for name in tracks}
+        ours = Tally(pipeline.line_counter, pipeline.zones)
         for frame in source:
             result = pipeline.process(frame)
-            if result.tracked.tracker_id is not None:
-                ours_ids.update(int(i) for i in result.tracked.tracker_id)
-            for counter in truth_counters:
-                counter.update(truth_tracks.get(frame.index, empty), frame.timestamp, frame.index)
-    pipeline.finish()
-    for counter in truth_counters:
-        counter.finish()
-    truth = totals(truth_line, truth_zones)
-    ours = totals(pipeline.line_counter, pipeline.zones)
-    people = len({int(i) for d in truth_tracks.values() for i in d.tracker_id})
+            ours.update(result.tracked, result.events)
+            for name, tally in truths.items():
+                tally.feed(tracks[name].get(frame.index, empty), frame.timestamp, frame.index)
+    ours.add(pipeline.finish())
+    for tally in truths.values():
+        tally.finish()
+    truth, seen, mine = truths["truth"].rows(), truths["seen"].rows(), ours.rows()
     print(f"\n{video.stem}  ({scene})")
-    print(f"  {'':16}{'truth':>7}{'ours':>7}{'error':>8}")
-    print(f"  {'people (IDs)':16}{people:>7}{len(ours_ids):>7}{len(ours_ids) - people:>+8}")
+    print(f"  {'':22}{'truth':>8}{'seen':>8}{'ours':>8}{'error':>9}")
     for key, true in truth.items():
-        print(f"  {key:16}{true:>7}{ours[key]:>7}{ours[key] - true:>+8}")
+        print(f"  {key:22}{true:>8g}{seen[key]:>8g}{mine[key]:>8g}{mine[key] - true:>+9.4g}")
 
 
 def main() -> None:

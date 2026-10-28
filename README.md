@@ -226,6 +226,27 @@ frame rate. `scripts/webcam_baseline.py` is the single file Phase 0 version, kep
 commented walkthrough of the same loop. Measured numbers and failure cases are in
 [NOTES.md](NOTES.md).
 
+### Scoring counts against ground truth
+
+MOT17 and MOT20 label every person in every frame by hand. `scripts/mot_counts.py` feeds
+those tracks through the same lines and zones as the pipeline, so each scene in
+`configs/scenes/mot/` is scored without hand counting:
+
+```bash
+# MOT16.zip, MOT17Labels.zip and MOT20.zip from https://motchallenge.net/data/ in data/mot/
+uv run python scripts/mot_counts.py prepare
+uv run python scripts/mot_counts.py score configs/scenes/mot/*.yaml
+uv run python scripts/mot_counts.py score configs/scenes/mot/MOT17-02.yaml --set detector.imgsz=1280
+```
+
+For each line and zone it prints the enters, exits, total dwell and mean occupancy under:
+- `truth`: every labelled person, hidden ones included;
+- `seen`: only people at least a quarter visible;
+- `ours`: the pipeline.
+
+Truth minus seen is what the scene hides; seen minus ours is the pipeline's error. MOT data
+is CC BY-NC-SA: evaluation only, never redistributed, no frames in these docs.
+
 ### Checks
 
 ```bash

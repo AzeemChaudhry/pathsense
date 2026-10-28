@@ -16,6 +16,9 @@ legs for many seconds is still handled. `hidden_legs=0` turns the estimate off.
 Hidden legs make a box shorter but not narrower; walking away from the camera makes it
 both. So the remembered height shrinks with the box's width (never grows with it): someone
 walking away is not mistaken for someone behind a cart, and is never stuck at an old height.
+The other side of that rule: something that hides the legs and one side of the body too,
+or a person turning side on behind a cart, also narrows the box, and the feet then fall to
+the bottom of the box as if nothing were hidden.
 
 Someone who sits or crouches also gets a shorter box; their feet are then placed lower
 than they are. A top down camera barely changes box heights, so the estimate rarely acts

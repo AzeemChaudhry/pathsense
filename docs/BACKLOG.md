@@ -33,6 +33,8 @@ picked into a phase in [PLAN.md](PLAN.md). Most came from the four public sample
   steps into the spot they just left within 2 s, at a door or the picture's edge. Refuse to
   stitch a person last seen at an exit, and cap how far their last speed is carried
   (review of PR 10). The MOT scores show how often it happens.
+- **Stitch on corrected heights.** The stitcher's size check uses raw box heights; someone
+  lost behind a cart and found whole can fail it. Use the `Feet` full height instead.
 
 ## Zones and lines
 

@@ -321,3 +321,15 @@ This becomes the "Design decisions" section of the README.
   Neither has a true count; MOT20 (crowds from above) will show which way it moved.
 - **Speed:** headless runs reach 22 FPS on the 4K clips against 10 with the window, so
   drawing and display cost as much as detection.
+
+## 2026-10-28: truth, seen and ours (second PR 10 review)
+
+- **Change:** the scorer gives truth without the hidden legs estimate (it moved MOT17-09's
+  true line out from 7 to 10), adds a `seen` truth (boxes at least 25 % visible), and
+  scores dwell and mean occupancy, not only enters and exits.
+- **Result** (imgsz 1920): MOT17-04 ours matches seen (shop front dwell 450 s against 448,
+  13 inside against 13.1, line within 1); the gap to truth (565 s, 16 inside) is people
+  hidden behind others. MOT17-02's tree group: truth 26.5 inside, seen 13.7, ours 8.4, so
+  half is hidden and we find 60 % of the rest.
+- **Decision:** the street scene is solved within what a camera sees. Groups at a distance
+  are our real error: detection in clusters, the next target after Phase 2.
