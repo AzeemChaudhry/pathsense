@@ -82,6 +82,8 @@ def prepare() -> None:
         partial = video.with_suffix(".partial.mp4")  # renamed once ffmpeg has finished
         command = ["ffmpeg", "-y", "-loglevel", "error", "-framerate", fps]
         command += ["-i", str(ROOT / frames / "img1/%06d.jpg"), "-c:v", "libx264"]
+        # x264 needs even sizes; padding right and bottom keeps the labels' coordinates.
+        command += ["-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2"]
         command += ["-crf", "16", "-pix_fmt", "yuv420p", str(partial)]
         subprocess.run(command, check=True)
         partial.rename(video)

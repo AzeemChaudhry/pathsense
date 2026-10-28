@@ -333,3 +333,31 @@ This becomes the "Design decisions" section of the README.
   half is hidden and we find 60 % of the rest.
 - **Decision:** the street scene is solved within what a camera sees. Groups at a distance
   are our real error: detection in clusters, the next target after Phase 2.
+
+## 2026-10-28: crowds (MOT20), and the Phase 2 gate evidence
+
+- **MOT20 at imgsz 1920** (truth / seen / ours):
+
+  | Scene | Line in | Line out | Zone mean inside |
+  | --- | --- | --- | --- |
+  | 01 station gates | 14 / 12 / 11 | 21 / 13 / 12 | 12.6 / 9.9 / 9 |
+  | 02 station hall | 157 / 131 / 155 | 33 / 25 / 61 | 25.3 / 17.9 / 15.4 |
+  | 03 stadium exit | 4 / 4 / 28 | 376 / 346 / 332 | 19.5 / 15.9 / 12.8 |
+  | 05 stadium forecourt | 46 / 35 / 156 | 594 / 533 / 517 | 48.2 / 41.4 / 31.6 |
+
+- **Result:** the main direction is close to `seen` everywhere; crowds add false crossings
+  the wrong way (03: 28 against 4; 05: 156 against 46). On 03 they are not the hidden legs
+  estimate (29 without it) or the stitcher (29 without it): 28 of 29 are an ID that exited
+  and then came back, the signature of ByteTrack swapping IDs between neighbours.
+- **Tried:** counting each ID's net crossing (a crossing back within a window cancels the
+  last). Window 10 s: in 3, but out 344 to 318 against 346 seen, because a swap also gives
+  the other person an early exit. Total error unchanged (27 against 29). **Not adopted.**
+- **Also:** without the hidden legs estimate, 03 is closer everywhere (out 344 against 332,
+  crossing zone dwell 1052 s against 945, seen 1165): a box cut by the person in front, seen
+  from above, is not hidden legs. 03 now sets `hidden_legs: 0`; the tuner should choose it.
+- **Decision:** wrong-way crossings in crowds are an ID swap problem. Phase 3 compares
+  ByteTrack, BoT-SORT and OC-SORT on MOT20-03 and 05 with this scorer.
+- **Gate evidence:** people-walking line 11 IN, 7 OUT matches the hand count. MOT17-04
+  against the hand labelled truth: line 8 IN (8), 4 OUT (5); shop front 37 enters (42
+  seen), 21 exits (26 seen), dwell 450 s (448 seen), 13 inside (13.1 seen). On both clips
+  the event log alone gives the same counts and the same total dwell (`load_events`).

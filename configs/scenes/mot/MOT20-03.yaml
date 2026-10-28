@@ -1,0 +1,17 @@
+# MOT20-03: a crowd leaving a stadium at night, from above (1174x880, 25 FPS, 96 s).
+# Evaluation only (CC BY-NC-SA). Make the video with scripts/mot_counts.py prepare.
+# Use case: how many walk up to the road, and how full the pedestrian crossing gets.
+# Line: across the forecourt at y = 420, drawn left to right, so walking up the image
+# (towards the road) is OUT.
+# Zone "crossing": the zebra crossing at the top.
+source: data/mot/videos/MOT20-03.mp4
+
+detector:
+  imgsz: 1920       # people near the road are small
+
+analytics:
+  hidden_legs: 0    # seen from above, a box cut by the person in front is not hidden legs
+  line: [[0, 420], [1174, 420]]
+  zones:
+    - name: crossing
+      polygon: [[200, 10], [640, 10], [620, 110], [180, 120]]

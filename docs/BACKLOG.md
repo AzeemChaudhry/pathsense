@@ -33,6 +33,10 @@ picked into a phase in [PLAN.md](PLAN.md). Most came from the four public sample
   steps into the spot they just left within 2 s, at a door or the picture's edge. Refuse to
   stitch a person last seen at an exit, and cap how far their last speed is carried
   (review of PR 10). The MOT scores show how often it happens.
+- **ID swaps in crowds.** In MOT20 an ID handed to the neighbour behind crosses the line
+  back, a false crossing the wrong way (MOT20-03: 28 against 4). Net counting per ID only
+  trades it for missed exits (NOTES.md); fewer swaps (a better tracker, or motion that
+  must stay plausible) is the fix.
 - **Stitch on corrected heights.** The stitcher's size check uses raw box heights; someone
   lost behind a cart and found whole can fail it. Use the `Feet` full height instead.
 

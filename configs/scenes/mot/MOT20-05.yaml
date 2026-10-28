@@ -1,0 +1,15 @@
+# MOT20-05: a dense stadium forecourt at night, from above (1654x1080, 25 FPS, 133 s).
+# Evaluation only (CC BY-NC-SA). Make the video with scripts/mot_counts.py prepare.
+# Use case: flow across the forecourt, and density in the group around the statue.
+# Line: across the forecourt at y = 600, drawn left to right, so walking up is OUT.
+# Zone "statue": the densest group, around the statue.
+source: data/mot/videos/MOT20-05.mp4
+
+detector:
+  imgsz: 1920       # a dense crowd of small people
+
+analytics:
+  line: [[0, 600], [1654, 600]]
+  zones:
+    - name: statue
+      polygon: [[250, 250], [900, 250], [900, 750], [250, 750]]

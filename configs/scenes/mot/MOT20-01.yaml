@@ -1,0 +1,15 @@
+# MOT20-01: a station concourse from the balcony (1920x1080, 25 FPS, 17 s). Evaluation only
+# (CC BY-NC-SA). Make the video with scripts/mot_counts.py prepare.
+# Use case: flow towards the exit on the right, and the crowd at the platform gates.
+# Line: vertical across the floor at x = 1500, before the exit.
+# Zone "gates": the floor in front of the platform gates at the back, where people bunch.
+source: data/mot/videos/MOT20-01.mp4
+
+detector:
+  imgsz: 1920       # people at the gates are small
+
+analytics:
+  line: [[1500, 650], [1500, 1080]]
+  zones:
+    - name: gates
+      polygon: [[700, 520], [1300, 520], [1300, 700], [700, 700]]
