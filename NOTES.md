@@ -241,3 +241,42 @@ This becomes the "Design decisions" section of the README.
   first (zones, dwell, occupancy, polylines, hidden legs, heatmap), then tune and hand
   count each clip. `people-walking.mp4` is unchanged: line 11 in, 7 out; a floor zone below
   the line gives 28 enters, 20 exits and 8 people inside at the end.
+
+### 2026-10-28: tuning the four scenes (detection, ID stitching, partial boxes, margins)
+- **Tried:** one scene file per clip (`configs/scenes/`), placed from its use case; then,
+  per clip, fixing what its trace showed: the detector input size or tiles, a stitcher
+  that gives a person lost for up to 2 s their ID back, dropping a partial box of a person
+  also boxed whole, and a margin that grows with the person's height.
+- **Result:** people found in a single frame (confidence 0.6 or more, enough to start a
+  track), and the scene counts:
+
+  | Frame | Default 640 | imgsz 1920 | Tiles 960 at 960 |
+  | --- | --- | --- | --- |
+  | subway doors, 26 s | 5 | 17 (40 ms) | 14 (265 ms) |
+  | market square, 2 s | 0 | 57 (41 ms) | 78 (266 ms) |
+  | grocery shopper far away, 0.5 to 3 s | 0.33 to 0.68 | 0.61 to 0.83 | |
+
+  | Scene | First scene run | Now | Settings |
+  | --- | --- | --- | --- |
+  | people-walking | 11 IN, 7 OUT | 11 IN, 7 OUT (hand count 11, 7) | defaults |
+  | grocery-store | 3 IN, 1 OUT; 2 aisle visits | **1 IN**; one 31.7 s aisle visit | imgsz 1920, drop_partial, line_margin_height 0.1 |
+  | subway | 2 boarded, 3 got off | 5 boarded, 10 got off; platform 63 in, 61 out | imgsz 1920, 11 point line to the far end |
+  | market-square | nothing detected | 1 IN, 20 OUT; fountain 5 people | tiles 960 at 960 |
+
+  1. Tiles hurt the subway: people near the camera are taller than a tile's overlap, so
+     every tile cuts them. Tiles suit many small people seen from above.
+  2. Grocery: with the cart hiding his legs, the detector boxed the shopper's upper body
+     and whole body (same sides and top within 2 px); the tracker followed the second box
+     as a phantom person across the line. Dropping such boxes fixed it, but the first rule
+     (80 % shared width, tops within 10 %) dropped 23 % of boxes at the subway doors, most
+     of them people standing behind others; a tight rule still dropped 4 %, some real. So
+     `detector.drop_partial` is per scene, on only for the grocery camera.
+  3. Grocery: the shopper browses with the cart at the line from 10.5 to 13.5 s and his
+     feet flip across it; a margin of 10 % of his height gives the single correct IN.
+  4. Market: of the tracks that cross the kerb, 16 walk down into the street and 1 up, so
+     1 IN and 20 OUT follows the tracks; to be checked by eye.
+  5. The stitcher changes nothing on people-walking (39 IDs either way).
+- **Decision:** settings belong to the scene; Phase 3 builds scene tuning (`pathsense
+  tune`) to choose them from a profile of each video, and reference counts per scene to
+  score them. Ideas beyond that are in docs/BACKLOG.md. Subway and market counts still
+  need a hand count; subway is mostly limited by people leaving the train in a cluster.

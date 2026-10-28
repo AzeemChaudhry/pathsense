@@ -21,6 +21,10 @@ detector:
 
 analytics:
   line: [[1733, 1450], [2618, 1450]]
+  # The shopper browses with the cart at the line for several seconds (10.5 to 13.5 s);
+  # a 5 px margin let his feet flip OUT and back IN. 10 % of his height (about 50 px)
+  # gives the correct single IN; so does 15 %.
+  line_margin_height: 0.1
   zones:
     - name: aisle
       polygon: [[1850, 1250], [2420, 1250], [3320, 2160], [1320, 2160]]
