@@ -35,6 +35,7 @@ import numpy as np
 import supervision as sv
 
 from pathsense.config import load_config, scene_source
+from pathsense.eval import ground_truth
 from pathsense.io import VideoSource
 from pathsense.pipeline import Pipeline, build_counters
 
@@ -49,9 +50,6 @@ SEQUENCES = {
     "MOT20-03": ("MOT20/train/MOT20-03", "MOT20/train/MOT20-03"),
     "MOT20-05": ("MOT20/train/MOT20-05", "MOT20/train/MOT20-05"),
 }
-# Pedestrian, person on a vehicle, static person: everyone a person counter should see.
-# Distractors (reflections, mannequins) and non-people are left out.
-PEOPLE = {1, 2, 7}
 SEEN = 0.25  # visibility a box needs for the `seen` truth
 
 
@@ -87,26 +85,6 @@ def prepare() -> None:
         command += ["-crf", "16", "-pix_fmt", "yuv420p", str(partial)]
         subprocess.run(command, check=True)
         partial.rename(video)
-
-
-def ground_truth(path: Path, visibility: float = 0.0) -> dict[int, sv.Detections]:
-    """Frame index (from 0) -> the labelled people at least `visibility` visible, with
-    their IDs as tracker_id."""
-    rows = np.loadtxt(path, delimiter=",", ndmin=2)
-    if rows.shape[1] < 9:
-        raise ValueError(f"{path}: expected MOT ground truth rows of 9 values")
-    rows = rows[np.isin(rows[:, 7], list(PEOPLE)) & (rows[:, 8] >= visibility)]
-    frames = {}
-    for frame in np.unique(rows[:, 0]).astype(int):
-        r = rows[rows[:, 0] == frame]
-        xyxy = np.column_stack([r[:, 2], r[:, 3], r[:, 2] + r[:, 4], r[:, 3] + r[:, 5]])
-        frames[frame - 1] = sv.Detections(
-            xyxy=xyxy.astype(np.float32),
-            confidence=np.ones(len(r), np.float32),
-            class_id=np.zeros(len(r), int),
-            tracker_id=r[:, 1].astype(int),
-        )
-    return frames
 
 
 class Tally:

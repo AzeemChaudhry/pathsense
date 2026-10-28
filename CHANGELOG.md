@@ -8,6 +8,27 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ## [Unreleased]
 
+### Added
+
+- `analytics.line_bounce`: in a dense crowd the tracker can slide an ID onto the person
+  behind, which looks like a U-turn at the line. A crossing that reverses the ID's last
+  one now waits this many seconds and is dropped if the ID crosses back. Off by default;
+  see docs/TRACKER_STUDY.md for the measured effect.
+- Trackers `sort` and `cbiou` (C-BIoU), and `tracker.params.iou` to choose how box overlap
+  is measured (`iou`, `giou`, `diou`, `ciou`, `biou`).
+- `pathsense.eval`: MOT label loading, HOTA, MOTA, IDF1 and ID switches (TrackEval rules),
+  and line crossings scored one by one against the labelled people, so a false OUT and a
+  missed OUT no longer cancel out.
+- `scripts/tracker_study`: replays saved detections through every tracker setup on seven
+  MOT17 and MOT20 scenes, saves tracks, events, metrics and a marked up video per run, and
+  draws the charts in docs/TRACKER_STUDY.md.
+
+### Changed
+
+- `Pipeline.track` runs everything after the detector, so evaluation replays saved
+  detections through the same code as a live video; `Pipeline.from_config` takes an
+  optional `detector`.
+
 ## [0.3.0] - 2026-10-28
 
 ### Added

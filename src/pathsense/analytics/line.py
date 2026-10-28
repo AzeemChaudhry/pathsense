@@ -39,6 +39,17 @@ Three rules keep the count honest:
   people who leave the picture just past the line. A shorter gap, someone hidden behind
   another person, changes nothing. `finish()` counts flips still waiting when the video
   ends, even if the feet are on the line.
+
+One more rule is off by default:
+
+- **Bounce.** In a dense crowd the tracker sometimes slides an ID from one person onto the
+  person behind them. The ID then seems to turn round: person A's crossing, a crossing
+  back (the ID moving onto B), and B's crossing the same way as A. With `bounce` above 0,
+  a crossing that reverses the ID's last one is held for `bounce` seconds; if the ID
+  crosses back the original way within that time, the held one is dropped and the other
+  two count. Someone who really turns round at the line crosses back once and stays, so
+  their crossing is only late, not lost. On MOT20-03 a bounce of 5 s removed 10 of 29
+  wrong-way crossings without changing the other direction (docs/TRACKER_STUDY.md).
 """
 
 from __future__ import annotations
@@ -118,6 +129,7 @@ class LineCounter:
         confirm: float = 0.0,
         lost: float = 1.0,
         hidden_legs: float = 0.0,
+        bounce: float = 0.0,
     ) -> None:
         if len(points) < 2 or any(a == b for a, b in pairwise(points)):
             raise ValueError(
@@ -126,13 +138,16 @@ class LineCounter:
         self.points = [(float(x), float(y)) for x, y in points]
         self.start, self.end = self.points[0], self.points[-1]
         self.margin, self.margin_height = margin, margin_height
-        self.confirm, self.lost = confirm, lost
+        self.confirm, self.lost, self.bounce = confirm, lost, bounce
         self.feet = Feet(hidden_legs)
         self.entered = 0
         self.exited = 0
         self._side: dict[int, int] = {}  # track id -> confirmed side: +1 or -1
         self._pending: dict[int, _Pending] = {}  # track id -> flip waiting for confirmation
         self._last_seen: dict[int, float] = {}
+        self._crossed: dict[int, int] = {}  # track id -> side of their last crossing
+        self._held: dict[int, _Pending] = {}  # track id -> reversing crossing held (bounce)
+        self.bounced = 0  # crossings dropped by the bounce rule
 
     def update(self, tracked: sv.Detections, t: float, frame: int) -> list[Event]:
         events: list[Event] = []
@@ -160,7 +175,12 @@ class LineCounter:
                         self._side[track_id] = side  # passed beside the line, not over it
         for track_id, pending in list(self._pending.items()):
             if clear.get(track_id) == pending.side and t - pending.t >= self.confirm - EPS:
-                events.append(self._count(track_id, pending))
+                events += self._count(track_id, pending)
+        for track_id, held in list(self._held.items()):
+            pending = self._pending.get(track_id)
+            waiting = pending is not None and pending.t - held.t <= self.bounce + EPS
+            if not waiting and t - held.t > self.bounce + EPS:
+                events.append(self._event(track_id, self._held.pop(track_id)))
         for track_id, last in list(self._last_seen.items()):
             if track_id not in seen and t - last >= self.lost - EPS:
                 events += self._forget(track_id)
@@ -168,20 +188,39 @@ class LineCounter:
 
     def finish(self) -> list[Event]:
         """At the end of the video: crossings still waiting were never undone, so count them."""
-        return [self._count(track_id, p) for track_id, p in list(self._pending.items())]
+        events = [e for i, p in list(self._pending.items()) for e in self._count(i, p)]
+        return events + [self._event(i, self._held.pop(i)) for i in list(self._held)]
 
     def _forget(self, track_id: int) -> list[Event]:
         """The track is gone; a flip still waiting means they walked off on the new side."""
         del self._last_seen[track_id]
         self.feet.forget(track_id)
         pending = self._pending.get(track_id)
-        events = [self._count(track_id, pending)] if pending else []
+        events = self._count(track_id, pending) if pending else []
+        if track_id in self._held:
+            events.append(self._event(track_id, self._held.pop(track_id)))
         self._side.pop(track_id, None)  # never off the line: no side yet
+        self._crossed.pop(track_id, None)
         return events
 
-    def _count(self, track_id: int, pending: _Pending) -> Event:
+    def _count(self, track_id: int, pending: _Pending) -> list[Event]:
+        """A confirmed flip: count it, or hold or drop it under the bounce rule."""
         del self._pending[track_id]
         self._side[track_id] = pending.side
+        held = self._held.pop(track_id, None)
+        if held is not None and pending.t - held.t <= self.bounce + EPS:
+            self.bounced += 1  # straight back the original way: the held one was a swap
+            self._crossed[track_id] = pending.side
+            return [self._event(track_id, pending)]
+        events = [self._event(track_id, held)] if held else []
+        reverses = self._crossed.get(track_id, pending.side) != pending.side
+        self._crossed[track_id] = pending.side
+        if self.bounce > 0 and reverses:
+            self._held[track_id] = pending
+            return events
+        return events + [self._event(track_id, pending)]
+
+    def _event(self, track_id: int, pending: _Pending) -> Event:
         if pending.side > 0:
             self.entered += 1
             return Event(pending.t, pending.frame, track_id, "enter")

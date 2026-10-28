@@ -1,0 +1,52 @@
+# Phase 3 tracker study: which tracker, and which of our layers on top, count crossings best
+# in crowds. Results: docs/TRACKER_STUDY.md. Run it with scripts/tracker_study (see its
+# docstring). Every run replays the same saved detections, so only the tracking differs.
+
+# configs/scenes/mot/<name>.yaml: the scene's detector, line and zones.
+scenes: [MOT17-02, MOT17-04, MOT17-09, MOT20-01, MOT20-02, MOT20-03, MOT20-05]
+# Settings are chosen on these two crowds only; the other five check that they hold.
+tune: [MOT20-03, MOT20-05]
+
+# Each tracker as the library ships it, apart from the settings listed.
+trackers:
+  sort: {}
+  bytetrack: {}
+  botsort: {enable_cmc: false}   # fixed cameras; and a replay has no frames to compare
+  ocsort: {}
+  cbiou: {}
+
+# Tried on the tune scenes, every combination, for each tracker that takes the setting.
+# lost_track_buffer is in frames at 30 FPS: 1, 2 and 4 s.
+sweep:
+  lost_track_buffer: [30, 60, 120]
+  minimum_iou_threshold: [0.1, 0.2, 0.3, 0.4]           # sort, bytetrack, ocsort
+  minimum_iou_threshold_first_assoc: [0.1, 0.2, 0.3, 0.4]  # botsort, cbiou
+  track_activation_threshold: [0.4, 0.5, 0.6, 0.7]      # all but ocsort
+# Then, on the best of those, how box overlap is measured.
+sweep_iou: [iou, giou, diou, biou]
+
+# Our layers, stacked on each tuned tracker. Values are chosen on the tune scenes.
+layers:
+  stitch: {stitch_seconds: [1, 2, 3]}     # pathsense.track.stitch, in the product since 0.3.0
+  bounce: {bounce: [2, 3, 5, 8, 12]}      # analytics.line_bounce, new
+  guard: {guard: [[0.4, 1.0], [0.6, 1.5]]}  # experimental per-frame swap check, study only
+# The runs for each tracker: its defaults, tuned, then layers added one at a time.
+ladder:
+  - [default]
+  - [tuned]
+  - [tuned, stitch]
+  - [tuned, bounce]
+  - [tuned, stitch, bounce]
+  - [tuned, guard, stitch, bounce]
+
+# What the product shipped in 0.3.0, as the reference row.
+reference:
+  name: v0.3.0
+  tracker: bytetrack
+  params: {track_activation_threshold: 0.6}
+  stitch_seconds: 2
+
+# How a setting is chosen: the crossing F1 over both tune scenes, every crossing weighing the
+# same, so a false IN costs as much as a missed OUT. Ties go to the higher IDF1. (A first
+# sweep averaged the F1 of each direction instead; it chose BoT-SORT, which cut 19 false
+# INs by missing about 100 more real OUTs. docs/TRACKER_STUDY.md.)

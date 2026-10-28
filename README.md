@@ -109,7 +109,7 @@ swapping a model is one line, never a code change. Typos are errors, not silent 
 | `detector.device` | `auto` | `auto`, `cpu`, `cuda`, `0` |
 | `detector.drop_partial` | `false` | drop a box that is a partial view of a person also boxed whole (upper body behind a cart); for eye level cameras, not crowds seen from above |
 | `detector.slice` | `null` | detect on overlapping tiles of this many pixels as well as the whole frame: finds many small people in large frames (a square seen from above), several times slower |
-| `tracker.name` | `bytetrack` | `bytetrack`, `botsort`, `ocsort` |
+| `tracker.name` | `bytetrack` | `sort`, `bytetrack`, `botsort`, `ocsort`, `cbiou` |
 | `tracker.params` | `{track_activation_threshold: 0.6}` | passed to the tracker, e.g. `{lost_track_buffer: 60}`; a setting the chosen tracker does not take is skipped with a warning |
 | `tracker.stitch_seconds` | `2` | a person the tracker lost for up to this long gets their old ID back when they reappear where they were heading; `0`: off |
 | `tracker.stitch_distance` | `1` | how far from where they were heading, in box heights |
@@ -118,6 +118,7 @@ swapping a model is one line, never a code change. Typos are errors, not silent 
 | `analytics.line_margin` | `5` | feet closer than this many pixels to the line do not change side |
 | `analytics.line_margin_height` | `0` | if above 0, the margin is at least this share of the person's height (0.15: 100 px for someone 680 px tall) |
 | `analytics.line_confirm` | `0.5` | seconds a person must stay on the new side before a crossing counts |
+| `analytics.line_bounce` | `0` | if above 0, a crossing that reverses the ID's last one waits this many seconds and is dropped if the ID crosses back: a tracker ID swap in a crowd ([tracker study](docs/TRACKER_STUDY.md)) |
 | `analytics.zones` | `[]` | areas, `[{name: door, polygon: [[x1, y1], [x2, y2], [x3, y3], ...]}]`: enter, exit and dwell events, and how many are inside |
 | `analytics.zone_confirm` | `0.5` | seconds inside (or outside) before a zone enter (or exit) counts |
 | `analytics.zone_count_present` | `true` | people already inside when the video starts count as entered; `false`: inside, but not counted as entering |
@@ -247,6 +248,22 @@ For each line and zone it prints the enters, exits, total dwell and mean occupan
 Truth minus seen is what the scene hides; seen minus ours is the pipeline's error. MOT data
 is CC BY-NC-SA: evaluation only, never redistributed, no frames in these docs.
 
+### Comparing trackers
+
+`scripts/tracker_study` runs the detector once per MOT scene, then replays those same
+boxes through every tracker and every layer of ours, so only the tracking differs. The
+study is defined in `configs/study/trackers.yaml`; the results are in
+[docs/TRACKER_STUDY.md](docs/TRACKER_STUDY.md).
+
+```bash
+uv run python scripts/tracker_study cache   # detector once per scene (GPU, about 10 min)
+uv run python scripts/tracker_study all     # sweep, run, render, report (CPU, 2 to 3 h)
+```
+
+Each run is saved in `runs/tracker-study/runs/<setup>/<scene>/`: the tracks (MOT format),
+the events, every crossing marked right, wrong or missed, the metrics and a video with
+those marks drawn on it.
+
 ### Checks
 
 ```bash
@@ -273,7 +290,7 @@ pathsense/
   configs/        YAML configs (model, tracker, zones)
   eval/           TrackEval scripts and MOT format export
   train/          Data download and fine tuning
-  scripts/        Phase 0 webcam baseline; MOT count scoring
+  scripts/        Phase 0 webcam baseline; MOT count scoring; tracker study
   tests/          pytest suite
   NOTES.md        Experiment log: what was tried, the number, the decision
 ```

@@ -14,6 +14,7 @@ evaluation and the app.
 
 from __future__ import annotations
 
+import dataclasses
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -69,9 +70,12 @@ class Pipeline:
             )
 
     @classmethod
-    def from_config(cls, config: Config, frame_rate: float = 30.0) -> Pipeline:
-        """Build the detector and tracker the config names. `frame_rate` is the source's."""
-        detector = build_detector(config.detector)
+    def from_config(
+        cls, config: Config, frame_rate: float = 30.0, detector: Detector | None = None
+    ) -> Pipeline:
+        """Build the detector and tracker the config names. `frame_rate` is the source's.
+        Pass `detector` to skip building one, e.g. when replaying saved detections."""
+        detector = build_detector(config.detector) if detector is None else detector
         tracker = build_tracker(config.tracker.name, frame_rate, config.tracker.params)
         analytics = config.analytics
         stitch = config.tracker.stitch_seconds
@@ -91,16 +95,22 @@ class Pipeline:
         detections = self.detector(frame.image)
         if self.drop_partial:
             detections = drop_partial_duplicates(detections)
-        detected = time.perf_counter()
+        detect_ms = (time.perf_counter() - start) * 1000
+        result = self.track(detections, frame)
+        return dataclasses.replace(result, detect_ms=detect_ms)
+
+    def track(self, detections: sv.Detections, frame: Frame) -> FrameResult:
+        """Everything after the detector. Evaluation replays saved detections through it, so
+        a replay runs the same code as a live video (`frame.image` may then be None)."""
+        start = time.perf_counter()
         tracked = self.tracker.update(detections, frame=frame.image, timestamp=frame.timestamp)
         if self.stitcher:
             tracked = self.stitcher(tracked, frame.timestamp)
-        done = time.perf_counter()
+        track_ms = (time.perf_counter() - start) * 1000
         events = []
         for counter in self.counters:
             events += counter.update(tracked, frame.timestamp, frame.index)
-        detect_ms, track_ms = (detected - start) * 1000, (done - detected) * 1000
-        return FrameResult(frame, tracked, detect_ms, track_ms, events)
+        return FrameResult(frame, tracked, 0.0, track_ms, events)
 
     def run(self, source: VideoSource) -> Iterator[FrameResult]:
         for frame in source:
@@ -129,6 +139,7 @@ def build_counters(
             confirm=analytics.line_confirm,
             lost=lost,
             hidden_legs=analytics.hidden_legs,
+            bounce=analytics.line_bounce,
         )
         if analytics.line
         else None

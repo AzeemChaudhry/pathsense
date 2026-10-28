@@ -301,3 +301,33 @@ def test_hidden_legs_stop_a_cart_from_making_crossings():
             tracked.tracker_id = np.array([1])
             events += counter.update(tracked, t=frame / 10, frame=frame)
         assert len(events) == expected
+
+
+def test_an_id_swap_in_a_crowd_drops_the_crossing_back():
+    # The ID goes up across the line (A), slides back onto B behind (down), then B goes up.
+    ys = [600, 560, 500, 480, 560, 580, 590, 500, 480, 470]
+    for bounce, types in ((0.0, ["exit", "enter", "exit"]), (2.0, ["exit", "exit"])):
+        counter = LineCounter(START, END, bounce=bounce)
+        events = walk(counter, 1, 960, ys) + counter.finish()
+        assert [e.type for e in events] == types
+    assert counter.bounced == 1
+
+
+def test_turning_round_at_the_line_still_counts_both_crossings():
+    counter = LineCounter(START, END, bounce=2.0)
+    events = walk(counter, 2, 960, [600, 560, 500, 480] + [560, 580, 600] * 10)  # stays down
+    assert [(e.type, e.frame) for e in events] == [("exit", 2), ("enter", 4)]  # late, not lost
+    assert counter.bounced == 0
+
+
+def test_a_held_crossing_counts_when_the_track_ends():
+    counter = LineCounter(START, END, bounce=5.0, lost=0.5)
+    walk(counter, 3, 960, [600, 500, 480, 560, 580])  # up, then back down, then gone
+    assert (counter.entered, counter.exited) == (0, 1)  # the crossing back is held
+    assert counter.update(person(9, 0, 0)[:0], t=2.0, frame=20) == [Event(0.3, 3, 3, "enter")]
+    assert (counter.entered, counter.exited) == (1, 1)
+
+
+def test_a_first_crossing_is_never_held():
+    counter = LineCounter(START, END, bounce=5.0)
+    assert walk(counter, 4, 960, [500, 560, 580]) == [Event(0.1, 1, 4, "enter")]

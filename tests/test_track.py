@@ -57,7 +57,7 @@ def test_frame_only_reaches_botsort(monkeypatch):
 
         monkeypatch.setattr(tracker._tracker, "update", spy)
         walk(tracker, frames=1)
-    assert seen == {"botsort": True, "bytetrack": False, "ocsort": False}
+    assert seen == {name: name == "botsort" for name in TRACKERS}
 
 
 def test_params_reach_the_tracker_class():
@@ -104,3 +104,12 @@ def test_split_params_per_tracker():
     assert split_params("ocsort", setting) == ({}, ["track_activation_threshold"])
     with pytest.raises(ConfigError, match="comes from the video"):
         split_params("bytetrack", {"frame_rate": 25})
+
+
+def test_iou_measure_is_chosen_by_name():
+    from trackers import GIoU
+
+    tracker = Tracker("bytetrack", iou="giou")
+    assert any(isinstance(v, GIoU) for v in vars(tracker._tracker).values())
+    with pytest.raises(ConfigError, match="Unknown tracker iou"):
+        Tracker("bytetrack", iou="nope")

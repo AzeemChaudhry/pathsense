@@ -102,6 +102,9 @@ class AnalyticsConfig:
     line_margin: float = 5.0  # feet closer than this to the line do not change side
     line_margin_height: float = 0.0  # if > 0, the margin is at least this share of height
     line_confirm: float = 0.5  # seconds on the new side before a crossing counts
+    # Seconds to hold a crossing that reverses the ID's last one; dropped if the ID crosses
+    # back within that time (an ID swap in a crowd, pathsense.analytics.line). 0: off.
+    line_bounce: float = 0.0
     # Zones: [{name: door, polygon: [[x1, y1], [x2, y2], [x3, y3], ...]}, ...]
     zones: tuple[ZoneSpec, ...] = ()
     zone_confirm: float = 0.5  # seconds inside (or outside) before an enter (or exit) counts
@@ -114,7 +117,8 @@ class AnalyticsConfig:
         if self.line is not None:
             object.__setattr__(self, "line", parse_line(self.line))
         object.__setattr__(self, "zones", parse_zones(self.zones))
-        for key in ("line_margin", "line_margin_height", "line_confirm", "zone_confirm"):
+        keys = ("line_margin", "line_margin_height", "line_confirm", "line_bounce", "zone_confirm")
+        for key in keys:
             object.__setattr__(self, key, non_negative(f"analytics.{key}", getattr(self, key)))
         hidden = non_negative("analytics.hidden_legs", self.hidden_legs)
         if hidden >= 1:
