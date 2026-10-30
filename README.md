@@ -265,6 +265,41 @@ Each run is saved in `runs/tracker-study/runs/<setup>/<scene>/`: the tracks (MOT
 the events, every crossing marked right, wrong or missed, the metrics and a video with
 those marks drawn on it.
 
+### Tuning a scene
+
+Every scene has its own problems (crowds, small people, carts hiding legs), and the
+tracker study showed that no one setup suits them all. `pathsense tune` chooses a scene's
+tracker settings against what really happened there:
+
+```bash
+uv run pathsense tune configs/scenes/mot/MOT20-03.yaml   # report in runs/tune/MOT20-03/
+```
+
+It runs the detector over the scene's video once (saved in `data/cache/`, reused until the
+detector settings change), then replays those boxes through the scene as it is and through
+each setup in [configs/tune/candidates.yaml](configs/tune/candidates.yaml), and scores
+them. A setup replaces the scene's own only if it scores strictly better. The report
+describes the scene, compares every setup, shows the block to paste into the scene file,
+and says what is left and whose it is: the detector's (people never detected), the
+tracker's (detected, but the track was lost or split) or the counting rules' (errors even
+with perfect tracks). It never edits the scene file itself.
+
+The scene file says what really happened in a `truth:` block, either hand labels or hand
+counts:
+
+```yaml
+truth:
+  labels: data/mot/gt/MOT20-03.txt   # every person boxed in every frame (MOT format)
+# or
+truth:
+  enter: 11                          # hand counts: crossings each way,
+  exit: 7
+  zones: {aisle: 1}                  # and people entering each zone
+```
+
+Labels score every crossing one by one; hand counts only score totals, where a false
+crossing and a missed one cancel out.
+
 ### Checks
 
 ```bash
@@ -280,16 +315,17 @@ pathsense/
   src/pathsense/
     config.py     YAML config and section.key=value overrides
     detect/       Detector protocol, registry and adapters (YOLO26, RF-DETR)
-    track/        Tracker wrapper (ByteTrack, BoT-SORT, OC-SORT)
+    track/        Tracker wrapper (SORT, ByteTrack, BoT-SORT, OC-SORT, C-BIoU), stitcher
     io/           Frame sources with timestamps, real time video writer, window set up
-    pipeline.py   Detector -> tracker, one frame at a time, with timings
+    pipeline.py   Detector -> tracker -> stitcher -> counters, one frame at a time
     annotate.py   Boxes, ID labels, trails and the stats line
     cli.py        The `pathsense` command
     analytics/    Line counts, zones, dwell time, heatmap (Phase 2)
+    eval/         Scoring against hand labels: tracking metrics, crossings one by one
+    tune/         Saved detections, replays, scene profiles and `pathsense tune`
   web/            Browser app for the Static Space (Phase 5 and 6)
   app/            Placeholder for an optional Gradio fallback demo (not built yet)
-  configs/        YAML configs (model, tracker, zones)
-  eval/           TrackEval scripts and MOT format export
+  configs/        YAML configs: default, scenes, tune candidates, tracker study
   train/          Data download and fine tuning
   scripts/        Phase 0 webcam baseline; MOT count scoring; tracker study
   tests/          pytest suite

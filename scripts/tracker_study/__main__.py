@@ -1,6 +1,6 @@
 """Phase 3 tracker study: trackers swapped, then our layers stacked on top, scored on MOT.
 
-    uv run python scripts/tracker_study cache    # detector once per scene -> data/mot/dets
+    uv run python scripts/tracker_study cache    # detector once per scene -> data/cache
     uv run python scripts/tracker_study sweep    # choose settings on the tune scenes
     uv run python scripts/tracker_study run      # every setup on every scene, saved
     uv run python scripts/tracker_study render   # a video of every run
@@ -31,7 +31,6 @@ import argparse  # noqa: E402
 import csv  # noqa: E402
 import itertools  # noqa: E402
 import json  # noqa: E402
-import subprocess  # noqa: E402
 import sys  # noqa: E402
 from concurrent.futures import ProcessPoolExecutor  # noqa: E402
 from pathlib import Path  # noqa: E402
@@ -223,9 +222,14 @@ def check() -> None:
 
 
 def cache() -> None:
-    script = Path(__file__).parent / "cache.py"
-    scenes = [f"configs/scenes/mot/{s}.yaml" for s in load_study()["scenes"]]
-    subprocess.run([sys.executable, str(script), *scenes], check=True)
+    """The detector once per scene, shared with `pathsense tune` (pathsense.tune.cache)."""
+    from pathsense.config import load_config, scene_source
+    from pathsense.tune import cached_detections
+
+    for scene in load_study()["scenes"]:
+        path = Path("configs/scenes/mot") / f"{scene}.yaml"
+        saved = cached_detections(scene_source(path), load_config(scene=path).detector)
+        print(f"{scene}: {len(saved)} frames, {saved.detect_ms:.1f} ms per frame", flush=True)
 
 
 def main() -> None:

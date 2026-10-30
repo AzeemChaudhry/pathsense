@@ -3,7 +3,17 @@ import pytest
 from conftest import detections
 
 from pathsense.analytics import Event
-from pathsense.eval import Identity, ground_truth, match_crossings, tracking_metrics, write_mot
+from pathsense.config import AnalyticsConfig
+from pathsense.eval import (
+    Identity,
+    explain_misses,
+    ground_truth,
+    label_events,
+    match_crossings,
+    misses_table,
+    tracking_metrics,
+    write_mot,
+)
 
 FPS = 10.0
 
@@ -67,3 +77,37 @@ def test_ground_truth_needs_nine_columns(tmp_path):
     bad.write_text("1,1,10,10,20,60\n")
     with pytest.raises(ValueError, match="9 values"):
         ground_truth(bad)
+
+
+def walker(person, ys, x=40):
+    """Labels of one person whose feet are at each y in turn, frames from 0 at 10 FPS."""
+    frames = {}
+    for frame, y in enumerate(ys):
+        frames[frame] = people((person, x, y - 40, x + 20, y))
+    return frames
+
+
+def test_label_events_can_keep_the_scenes_counting_rules():
+    # Down across a line at y 50, back up, down again, all within the 12 s bounce.
+    labels = walker(1, [30] * 3 + [70] * 6 + [30] * 6 + [70] * 6)
+    analytics = AnalyticsConfig(line=((0, 50), (100, 50)))
+    frames = [(f, f / FPS) for f in labels]
+    plain = label_events(analytics, labels, frames, FPS)
+    assert [e.type for e in plain] == ["enter", "exit", "enter"]
+    ruled = label_events(analytics, labels, frames, FPS, rules=True)
+    assert [e.type for e in ruled] == ["enter", "enter"]  # the bounce rule's known cost
+
+
+def test_a_miss_is_explained_by_detection_and_tracking():
+    labels = walker(1, range(0, 100, 5))
+    missed = Event(1.0, 10, 1, "enter")
+    on_them = {f: people.xyxy for f, people in labels.items()}
+    found = {f: detections(box) for f, box in on_them.items()}
+    assert explain_misses([missed], [], labels, {}, {}, FPS) == {("no track", "never"): 1}
+    split = {f: people((5 if f < 10 else 6, *box[0])) for f, box in on_them.items()}
+    assert explain_misses([missed], [], labels, found, split, FPS) == {
+        ("ID changes", "at least half"): 1
+    }
+    assert "| ID changes | 1 | 0 | 0 | 1 |" in misses_table(
+        explain_misses([missed], [], labels, found, split, FPS)
+    )

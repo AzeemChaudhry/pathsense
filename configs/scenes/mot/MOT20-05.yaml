@@ -25,3 +25,7 @@ analytics:
   zones:
     - name: statue
       polygon: [[250, 250], [900, 250], [900, 750], [250, 750]]
+
+# What really happened, for `pathsense tune`: every person boxed in every frame by hand.
+truth:
+  labels: data/mot/gt/MOT20-05.txt

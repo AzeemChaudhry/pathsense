@@ -14,3 +14,7 @@ analytics:
   zones:
     - name: gate hall
       polygon: [[600, 250], [1150, 250], [1150, 560], [600, 560]]
+
+# What really happened, for `pathsense tune`: every person boxed in every frame by hand.
+truth:
+  labels: data/mot/gt/MOT20-02.txt

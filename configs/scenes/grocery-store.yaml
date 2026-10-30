@@ -28,3 +28,8 @@ analytics:
   zones:
     - name: aisle
       polygon: [[1850, 1250], [2420, 1250], [3320, 2160], [1320, 2160]]
+
+# Hand counts, for `pathsense tune`: the one shopper comes down the aisle once.
+truth:
+  enter: 1
+  zones: {aisle: 1}

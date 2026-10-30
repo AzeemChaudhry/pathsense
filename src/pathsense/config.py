@@ -210,13 +210,15 @@ def load_config(
     apply `a.b=value` overrides.
 
     A scene (configs/scenes/*.yaml) holds what belongs to one camera: its lines, zones and
-    settings, and optionally its `source`. It changes only the keys it names, so shared
-    settings stay in the base config.
+    settings, and optionally its `source` and `truth` (what really happened, for
+    `pathsense tune`). It changes only the keys it names, so shared settings stay in the
+    base config.
     """
     raw = read_yaml(Path(path) if path else DEFAULT_CONFIG)
     if scene:
         layer = read_yaml(Path(scene))
         layer.pop("source", None)
+        layer.pop("truth", None)  # read by pathsense.tune.truth, not part of the pipeline
         for section, values in layer.items():
             if isinstance(values, dict) and isinstance(raw.get(section), dict):
                 raw[section] = {**raw[section], **values}

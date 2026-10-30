@@ -10,3 +10,7 @@ analytics:
   zones:
     - name: doorway
       polygon: [[150, 690], [1080, 650], [1080, 770], [150, 810]]
+
+# What really happened, for `pathsense tune`: every person boxed in every frame by hand.
+truth:
+  labels: data/mot/gt/MOT17-09.txt

@@ -167,6 +167,7 @@ detector never boxes them as separate people. That is the cluster problem below.
 | Partly visible people at the frame edge missed or split | Phase 0 | Phase 4: fine tuning |
 | Detected people not tracked because the track start threshold is high | Phase 1 | Phase 3: the tracker study chose 0.4 for crowds, set in the crowd scene files; per scene choice in `pathsense tune` |
 | ID swaps in crowds give false crossings the wrong way (MOT20-03: 28 against 4) | Phase 2 | Phase 3: reduced, not solved. Wrong crossings 392 to 129 on the two tune crowds, 79 to 62 on five check scenes ([tracker study](TRACKER_STUDY.md)); MOT20-03 29 to 11 |
-| Missed crossings in crowds: 156 of 437 detected in at least half the frames but untracked, or the track ends or changes ID at the line; 28 never detected | Phase 3 | Phase 3: `pathsense tune` per scene; next tracking work after it; Phase 4 for the rest |
+| Missed crossings in crowds: 156 of 437 detected in at least half the frames but untracked, or the track ends or changes ID at the line; 28 never detected | Phase 3 | Phase 3 step 5; Phase 4 for the rest |
+| subway: far more board than the 7 counted, and the scene has no truth to tune against (too crowded to count from frames) | Phase 3 | Box by box labels with a labelling tool |
 | Groups standing close together are boxed as one or not at all | Phase 2 | Phase 3 measures it per scene; backlog: cluster detection |
 | Far groups in zones: we find 60 % of visible people (MOT17-02) | Phase 2 | Phase 3 scene tuning; backlog: zones guide detection |

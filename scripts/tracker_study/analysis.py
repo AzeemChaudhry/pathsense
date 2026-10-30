@@ -1,7 +1,8 @@
 """Two checks on a finished study, from the saved runs (no replays).
 
 misses(): for each missed crossing of one setup, was the person detected around the
-crossing, and what did our tracks do on them? The two are crossed in one table.
+crossing, and what did our tracks do on them? The two are crossed in one table
+(pathsense.eval.misses, also used by `pathsense tune`).
 
 rescore(): every saved run scored again with a stricter and a looser crossing matcher, to
 see whether the ranking of the setups depends on how crossings are matched.
@@ -10,7 +11,6 @@ see whether the ranking of the setups depends on how crossings are matched.
 from __future__ import annotations
 
 import json
-from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -18,20 +18,8 @@ import supervision as sv
 from replay import detections, labels, true_events
 
 from pathsense.analytics import Event
-from pathsense.eval import Identity, match_crossings
-
-MATCH_IOU = 0.5  # a detection or track box is on the person at this overlap with the label
-DETECT_LOOK = 0.5  # seconds either side of the crossing, for "was the person detected"
-TRACK_LOOK = 1.0  # seconds before and after the crossing, for "which ID was on them"
-
-DETECTED = ("in at least half the frames", "in some frames", "never")
-TRACKED = (
-    "no track on them",
-    "one ID before and after, no matching crossing",
-    "track starts or ends at the line",
-    "ID changes at the line",
-    "swap: our ID crossed, scored on someone else",
-)
+from pathsense.eval import Identity, explain_misses, match_crossings, misses_table
+from pathsense.eval.misses import DETECT_LOOK, MATCH_IOU, TRACK_LOOK
 
 # Matcher settings: (box overlap to tie a track to a label, look after the crossing in s,
 # time window in s). The first is the one the study uses.
@@ -49,94 +37,40 @@ def _tracks(folder: Path) -> dict[int, sv.Detections]:
     return frames
 
 
-def _box(people: sv.Detections | None, person: int) -> np.ndarray | None:
-    if people is None or person not in people.tracker_id:
-        return None
-    return people.xyxy[list(people.tracker_id).index(person)]
-
-
-def _best(box: np.ndarray, boxes: np.ndarray) -> int | None:
-    """Index of the box overlapping `box` most, if by at least MATCH_IOU."""
-    if not len(boxes):
-        return None
-    overlap = sv.box_iou_batch(box[None], boxes)[0]
-    return int(overlap.argmax()) if overlap.max() >= MATCH_IOU else None
-
-
-def _detected(scene: str, person: int, frame: int) -> str:
-    d, fps = detections(scene), float(detections(scene)["fps"])
-    starts = np.concatenate([[0], np.cumsum(d["n"])])
-    index = {int(f): k for k, f in enumerate(d["frame"])}
-    look = round(DETECT_LOOK * fps)
-    seen = shown = 0
-    for f in range(frame - look, frame + look + 1):
-        box, k = _box(labels(scene).get(f), person), index.get(f)
-        if box is None or k is None:
-            continue
-        shown += 1
-        seen += _best(box, d["xyxy"][starts[k] : starts[k + 1]]) is not None
-    if seen and seen >= shown / 2:
-        return DETECTED[0]
-    return DETECTED[1] if seen else DETECTED[2]
-
-
-def _tracked(scene, tracks, person, frame, kind, wrong) -> str:
-    look = round(TRACK_LOOK * float(detections(scene)["fps"]))
-
-    def on(frames: range) -> int | None:
-        ids = []
-        for f in frames:
-            box, ours = _box(labels(scene).get(f), person), tracks.get(f)
-            if box is not None and ours is not None:
-                i = _best(box, ours.xyxy)
-                if i is not None:
-                    ids.append(int(ours.tracker_id[i]))
-        return Counter(ids).most_common(1)[0][0] if ids else None
-
-    before, after = on(range(frame - look, frame)), on(range(frame, frame + look + 1))
-    fps = float(detections(scene)["fps"])
-    if before is None and after is None:
-        return TRACKED[0]
-    if any(
-        e["type"] == kind and abs(e["frame"] - frame) <= 2 * fps and e["id"] in (before, after)
-        for e in wrong
-    ):
-        return TRACKED[4]
-    if before is None or after is None:
-        return TRACKED[2]
-    return TRACKED[3] if before != after else TRACKED[1]
+def _marks(folder: Path, mark: str) -> list[Event]:
+    """Our crossings marked `mark` (right, wrong), or the true ones missed, as events."""
+    marks = json.loads((folder / "crossings.json").read_text())
+    return [Event(0.0, m["frame"], m["id"], m["type"]) for m in marks if m["mark"] == mark]
 
 
 def misses(out: Path, setup: str, scenes: list[str]) -> str:
     """The missed crossings of `setup`, detected against tracked, as a Markdown table."""
-    table: Counter = Counter()
+    table = None
     for scene in scenes:
         folder = out / "runs" / setup / scene
-        marks = json.loads((folder / "crossings.json").read_text())
-        tracks = _tracks(folder)
-        wrong = [m for m in marks if m["mark"] == "wrong"]
-        for m in marks:
-            if m["mark"] == "missed":
-                detected = _detected(scene, m["id"], m["frame"])
-                tracked = _tracked(scene, tracks, m["id"], m["frame"], m["type"], wrong)
-                table[tracked, detected] += 1
-    lines = [
+        saved = detections(scene)
+        found = {frame.index: boxes for frame, boxes in saved}
+        counted = explain_misses(
+            _marks(folder, "missed"),
+            _marks(folder, "wrong"),
+            labels(scene),
+            found,
+            _tracks(folder),
+            saved.fps,
+        )
+        table = counted if table is None else table + counted
+    assert table is not None
+    return (
         f"Missed crossings of {setup}, {sum(table.values())} on {len(scenes)} scenes. Detected:"
         f" a box at IoU {MATCH_IOU} or more on the person, within {DETECT_LOOK} s of the"
-        f" crossing. Tracked: the ID on the person in the {TRACK_LOOK} s before and after.",
-        "",
-        "| what our tracks did | " + " | ".join(f"detected {d}" for d in DETECTED) + " | all |",
-        "| --- |" + " --- |" * (len(DETECTED) + 1),
-    ]
-    for t in (*TRACKED, None):
-        row = [table[t, d] if t else sum(table[x, d] for x in TRACKED) for d in DETECTED]
-        lines.append(f"| {t or 'all'} | " + " | ".join(map(str, row)) + f" | {sum(row)} |")
-    return "\n".join(lines) + "\n"
+        f" crossing. Tracked: the ID on the person in the {TRACK_LOOK} s before and after.\n\n"
+        + misses_table(table)
+    )
 
 
 def _rescore(job: tuple[str, str, Path]) -> tuple[str, str, list[tuple[int, int, int]]]:
     setup, scene, folder = job
-    fps = float(detections(scene)["fps"])
+    fps = detections(scene).fps
     tracks = _tracks(folder)
     with open(folder / "events.jsonl", encoding="utf-8") as f:
         events = [json.loads(line) for line in f]

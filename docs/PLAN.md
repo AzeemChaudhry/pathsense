@@ -130,5 +130,6 @@ after numbers on CCTV style video.
   scenes. The check scenes favour OC-SORT and BoT-SORT, so the tracker is a per scene
   choice. `line_bounce` is on by default; the crowd tracker settings live in the crowd
   scene files, since they split tracks on the close-up grocery clip. Step 3's crossing
-  safeguard is the bounce rule. Next: step 4, `pathsense tune`, then step 5, recovering
-  missed crossings.
+  safeguard is the bounce rule. Step 4, `pathsense tune`, built (NOTES.md): it reproduces
+  the study and picks a setup per scene against the scene's `truth:` block; subway has no
+  truth yet. Next: step 5, recovering missed crossings, then the gate run.

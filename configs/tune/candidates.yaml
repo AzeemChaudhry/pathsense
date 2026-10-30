@@ -1,0 +1,63 @@
+# The setups `pathsense tune` tries on a scene, drawn from the tracker study
+# (docs/TRACKER_STUDY.md), not a blind grid. Each is a list of `section.key=value`
+# overrides, the same as `pathsense run --set`, laid over the scene file. The scene as it
+# is ("current") is always tried first, and a candidate replaces it only if it scores
+# strictly better.
+
+candidates:
+  - name: default
+    why: what ships, ByteTrack with the default settings and a 2 s stitch
+    set:
+      - tracker.name=bytetrack
+      - "tracker.params={track_activation_threshold: 0.6}"
+      - tracker.stitch_seconds=2
+
+  - name: default, no stitch
+    why: the stitcher mends split tracks in sparse scenes but links the wrong person in crowds
+    set:
+      - tracker.name=bytetrack
+      - "tracker.params={track_activation_threshold: 0.6}"
+      - tracker.stitch_seconds=0
+
+  - name: default, longer memory
+    why: a person hidden for up to 2 s keeps their ID, matched by box centres (DIoU)
+    set:
+      - tracker.name=bytetrack
+      - "tracker.params={track_activation_threshold: 0.6, lost_track_buffer: 60, iou: diou}"
+      - tracker.stitch_seconds=2
+
+  - name: crowd
+    why: tuned on the MOT20 crowds, stricter matching so IDs do not slide between people
+    set:
+      - tracker.name=bytetrack
+      - "tracker.params={lost_track_buffer: 60, minimum_iou_threshold: 0.4,
+         track_activation_threshold: 0.4, iou: diou}"
+      - tracker.stitch_seconds=1
+
+  - name: crowd, no stitch
+    why: the crowd settings without the stitcher, best on the study's check scenes
+    set:
+      - tracker.name=bytetrack
+      - "tracker.params={lost_track_buffer: 60, minimum_iou_threshold: 0.4,
+         track_activation_threshold: 0.4, iou: diou}"
+      - tracker.stitch_seconds=0
+
+  - name: oc-sort
+    why: counts fewest false crossings; best on the study's sparser check scenes
+    set:
+      - tracker.name=ocsort
+      - "tracker.params={lost_track_buffer: 120, minimum_iou_threshold: 0.2}"
+      - tracker.stitch_seconds=0
+
+  - name: bot-sort
+    why: keeps identities best in the study (camera motion correction off, for fixed cameras)
+    set:
+      - tracker.name=botsort
+      - "tracker.params={enable_cmc: false, lost_track_buffer: 120,
+         minimum_iou_threshold_first_assoc: 0.1, track_activation_threshold: 0.4}"
+      - tracker.stitch_seconds=0
+
+  - name: no bounce
+    why: the scene as it is, without the bounce rule, to show what the rule changes here
+    set:
+      - analytics.line_bounce=0

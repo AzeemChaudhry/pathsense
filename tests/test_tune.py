@@ -1,0 +1,216 @@
+import numpy as np
+import pytest
+from conftest import detections
+from test_pipeline import WalkingPerson
+
+from pathsense.cli import main
+from pathsense.config import ConfigError, DetectorConfig, load_config
+from pathsense.detect import DETECTORS
+from pathsense.io import VideoSource
+from pathsense.pipeline import Pipeline
+from pathsense.tune import (
+    NO_DETECTOR,
+    Candidate,
+    SavedDetections,
+    cached_detections,
+    detect_video,
+    load_candidates,
+    replay,
+    scene_profile,
+    scene_truth,
+    tune,
+)
+from pathsense.tune.cache import detector_key
+from pathsense.tune.run import CANDIDATES, Score
+
+# WalkingPerson moves right 4 px a frame across the 64x48 tiny video; a line down the
+# middle at x = 20, drawn top to bottom, makes that one exit (pathsense.analytics.line).
+LINE = "[[20, 0], [20, 48]]"
+
+
+@pytest.fixture
+def fake_detector(monkeypatch):
+    built = []
+
+    def build(config):
+        built.append(config)
+        return WalkingPerson()
+
+    monkeypatch.setitem(DETECTORS, "fake", build)
+    return built
+
+
+def write_scene(tmp_path, video, truth, extra=""):
+    scene = tmp_path / "scene.yaml"
+    scene.write_text(
+        f"source: {video}\n"
+        "detector: {name: fake}\n"
+        f"analytics: {{line: {LINE}}}\n"
+        f"{extra}"
+        f"truth: {truth}\n"
+    )
+    return scene
+
+
+def test_saved_detections_survive_a_round_trip(tmp_path):
+    saved = SavedDetections(
+        xyxy=np.array([[0, 0, 10, 20], [5, 5, 15, 25], [1, 1, 9, 9]], np.float32),
+        confidence=np.array([0.9, 0.8, 0.7], np.float32),
+        counts=np.array([2, 0, 1]),
+        index=np.array([0, 1, 2]),
+        timestamp=np.array([0.0, 0.1, 0.2]),
+        fps=10.0,
+        size=(64, 48),
+        detector="key",
+    )
+    saved.save(tmp_path / "d.npz")
+    back = SavedDetections.load(tmp_path / "d.npz")
+    assert (back.size, back.detector, back.fps, len(back)) == ((64, 48), "key", 10.0, 3)
+    frames = list(back)
+    assert [len(boxes) for _, boxes in frames] == [2, 0, 1]
+    assert frames[2][0].index == 2 and frames[2][0].image is None
+    assert frames[0][1].xyxy[1].tolist() == [5, 5, 15, 25]
+
+
+def test_the_detector_runs_once_per_video_and_settings(tmp_path, tiny_video, fake_detector):
+    config = DetectorConfig(name="fake")
+    first = cached_detections(tiny_video, config, tmp_path)
+    again = cached_detections(tiny_video, config, tmp_path)
+    assert len(fake_detector) == 1 and len(first) == len(again) == 12
+    assert first.size == (64, 48) and first.detector == detector_key(config)
+    cached_detections(tiny_video, DetectorConfig(name="fake", conf=0.3), tmp_path)
+    assert len(fake_detector) == 2  # other settings: other boxes
+    cached_detections(tiny_video, DetectorConfig(name="fake", conf=0.3, device="cpu"), tmp_path)
+    assert len(fake_detector) == 2  # the device does not change the boxes
+
+
+def test_truth_is_labels_or_counts(tmp_path):
+    scene = tmp_path / "s.yaml"
+    scene.write_text("truth: {enter: 11, exit: 7, zones: {aisle: 1}}\n")
+    truth = scene_truth(scene)
+    assert truth.labels is None and truth.counts == {"enter": 11, "exit": 7, "zone:aisle": 1}
+    scene.write_text("truth: {labels: gt.txt}\n")
+    assert str(scene_truth(scene).labels) == "gt.txt"
+    scene.write_text("analytics: {line_confirm: 1}\n")
+    assert scene_truth(scene) is None
+    for bad in ("{labels: gt.txt, enter: 1}", "{}", "{enter: -1}", "{enter: 1.5}", "{door: 1}"):
+        scene.write_text(f"truth: {bad}\n")
+        with pytest.raises(ConfigError):
+            scene_truth(scene)
+
+
+def test_the_pipeline_config_ignores_the_truth_block(tmp_path):
+    scene = tmp_path / "s.yaml"
+    scene.write_text("truth: {enter: 1}\nanalytics: {line_confirm: 1}\n")
+    assert load_config(scene=scene).analytics.line_confirm == 1
+
+
+def test_the_shipped_candidates_load():
+    names = [c.name for c in load_candidates(CANDIDATES)]
+    assert "default" in names and "crowd" in names and "current" not in names
+
+
+def test_candidates_are_checked(tmp_path):
+    path = tmp_path / "c.yaml"
+    for bad in (
+        "candidates: []",
+        "candidates: [{name: a, why: b}]",
+        "candidates: [{name: a, why: b, set: tracker.name=sort}]",
+        "candidates: [{name: current, why: b, set: []}]",
+        "candidates: [{name: a, why: b, set: []}, {name: a, why: c, set: []}]",
+    ):
+        path.write_text(bad)
+        with pytest.raises(ConfigError):
+            load_candidates(path)
+
+
+def test_scores_compare_crossings_first_then_counts():
+    hand = Score({"enter": 3}, {"enter": 4, "exit": 1}, None, ids=5, track_ms=1.0)
+    assert hand.count_error == 2 and hand.objective == (-2,)
+
+
+def test_tune_keeps_the_scene_unless_a_candidate_is_strictly_better(
+    tmp_path, tiny_video, fake_detector
+):
+    scene = write_scene(tmp_path, tiny_video, "{exit: 1}")
+    blind = Candidate(
+        "blind", "no track ever starts", ("tracker.params={track_activation_threshold: 0.99}",)
+    )
+    report = tune(scene, [blind], cache_folder=tmp_path / "cache")
+    assert [t.score.counts.get("exit", 0) for t in report.trials] == [1, 0]
+    assert report.chosen.candidate.name == "current" and report.chosen_yaml() == ""
+    assert "no candidate scores strictly better" in report.markdown()
+
+    blind_scene = write_scene(
+        tmp_path, tiny_video, "{exit: 1}", "tracker: {params: {track_activation_threshold: 0.99}}\n"
+    )
+    fix = Candidate("fix", "track again", ("tracker.params={track_activation_threshold: 0.5}",))
+    report = tune(blind_scene, [fix], cache_folder=tmp_path / "cache")
+    assert report.chosen.candidate.name == "fix"
+    assert report.chosen_yaml() == "tracker:\n  params: {track_activation_threshold: 0.5}\n"
+    assert len(fake_detector) == 1  # both scenes replayed the same saved boxes
+
+
+def test_tune_with_labels_scores_every_crossing(tmp_path, tiny_video, fake_detector):
+    labels = tmp_path / "gt.txt"
+    labels.write_text("".join(f"{f + 1},7,{4 * f},5,10,35,1,1,1.0\n" for f in range(12)))
+    scene = write_scene(tmp_path, tiny_video, f"{{labels: {labels}}}")
+    report = tune(scene, [], cache_folder=tmp_path / "cache")
+    score = report.chosen.score
+    assert score.truth == {"enter": 0, "exit": 1} and score.counts == {"exit": 1}
+    assert score.crossings.f1() == 1.0
+    assert report.diagnosis.rules_wrong == report.diagnosis.rules_missed == 0
+    assert sum(report.diagnosis.misses.values()) == 0
+    assert "0 wrong crossings and 0 missed, out of 1 true" in report.markdown()
+
+
+def test_tune_needs_a_truth_block(tmp_path, tiny_video):
+    scene = tmp_path / "scene.yaml"
+    scene.write_text(f"source: {tiny_video}\n")
+    with pytest.raises(ConfigError, match="truth"):
+        tune(scene, [], cache_folder=tmp_path)
+
+
+def test_the_profile_describes_people_and_their_speed():
+    # Two people 100 px tall, 200 px apart; one walks 10 px a frame at 10 FPS.
+    boxes = [[0, 0, 40, 100], [200, 0, 240, 100]] * 2
+    saved = SavedDetections(
+        xyxy=np.array(boxes, np.float32),
+        confidence=np.full(4, 0.9, np.float32),
+        counts=np.array([2, 2]),
+        index=np.array([0, 1]),
+        timestamp=np.array([0.0, 0.1]),
+        fps=10.0,
+    )
+    walker = detections([[0, 0, 40, 100]])
+    walker.tracker_id = np.array([1])
+    moved = detections([[10, 0, 50, 100]])
+    moved.tracker_id = np.array([1])
+    profile = scene_profile(saved, {0: walker, 1: moved})
+    assert (profile.people, profile.height, profile.spacing) == (2, 100, 2.0)
+    assert profile.speed == pytest.approx(1.0)  # 10 px a frame = 1 height a second
+    assert "nearest other person: 2.00 heights away" in profile.lines()
+
+
+def test_the_tune_command_saves_its_report(tmp_path, tiny_video, fake_detector, monkeypatch):
+    scene = write_scene(tmp_path, tiny_video, "{exit: 1}")
+    candidates = tmp_path / "c.yaml"
+    candidates.write_text("candidates: [{name: same, why: test, set: []}]\n")
+    monkeypatch.chdir(tmp_path)  # the cache goes to ./data/cache
+    main(["tune", str(scene), "--candidates", str(candidates), "--out", "out", "--jobs", "1"])
+    assert "# Tuning scene" in (tmp_path / "out" / "scene" / "report.md").read_text()
+
+
+def test_a_replay_of_saved_detections_gives_the_live_result(tiny_video):
+    config = load_config(overrides=["detector.name=fake", f"analytics.line={LINE}"])
+    with VideoSource(str(tiny_video)) as source:
+        live = Pipeline.from_config(config, 10, detector=WalkingPerson())
+        results = list(live.run(source))
+        events = [e for r in results for e in r.events] + live.finish()
+    saved = detect_video(tiny_video, WalkingPerson())
+    again = replay(Pipeline.from_config(config, saved.fps, detector=NO_DETECTOR), saved)
+    assert again.events == events and [e.type for e in events] == ["exit"]
+    for result in results:
+        got = again.tracks[result.frame.index]
+        assert got.tracker_id.tolist() == result.tracked.tracker_id.tolist()
+        assert np.allclose(got.xyxy, result.tracked.xyxy)

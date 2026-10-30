@@ -9,6 +9,7 @@
     pathsense run --set detector.name=rfdetr-nano --set tracker.name=botsort
     pathsense run --source clip.mp4 --no-show --max-frames 300   # quick benchmark
     pathsense calibrate                             # measure webcam 0 again and save it
+    pathsense tune configs/scenes/subway.yaml       # choose the scene's tracker settings
 
 The first run with a new webcam measures its best capture mode (a few seconds) and saves
 it; later runs reuse it (see pathsense.io.camera).
@@ -102,6 +103,29 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--trail", type=int, default=30, help="trail length in frames")
     run.add_argument(
         "--recalibrate", action="store_true", help="measure the webcam again before running"
+    )
+
+    tune = commands.add_parser(
+        "tune", help="choose a scene's tracker settings against its truth: block"
+    )
+    tune.add_argument("scene", type=Path, help="scene file with source: and truth:")
+    tune.add_argument(
+        "--config", type=Path, default=None, help="YAML config (default: configs/default.yaml)"
+    )
+    tune.add_argument(
+        "--candidates",
+        type=Path,
+        default=None,
+        help="setups to try (default: configs/tune/candidates.yaml)",
+    )
+    tune.add_argument(
+        "--out", type=Path, default=Path("runs/tune"), help="folder for <scene>/report.md"
+    )
+    tune.add_argument(
+        "--jobs", type=int, default=None, help="candidates replayed at once (default: cores - 2)"
+    )
+    tune.add_argument(
+        "--refresh", action="store_true", help="run the detector again, even if its boxes are saved"
     )
     return parser
 
@@ -255,11 +279,34 @@ def run(args: argparse.Namespace) -> Summary:
     )
 
 
+def tune_scene(args: argparse.Namespace) -> Path:
+    """Run `pathsense tune`; print the report and save it. Returns the report's path."""
+    from pathsense.tune import load_candidates, tune
+    from pathsense.tune.run import default_jobs
+
+    candidates = load_candidates(args.candidates) if args.candidates else None
+    report = tune(
+        args.scene,
+        candidates,
+        config=args.config,
+        refresh=args.refresh,
+        jobs=args.jobs or default_jobs(),
+    )
+    path = args.out / args.scene.stem / "report.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(report.markdown())
+    print(report.markdown())
+    return path
+
+
 def main(argv: list[str] | None = None) -> None:
     from pathsense.config import ConfigError, load_config
 
     args = build_parser().parse_args(argv)
     try:
+        if args.command == "tune":
+            print(f"saved {tune_scene(args)}")
+            return
         if args.command == "calibrate":
             config = load_config(args.config, args.overrides)
             if camera_settings(config, args.source or "0", recalibrate=True) is None:
