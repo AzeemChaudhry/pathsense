@@ -164,6 +164,7 @@ class Pipeline:
         events = []
         for counter in self.counters:
             events += counter.update(tracked, frame.timestamp, frame.index)
+        tracked.data.pop("embedding", None)  # 512 numbers a box; the stages above are done
         return FrameResult(frame, tracked, 0.0, track_ms, events)
 
     def run(self, source: VideoSource) -> Iterator[FrameResult]:

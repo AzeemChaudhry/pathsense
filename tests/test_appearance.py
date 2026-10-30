@@ -2,7 +2,9 @@
 
 import subprocess
 import sys
+import time
 import warnings
+from functools import partial
 from types import SimpleNamespace
 
 import numpy as np
@@ -12,15 +14,18 @@ from conftest import detections
 from trackers import ByteTrackTracker
 
 from pathsense.analytics import LineCounter
-from pathsense.appearance.embed import Embedder, crops
+from pathsense.appearance.embed import FEATURES, Embedder, crops
 from pathsense.appearance.line import AppearanceLine
 from pathsense.appearance.osnet import OSNet
 from pathsense.appearance.stitch import AppearanceStitcher
 from pathsense.appearance.tracker import AppearanceByteTrack, _boost, _overlapped
 from pathsense.config import ConfigError, load_config
+from pathsense.io import Frame
 from pathsense.pipeline import Pipeline, build_counters, tracker_factory
+from pathsense.track import Tracker
 from pathsense.track.stitch import Stitcher
 from pathsense.tune.cache import SavedDetections
+from pathsense.tune.embeddings import FEATURES as saved_features
 from pathsense.tune.embeddings import cached_embeddings, embeddings_path, load_embeddings
 from pathsense.tune.replay import replay
 
@@ -277,11 +282,17 @@ def test_the_plain_pipeline_needs_nothing_from_the_appearance_modules():
     "override",
     ["appearance.match=fancy", "appearance.gate=-1", "appearance.blend=1", "appearance.batch=0",
      "appearance.dynamic=1", "appearance.memory=1", "appearance.stitch_gate=1.5",
-     "appearance.line_same=2", "appearance.match=veto"],
+     "appearance.line_same=2", "appearance.match=veto",
+     ],
 )  # fmt: skip
 def test_bad_settings_are_errors(override):
     with pytest.raises(ConfigError):
         load_config(overrides=[override])
+
+
+def test_a_gate_with_a_match_that_ignores_it_is_an_error():
+    with pytest.raises(ConfigError, match="does not apply"):
+        load_config(overrides=["appearance.match=adaptive", "appearance.gate=0.5"])
 
 
 def test_crops_are_rgb_normalised_and_a_box_outside_is_zero():
@@ -359,7 +370,7 @@ def test_vectors_of_other_boxes_are_not_used(tmp_path, weights):
         load_embeddings(short, saved)
 
 
-def test_a_replay_gets_unit_vectors_and_does_not_keep_them(tmp_path):
+def test_a_replay_gets_unit_vectors(tmp_path):
     saved = SavedDetections(
         xyxy=np.array([[0, 0, 40, 90]], np.float32),
         confidence=np.ones(1, np.float32),
@@ -381,4 +392,54 @@ def test_a_replay_gets_unit_vectors_and_does_not_keep_them(tmp_path):
 
     result = replay(Spy(), saved, np.full((1, 512), 0.5, np.float16))
     assert seen == pytest.approx([1.0])
-    assert "embedding" not in result.tracks[0].data
+    assert 0 in result.tracks
+
+
+def test_a_saved_vector_has_the_size_the_network_gives():
+    assert saved_features == FEATURES
+
+
+def live(detector, embedder, **tracker_settings):
+    factory = partial(AppearanceByteTrack, minimum_consecutive_frames=1, **tracker_settings)
+    pipeline = Pipeline(detector, Tracker("bytetrack", 10, factory), embedder=embedder)
+    image = np.zeros((200, 600, 3), np.uint8)
+    return [pipeline.process(Frame(image, k, k / 10)) for k in range(6)]
+
+
+def test_a_live_video_embeds_every_frame_and_the_look_reaches_the_tracker():
+    frames = iter([1, 1, 1, 0, 2, 2])  # a person, nobody, then someone else in the same spot
+
+    def detector(image):
+        code = next(frames)
+        kept = [(None, 100, RED if code == 1 else BLUE)] if code else []
+        return boxes(*kept) if kept else detections([])
+
+    calls = []
+
+    def embedder(image, xyxy):
+        calls.append(len(xyxy))
+        return np.array([RED if calls.count(1) <= 3 else BLUE] * len(xyxy), np.float32).reshape(
+            len(xyxy), 4
+        )
+
+    results = live(detector, embedder, mode="veto", gate=0.5)
+    assert calls == [1, 1, 1, 0, 1, 1]
+    ids = [r.tracked.tracker_id.tolist() for r in results]
+    assert ids[1] == ids[2] != [] and ids[3] == [] and ids[4] != ids[2]  # refused: looks
+    assert all("embedding" not in r.tracked.data for r in results)
+
+
+def test_live_time_includes_the_embedder():
+    def slow(image, xyxy):
+        time.sleep(0.01)
+        return np.ones((len(xyxy), 4), np.float32) / 2
+
+    results = live(lambda image: boxes((None, 100, RED)), slow, mode="off")
+    assert all(r.track_ms >= 10 for r in results)
+
+
+def test_a_plain_live_video_carries_no_vectors():
+    pipeline = Pipeline(lambda image: detections([[10, 10, 50, 90]]), Tracker("bytetrack", 10))
+    image = np.zeros((200, 600, 3), np.uint8)
+    for k in range(6):
+        assert "embedding" not in pipeline.process(Frame(image, k, k / 10)).tracked.data

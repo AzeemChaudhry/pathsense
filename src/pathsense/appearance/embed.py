@@ -3,8 +3,9 @@
     embedder = Embedder("data/models/osnet_x0_25_msmt17.pt")
     vectors = embedder(frame.image, detections.xyxy)   # (people, 512), length 1
 
-The vectors describe clothing and build, not faces. They stay in memory for one video and
-are never tied to a name.
+The vectors describe clothing and build, not faces. On a video they stay in memory for
+that video and are never tied to a name; `pathsense tune` and the study save them for
+research clips, in data/cache.
 """
 
 from __future__ import annotations

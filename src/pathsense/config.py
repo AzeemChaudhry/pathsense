@@ -129,6 +129,8 @@ class AppearanceConfig:
                 raise ConfigError(f"appearance.{key} must be 1 or less, got {getattr(self, key)!r}")
         if self.match == "veto" and self.gate <= 0:
             raise ConfigError("appearance.match veto needs appearance.gate above 0")
+        if self.match in ("adaptive", "botsort") and self.gate > 0:
+            raise ConfigError(f"appearance.gate does not apply to match {self.match}")
 
 
 @dataclass(frozen=True)

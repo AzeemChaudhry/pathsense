@@ -56,7 +56,6 @@ def replay(
         start = time.thread_time()  # this thread's CPU time: fair when replays run in parallel
         result = pipeline.track(boxes, frame)
         seconds += time.thread_time() - start
-        result.tracked.data.pop("embedding", None)  # 512 numbers a box: not worth keeping
         tracks[frame.index] = result.tracked
         events += result.events
     events += pipeline.finish()

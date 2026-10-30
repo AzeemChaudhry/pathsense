@@ -17,6 +17,8 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
   (docs/TRACKER_STUDY.md, Appearance). On a video, vectors stay in memory for that video;
   `pathsense tune` and the study save them in `data/cache` for research clips. The weights
   are trained on MSMT17, for academic use only, and are not shipped.
+- `Tracker` and `build_tracker` take a `factory` to replace the tracker class, and
+  `LineCounter` and `Stitcher` have small hooks for subclasses; none changes anything alone.
 - `trackers` is capped below 2.7, since the appearance tracker follows its private names.
 - `scripts/appearance_study`: reruns that study, and `scripts/export_osnet.py` exports the
   network to ONNX. `pathsense tune` candidates can now set `appearance.` settings.

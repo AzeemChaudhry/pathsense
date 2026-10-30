@@ -330,6 +330,8 @@ Looks here are OSNet x0.25 vectors (512 numbers describing clothing and build) f
 1,174,080 boxes of the seven scenes, in memory for one video in the product. Scene files
 are used as shipped: only the two crowds have the chosen setup ([Decisions](#decisions)),
 so `baseline` differs from the tables above on the check scenes (F1 0.726, not 0.735).
+The numbers here come from vectors made in half precision; a fresh `embed` runs in full
+precision and may move them slightly ([Limits](#limits-and-what-stays-open)).
 
 ### Are the vectors any good? Yes
 
@@ -445,7 +447,7 @@ pair with a strong look can match, and a well overlapping pair with a weak look 
 - **The saved vectors came from half precision on the GPU**, whose final batch on MOT17-09
   gave 93 invalid vectors. Those rows were recomputed in full precision and the results did
   not change. These same files were then renamed by hand to the code's current key, so
-  the tables below were rerun with today's code, on vectors made by the earlier script.
+  the tables above were rerun with today's code, on vectors made by the earlier script.
   The `embed` command now runs in full precision, so anyone running it gets vectors that
   differ slightly, and scores that may shift; that full rerun has not been done. `model.half()` is a [known cause](https://discuss.pytorch.org/t/training-with-half-precision/11815)
   of such overflows, though we did not confirm it was the cause here. `Embedder` runs in
