@@ -314,6 +314,7 @@ def test_an_id_swap_in_a_crowd_drops_the_crossing_back():
 
 
 def test_turning_round_at_the_line_still_counts_both_crossings():
+    # Also the release by time: nothing comes back, so the hold ends after `bounce`.
     counter = LineCounter(START, END, bounce=2.0)
     events = walk(counter, 2, 960, [600, 560, 500, 480] + [560, 580, 600] * 10)  # stays down
     assert [(e.type, e.frame) for e in events] == [("exit", 2), ("enter", 4)]  # late, not lost
@@ -354,6 +355,8 @@ def test_a_hold_never_waits_past_bounce_plus_confirm():
         for event in counter.update(person(7, 960, y), t=frame / 10, frame=frame):
             released[event] = frame
     assert released == {Event(0.1, 1, 7, "exit"): 4, Event(0.5, 5, 7, "enter"): 19}
+    assert counter.bounced == 0
+    assert counter.finish() == [Event(1.4, 14, 7, "exit")]  # the late crossing back, held
 
 
 def test_someone_dithering_at_the_line_loses_the_middle_crossing():
@@ -361,6 +364,22 @@ def test_someone_dithering_at_the_line_loses_the_middle_crossing():
     counter = LineCounter(START, END, bounce=5.0)
     events = walk(counter, 8, 960, [500, 580, 500, 580]) + counter.finish()
     assert [e.type for e in events] == ["enter", "enter"]
+    assert counter.bounced == 1
+
+
+def test_a_third_crossing_after_the_window_counts_all_three():
+    # Up, back down, then up again 3 s later: past the 1 s bounce, so not a swap.
+    counter = LineCounter(START, END, bounce=1.0)
+    events = walk(counter, 9, 960, [600, 500, 580] + [580] * 30 + [500, 480]) + counter.finish()
+    assert [e.type for e in events] == ["exit", "enter", "exit"]
+    assert counter.bounced == 0
+
+
+def test_the_bounce_rule_with_the_production_confirm():
+    counter = LineCounter(START, END, confirm=0.5, bounce=12.0)
+    ys = [600] * 3 + [500] * 8 + [580] * 8 + [500] * 8
+    events = walk(counter, 10, 960, ys) + counter.finish()
+    assert [(e.type, e.frame) for e in events] == [("exit", 3), ("exit", 19)]
     assert counter.bounced == 1
 
 

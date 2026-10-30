@@ -379,7 +379,7 @@ Full write-up with charts: [docs/TRACKER_STUDY.md](docs/TRACKER_STUDY.md).
   against 38 to 57 ms for the detector.
 - **Bounce rule (new):** fewer wrong crossings on every tracker, at most 3 more missed.
   **Adopted, default 12 s.**
-- **Stitcher in crowds:** adds wrong crossings on all five trackers (12 to 63%) and saves a
+- **Stitcher in crowds:** adds wrong crossings on all five trackers (13 to 63%) and saves a
   few misses. A 1 s stitch nudges ByteTrack's F1 up on the tune crowds but lowers it on
   the check scenes for 4 trackers of 5. Kept on for sparse scenes (subway: 104 IDs
   without it, 78 with), 1 s in the crowd scene files, per scene from `pathsense tune`.
@@ -394,7 +394,10 @@ Full write-up with charts: [docs/TRACKER_STUDY.md](docs/TRACKER_STUDY.md).
   (DIoU and the longer buffer alone keep 1 IN). Crowd settings go in MOT20-03 and 05 only.
 - **Review corrections (PR 12):** the check scenes do not confirm ByteTrack (OC-SORT with
   bounce 0.773 and BoT-SORT 0.761 beat its 0.754); the ranking holds when the crossing
-  matcher is made stricter or looser. Misses are mostly tracking: for 293 of 437 the
-  detector had the person in most frames, only 28 never.
+  matcher is made stricter or looser (`scripts/tracker_study check`). A large share of
+  misses are tracking: 156 of 437 had the person detected in at least half the frames
+  but no track, a track ending at the line or an ID change there; 28 were never detected.
+- **Review 2:** the misses and rescoring analyses are now in the repo
+  (`scripts/tracker_study/analysis.py`), with the two breakdowns crossed in one table.
 - **Left:** per scene choice of tracker and settings is `pathsense tune` (step 4). The
   misses (tracks starting late, lost or split at the line) are the next tracking target.

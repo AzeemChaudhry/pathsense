@@ -5,6 +5,7 @@
     uv run python scripts/tracker_study run      # every setup on every scene, saved
     uv run python scripts/tracker_study render   # a video of every run
     uv run python scripts/tracker_study report   # tables and charts
+    uv run python scripts/tracker_study check    # where the misses come from; matcher rescoring
     uv run python scripts/tracker_study all      # the lot, in that order (not cache)
 
 Everything goes to runs/tracker-study/ (not in git):
@@ -14,7 +15,7 @@ Everything goes to runs/tracker-study/ (not in git):
     runs/<setup>/<scene>/        tracks.txt (MOT format), events.jsonl, crossings.json,
                                  metrics.json, video.mp4
     results.csv                  one row per setup and scene
-    report/                      charts (PNG) and tables (Markdown)
+    report/                      charts (PNG) and tables (Markdown); misses.md, matcher.md
 
 The study is defined in configs/study/trackers.yaml and written up in
 docs/TRACKER_STUDY.md. MOT data is CC BY-NC-SA: the videos stay local, never in docs.
@@ -199,6 +200,28 @@ def report() -> None:
     make_report(OUT, load_study())
 
 
+# The setups the matcher rescoring compares: the reference, each tracker shipped and tuned
+# with bounce, and the chosen setup.
+RESCORED = ["v0.3.0", "bytetrack-tuned+stitch+bounce"] + [
+    f"{t}{s}"
+    for t in ("sort", "bytetrack", "botsort", "ocsort", "cbiou")
+    for s in ("", "-tuned+bounce")
+]
+
+
+def check() -> None:
+    from analysis import misses, rescore
+
+    study = load_study()
+    scenes, chosen = study["scenes"], "bytetrack-tuned+stitch+bounce"
+    check_scenes = [s for s in scenes if s not in study["tune"]]
+    report = OUT / "report"
+    report.mkdir(parents=True, exist_ok=True)
+    (report / "misses.md").write_text(misses(OUT, chosen, scenes))
+    (report / "matcher.md").write_text(rescore(OUT, RESCORED, scenes, check_scenes, POOL))
+    print((report / "misses.md").read_text() + "\n" + (report / "matcher.md").read_text())
+
+
 def cache() -> None:
     script = Path(__file__).parent / "cache.py"
     scenes = [f"configs/scenes/mot/{s}.yaml" for s in load_study()["scenes"]]
@@ -207,7 +230,8 @@ def cache() -> None:
 
 def main() -> None:
     commands = {"cache": [cache], "sweep": [sweep], "run": [run], "render": [render],
-                "report": [report], "all": [sweep, run, render, report]}  # fmt: skip
+                "report": [report], "check": [check],
+                "all": [sweep, run, render, report, check]}  # fmt: skip
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("command", choices=commands)
     global POOL

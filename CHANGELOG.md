@@ -24,7 +24,8 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
   missed OUT no longer cancel out.
 - `scripts/tracker_study`: replays saved detections through every tracker setup on seven
   MOT17 and MOT20 scenes, saves tracks, events, metrics and a marked up video per run, and
-  draws the charts in docs/TRACKER_STUDY.md.
+  draws the charts in docs/TRACKER_STUDY.md. Its `check` command breaks down where the
+  missed crossings come from and rescores every run with other crossing matchers.
 
 ### Changed
 

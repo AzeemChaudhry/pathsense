@@ -257,7 +257,8 @@ study is defined in `configs/study/trackers.yaml`; the results are in
 
 ```bash
 uv run python scripts/tracker_study cache   # detector once per scene (GPU, about 10 min)
-uv run python scripts/tracker_study all     # sweep, run, render, report (CPU, 2 to 3 h)
+uv run python scripts/tracker_study all     # sweep, run, render, report, check (CPU, 2 to 3 h)
+uv run python scripts/tracker_study check   # where the misses come from; matcher rescoring (2 min)
 ```
 
 Each run is saved in `runs/tracker-study/runs/<setup>/<scene>/`: the tracks (MOT format),

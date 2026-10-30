@@ -52,8 +52,10 @@ One more rule is off in this class (`bounce=0`) and on in the pipeline
   their crossing is only late, not lost. Someone who dithers, crossing, crossing back and
   crossing again within `bounce`, looks exactly like a swap: their middle crossing is
   dropped (IN, OUT, IN counts as IN, IN). A held crossing waits at most `bounce` plus
-  `confirm` seconds, so the totals lag by at most that. On the tracker study's crowds it
-  removed 4 to 15% of the wrong crossings left after tuning (docs/TRACKER_STUDY.md).
+  `confirm` seconds, so the totals lag by at most that; a crossing back still unconfirmed
+  by then (feet on the line) no longer drops it, and is held in its turn. On the tracker
+  study's crowds the rule removed 4 to 15% of the wrong crossings left after tuning
+  (docs/TRACKER_STUDY.md).
 """
 
 from __future__ import annotations

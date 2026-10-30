@@ -30,14 +30,16 @@ other four go from 4 to 8. What became the default, and what stays a crowd setti
   left after tuning, on all five trackers, loses at most 3 real crossings, and raises
   the F1 on the check scenes for all five.
 - **Our stitcher trades wrong crossings for misses.** In crowds it adds wrong crossings on
-  all five trackers (by 12 to 63%) and saves a few misses. On the two crowds that still
+  all five trackers (by 13 to 63%) and saves a few misses. On the two crowds that still
   nudges ByteTrack's F1 up, so the chosen setup has it; on the check scenes it lowers the
   F1 for four trackers out of five. It becomes a per scene setting.
 - **A per frame swap detector does not work** (measured, kept in the study only): most
   swaps are slow drifts between overlapping people, not jumps.
-- **Most misses are tracking, not detection.** For 293 of the 437 missed crossings, the
-  detector had a box on the person in most frames around the crossing; only 28 were
-  never detected. No layer here reduces them, so they are the next tracking problem
+- **A large share of the misses are tracking, not detection.** Of the 437 missed
+  crossings, 156 had the person detected in at least half the frames around the
+  crossing, yet no track on them, a track that starts or ends at the line, or an ID that
+  changes there. Only 28 were never detected. No layer here more than barely reduces
+  them, so they are the next tracking problem
   ([Misses](#where-the-misses-come-from)), alongside Phase 4's crowd trained detector.
 - **The check scenes do not confirm one tracker for every scene.** ByteTrack is best on
   the crowds, but on the check scenes OC-SORT with bounce (0.773) and BoT-SORT as
@@ -92,17 +94,19 @@ show whether a choice holds or was fitted to two videos.
   crossing and a missed one do not cancel out, as they do in a total. A swap shows up
   twice: a wrong crossing on the person the ID moved to, and a missed one for the person
   who really crossed.
-- *Is the scoring fair?* Every saved run was rescored with a stricter box overlap (0.5
-  instead of 0.3), a longer look after the crossing (1 s instead of 0.5) and a wider time
-  window (3 s instead of 2). The F1 values move by up to 0.03, but the trackers keep their
-  order on all seven scenes, and on the check scenes OC-SORT and BoT-SORT stay ahead of
-  ByteTrack.
+- *Is the scoring fair?* Every saved run was rescored (`scripts/tracker_study check`)
+  with a stricter box overlap (0.5 instead of 0.3), a longer look after the crossing (1 s
+  instead of 0.5) and a wider time window (3 s instead of 2). The F1 values move by up to
+  0.03, but the trackers keep their order on all seven scenes, and on the check scenes
+  OC-SORT and BoT-SORT stay ahead of ByteTrack. The full table is in
+  `runs/tracker-study/report/matcher.md`; ByteTrack with bounce, for example, scores
+  0.696 to 0.734 over all scenes and 0.734 to 0.758 on the check scenes.
 - *Crossing F1*: every crossing weighs the same, so a false IN costs as much as a missed
   OUT. This is what settings were chosen by.
 - *HOTA, MOTA, IDF1, ID switches*: the standard tracking measures, computed with
   TrackEval's rules (distractors such as static people neither right nor wrong).
 - *Speed*: tracking time per frame on one CPU core. The detector is not included; it
-  takes 38 to 57 ms per frame at `imgsz` 1920 on the GTX 1650, 6 to 10 times more.
+  takes 38 to 57 ms per frame at `imgsz` 1920 on the GTX 1650, 3 to 16 times more.
 
 **Sweep.** For each tracker, every combination of how long a lost track is kept (1, 2 or
 4 s), how much boxes must overlap to match (0.1 to 0.4), and how confident a new track
@@ -111,7 +115,7 @@ DIoU, buffered IoU) on the best one, then our layers' own settings: 532 replays.
 
 ## Step 1: where the wrong-way crossings come from
 
-Before changing anything, each of the 29 wrong-way INs on MOT20-03 (true: 4) was traced
+Before changing anything, each of the 29 INs on MOT20-03 (true: 4) was traced
 against the labels: which person was the ID on before its previous crossing, and after
 this one?
 
@@ -125,7 +129,9 @@ this one?
 
 So 18 are swaps, and 4 or 5 more are the tracker following one box over a group: about 22
 of 29 are the tracker. Neither the stitcher nor the hidden legs estimate is the cause: with
-both off, v0.3.0 still counts 29 INs on MOT20-03, 28 of them wrong. A swapped ID leaves a pattern in the events: OUT (person A), IN (the ID slides
+both off, v0.3.0 still counts 29 INs on MOT20-03, 28 of them wrong.
+
+A swapped ID leaves a pattern in the events: OUT (person A), IN (the ID slides
 back onto B behind them), OUT (B reaches the line). That pattern is what the bounce rule
 looks for.
 
@@ -254,38 +260,51 @@ crossings on four trackers out of five and 0.5 to 3.4 ms per frame. It is kept i
 | MOT20-05 | v0.3.0 | 156 / 46 | 517 / 594 | 310 | 277 | 32.1 |
 | | chosen | 41 / 46 | 411 / 594 | 83 | 271 | 36.6 |
 
-The total count error per scene (right chart) barely moves while wrong crossings fall by
-three quarters (MOT20-05: 187 to 188; MOT20-03: 57 to 61), but which way it errs changes.
+The total count error per scene (right chart) barely moves (MOT20-05: 187 to 188;
+MOT20-03: 57 to 61) while wrong crossings fall sharply (MOT20-05: 310 to 83; MOT20-03:
+82 to 46), but which way it errs changes.
 On MOT20-05 the IN error falls from 110 to 5 and the OUT error grows from 77 to 183. In
 v0.3.0, false crossings were filling the gap left by missed ones: MOT20-05's OUT total of
 517 looked closer to the truth (594) than the new 411, but 310 of v0.3.0's crossings were
 wrong. That is why crossings are scored one by one here, and why totals alone would have
 led to the wrong choice.
 
-Two check scenes got slightly worse: MOT20-01 (3 more wrong, 4 more missed, out of 35
-true crossings) and MOT17-02 (1 more wrong, IDF1 39.3 to 38.4).
+Two check scenes got worse on crossings: MOT20-01 (wrong 2 to 5, missed 14 to 18, out of
+35 true crossings, although its IDF1 rose from 47.4 to 50.2) and MOT17-02 (1 more wrong,
+IDF1 39.3 to 38.4).
 
 ## Where the misses come from
 
 The misses hardly move with any layer (436 to 448 across the tuned ByteTrack setups, 435
-for v0.3.0), which first looked like a detection limit. It is not, mostly. For each of
-the chosen setup's 437 missed crossings, the saved detections and tracks were checked
-against the labelled person in the second around the crossing:
+for v0.3.0), which first looked like a detection limit. For each of the chosen setup's 437
+missed crossings, `scripts/tracker_study check` asks two questions of the labelled person
+who crossed. Was a saved detection on them (a box at IoU 0.5 or more) in the frames within
+0.5 s of the crossing? And which of our IDs was on them in the second before and the second
+after?
 
-| what happened to the person who crossed | missed |
-| --- | --- |
-| no track on them (detected or not) | 131 |
-| one ID on them before and after, but no matching crossing | 125 |
-| their track starts or ends at the line | 93 |
-| their ID changes at the line | 54 |
-| a swap: our ID crossed, but is scored on someone else | 34 |
+| what our tracks did | detected in at least half the frames | in some frames | never | all |
+| --- | --- | --- | --- | --- |
+| no track on them | 64 | 44 | 23 | 131 |
+| one ID before and after, no matching crossing | 114 | 11 | 0 | 125 |
+| track starts or ends at the line | 46 | 43 | 4 | 93 |
+| ID changes at the line | 46 | 8 | 0 | 54 |
+| swap: our ID crossed, scored on someone else | 23 | 10 | 1 | 34 |
+| all | 293 | 116 | 28 | 437 |
 
-The detector had a box on the person in most frames around the crossing for 293 of the
-437, in some frames for 116, and never for 28. So a better detector will help, but most
-misses are the tracker starting tracks late, losing them at the line, or splitting them.
-Part of the 125 group may be the scoring being strict: for 117 of those, that ID did log a
-crossing the same way, but more than 2 s away or while it covered someone else. 23 of the
-437 are people labelled as standing still (MOT class 7) whose boxes still cross the line.
+Reading it:
+- **Tracking, clearly:** 156 misses where the person was detected in at least half the
+  frames, but the tracker had no track on them, started or ended one at the line, or
+  changed the ID there. A further 34 are swaps, already counted once as wrong crossings.
+- **Detection, clearly:** 28 never detected. The 116 detected only in some frames are
+  both: a steadier detector and a tracker that holds on through gaps would each help.
+- **Unclear:** 125 had one ID on them throughout, yet no crossing matched. Their ID may
+  have crossed more than 2 s away, or been scored on someone else during the look after
+  the crossing, so part of this group may be the scoring being strict.
+
+So a better detector (Phase 4) will help, but at least a third of the misses are the
+tracker, and they are the next tracking problem. The labels include people hidden at the
+moment of crossing and people labelled as standing still, so a few true crossings are
+unreachable for any setup.
 
 ## A correction made during the study
 
@@ -355,7 +374,8 @@ The sample clip runs (sample clips are public, so these are reproducible by anyo
 ```bash
 uv run python scripts/mot_counts.py prepare     # MOT zips in data/mot/ -> videos and labels
 uv run python scripts/tracker_study cache       # detector once per scene (GPU, about 10 min)
-uv run python scripts/tracker_study all         # sweep, run, render, report (CPU, 2 to 3 h)
+uv run python scripts/tracker_study all         # sweep, run, render, report, check (CPU, 2 to 3 h)
+uv run python scripts/tracker_study check       # where the misses come from; matcher rescoring (2 min)
 ```
 
 The study is defined in `configs/study/trackers.yaml`. Output, not in git:
@@ -367,5 +387,5 @@ runs/tracker-study/
                                  metrics.json, video.mp4 (crossings marked right, wrong,
                                  missed)
   results.csv                    one row per setup and scene (217)
-  report/                        these charts and tables
+  report/                        these charts and tables; misses.md and matcher.md
 ```
