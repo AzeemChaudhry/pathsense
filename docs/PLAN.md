@@ -73,7 +73,7 @@ Each phase has one gate. Do not start the next phase until the gate passes.
 | 0 | **Webcam baseline** in Python: YOLO26n + ByteTrack, IDs and trails on screen | Stable ID on a 15 s recording; FPS and two failures logged in NOTES.md |
 | 1 | Pipeline package: `Detector` protocol, YOLO26 and RF-DETR adapters, tracker wrapper, frame sources, tests | Swap detector or tracker with one config line |
 | 2 | Analytics + **event log**: line crossings, zones, dwell, heatmap; events as JSON lines (`enter`, `exit`, `zone_enter`, `zone_exit`, `dwell`) with track ID and timestamp | Counts match a hand count on one clip; event log reproduces them |
-| 3 | Evaluation and **scene tuning**. (1) Find why the false crossings happen: clips around each one, detector merges and misses against ID swaps. (2) Tracker comparison on MOT20-03 and 05 with the detector, line and scoring fixed: ByteTrack, ByteTrack with a longer buffer, BoT-SORT with ReID on and off, OC-SORT. (3) An event level safeguard against crossings made by an ID change, with tests for genuine repeat crossings. (4) `pathsense tune`: profile each scene (people size, density, overlap, motion, view), run 5 to 10 candidate configs from cached detections, score them, and say whether an error is a scene limit, a setting or a bug. Tune on MOT20-03 and 05, validate on the other MOT scenes and the sample clips. TrackEval HOTA, IDF1, MOTA; FPS on GTX 1650 and CPU | False crossings per scene, crossing precision and recall per direction, count error, ID switches, fragmentation and FPS in a README table for all eleven scenes. The chosen tracker cuts MOT20-03 false crossings without losing real ones (recall no worse than ByteTrack), and holds on the validation scenes |
+| 3 | Evaluation and **scene tuning**. (1) Find why the false crossings happen: clips around each one, detector merges and misses against ID swaps. (2) Tracker comparison on MOT20-03 and 05 with the detector, line and scoring fixed: ByteTrack, ByteTrack with a longer buffer, BoT-SORT with ReID on and off, OC-SORT. (3) An event level safeguard against crossings made by an ID change, with tests for genuine repeat crossings. (4) `pathsense tune`: profile each scene (people size, density, overlap, motion, view), run 5 to 10 candidate configs from cached detections, score them, and say whether an error is a scene limit, a setting or a bug. Tune on MOT20-03 and 05, validate on the other MOT scenes and the sample clips. (5) Recover missed crossings the tracker loses (tracks lost, started late or split at the line), including appearance embeddings for re-linking; each change is kept only if it raises recall without adding wrong crossings on the check scenes. TrackEval HOTA, IDF1, MOTA; FPS on GTX 1650 and CPU | False crossings per scene, crossing precision and recall per direction, count error, ID switches, fragmentation and FPS in a README table for all eleven scenes. The chosen tracker cuts MOT20-03 false crossings without losing real ones (recall no worse than ByteTrack), and holds on the validation scenes |
 | 4 | **Train on Kaggle**: fine tune YOLO26n and RF-DETR Nano on Open Images people; export ONNX; push weights + model card to the Hub | Fine tuned model beats COCO baseline on held out data; ONNX runs in onnxruntime (Python) |
 | 5 | **Browser app (A)**: Static Space; ONNX detector in the browser; TypeScript ByteTrack; line counter, heatmap, event log; webcam and clip upload; WebGPU with WASM fallback | Same detections in Python and browser give the same track IDs and counts on a test clip |
 | 6 | **Ask your footage (B)**: query tools over the event log; small in browser LLM picks tools and answers; optional "bring your own API key" mode | 20 question test set answered with correct numbers |
@@ -94,6 +94,14 @@ scenes, and judges every change by false crossings and missed crossings separate
 fix that removes false crossings by also losing real ones does not pass. ReID compares
 clothing, not faces; it stays in memory for one video, and must earn its cost in the
 browser to be kept.
+
+**Plan change 2026-10-30:** the tracker study found that most missed crossings in crowds
+are not detection failures: 156 of 437 had the person detected but the track lost,
+started late or split at the line. Phase 3 gains step 5 to recover them before the
+counting stack is frozen for Phase 4, tested on the study harness and kept only if it
+passes on the check scenes. Appearance embeddings (clothing, in memory for one video) are
+tried there for re-linking lost people ([RESEARCH.md](RESEARCH.md)). Which trackers the
+browser ships is decided at Phase 5, from the results after Phase 4's detector.
 
 **Stretch (C):** on a cloud GPU, auto label real security camera frames from MEVA
 (CC BY 4.0) with SAM 3 or a large RF-DETR, train the nano model on them, publish before and
@@ -118,8 +126,9 @@ after numbers on CCTV style video.
 - **Phase 3 in progress.** Steps 1 and 2 done (2026-10-30, [TRACKER_STUDY.md](TRACKER_STUDY.md)):
   the wrong-way crossings are tracker ID swaps. Tuned ByteTrack with the new bounce rule
   cuts wrong crossings from 392 to 129 on the two crowds it was tuned on and from 79 to 62
-  on the five check scenes, missing 2 fewer on the crowds and 4 more on the check scenes. The check scenes favour OC-SORT and
-  BoT-SORT, so the tracker is a per scene choice. `line_bounce` is on by default; the
-  crowd tracker settings live in the crowd scene files, since they split tracks on the
-  close-up grocery clip. Next: step 4, `pathsense tune` (step 3's crossing safeguard is
-  the bounce rule).
+  on the five check scenes, missing 2 fewer on the crowds and 4 more on the check
+  scenes. The check scenes favour OC-SORT and BoT-SORT, so the tracker is a per scene
+  choice. `line_bounce` is on by default; the crowd tracker settings live in the crowd
+  scene files, since they split tracks on the close-up grocery clip. Step 3's crossing
+  safeguard is the bounce rule. Next: step 4, `pathsense tune`, then step 5, recovering
+  missed crossings.

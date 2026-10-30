@@ -26,6 +26,9 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
   MOT17 and MOT20 scenes, saves tracks, events, metrics and a marked up video per run, and
   draws the charts in docs/TRACKER_STUDY.md. Its `check` command breaks down where the
   missed crossings come from and rescores every run with other crossing matchers.
+- docs/RESEARCH.md: libraries and methods for running models in the browser, drawing
+  lines and zones on a video, appearance embeddings for tracking, and YOLO with
+  ByteTrack. PLAN.md adds Phase 3 step 5, recovering missed crossings.
 
 ### Changed
 
