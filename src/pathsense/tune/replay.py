@@ -13,6 +13,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
+import numpy as np
 import supervision as sv
 
 from pathsense.analytics import Event
@@ -37,11 +38,18 @@ class Replay:
         return len({int(i) for people in self.tracks.values() for i in people.tracker_id})
 
 
-def replay(pipeline: Pipeline, saved: SavedDetections) -> Replay:
+def replay(
+    pipeline: Pipeline, saved: SavedDetections, embeddings: np.ndarray | None = None
+) -> Replay:
+    """`embeddings` (rows match `saved.xyxy`): what an Embedder gave, for appearance on.
+    Its time is not in `track_ms`."""
     tracks: dict[int, sv.Detections] = {}
     events: list[Event] = []
     seconds = 0.0
-    for frame, boxes in saved:
+    starts = saved.starts
+    for k, (frame, boxes) in enumerate(saved):
+        if embeddings is not None:
+            boxes.data["embedding"] = np.asarray(embeddings[starts[k] : starts[k + 1]], np.float32)
         start = time.thread_time()  # this thread's CPU time: fair when replays run in parallel
         result = pipeline.track(boxes, frame)
         seconds += time.thread_time() - start

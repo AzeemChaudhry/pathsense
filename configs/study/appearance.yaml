@@ -1,0 +1,44 @@
+# Phase 3 step 5: does telling people apart by looks recover crossings? Results:
+# docs/TRACKER_STUDY.md, Appearance. Run it with scripts/appearance_study. Every run replays
+# the same saved detections, so only the use of looks differs.
+
+# configs/scenes/mot/<name>.yaml: the scene's detector, line, zones and tracker.
+scenes: [MOT17-02, MOT17-04, MOT17-09, MOT20-01, MOT20-02, MOT20-03, MOT20-05]
+# The best of the `chosen_from` group is chosen on these two crowds alone, by crossing F1.
+tune: [MOT20-03, MOT20-05]
+
+# name: settings laid over the scene file. `baseline` is the scene as it is.
+variants:
+  baseline: []
+  # First round: seen on the check scenes while it was run, so its check numbers are not clean.
+  on-nothing-used: [appearance.enabled=true]
+  botsort: [appearance.enabled=true, appearance.match=botsort]
+  botsort-tight: [appearance.enabled=true, appearance.match=botsort, appearance.closeness=0.15]
+  veto-0.3: [appearance.enabled=true, appearance.match=veto, appearance.gate=0.3]
+  veto-0.5: [appearance.enabled=true, appearance.match=veto, appearance.gate=0.5]
+  veto-0.6: [appearance.enabled=true, appearance.match=veto, appearance.gate=0.6]
+  veto-0.7: [appearance.enabled=true, appearance.match=veto, appearance.gate=0.7]
+  blend-0.3: [appearance.enabled=true, appearance.match=blend, appearance.blend=0.3]
+  blend-0.5: [appearance.enabled=true, appearance.match=blend, appearance.blend=0.5]
+  blend-0.7: [appearance.enabled=true, appearance.match=blend, appearance.blend=0.7]
+  blend-0.5-gate-0.5:
+    [appearance.enabled=true, appearance.match=blend, appearance.blend=0.5, appearance.gate=0.5]
+  blend-0.7-gate-0.5:
+    [appearance.enabled=true, appearance.match=blend, appearance.blend=0.7, appearance.gate=0.5]
+  stitch-0.5: [appearance.enabled=true, appearance.stitch_gate=0.5]
+  stitch-0.7: [appearance.enabled=true, appearance.stitch_gate=0.7]
+  stitch-0.8: [appearance.enabled=true, appearance.stitch_gate=0.8]
+  line-same-0.6: [appearance.enabled=true, appearance.line_same=0.6]
+  line-same-0.7: [appearance.enabled=true, appearance.line_same=0.7]
+  line-same-0.8: [appearance.enabled=true, appearance.line_same=0.8]
+  line-different-0.5: [appearance.enabled=true, appearance.line_different=0.5]
+  line-different-0.6: [appearance.enabled=true, appearance.line_different=0.6]
+  # Second round, from the research (Deep OC-SORT): chosen on the tune scenes alone.
+  adaptive: &adaptive [appearance.enabled=true, appearance.match=adaptive, appearance.memory=0.95]
+  adaptive-dynamic: [appearance.enabled=true, appearance.match=adaptive, appearance.memory=0.95, appearance.dynamic=true]
+  adaptive-skip: [appearance.enabled=true, appearance.match=adaptive, appearance.memory=0.95, appearance.skip_overlap=0.3]
+  adaptive-dynamic-skip: [appearance.enabled=true, appearance.match=adaptive, appearance.memory=0.95, appearance.dynamic=true, appearance.skip_overlap=0.3]
+  blend-dynamic-skip: [appearance.enabled=true, appearance.match=blend, appearance.memory=0.95, appearance.dynamic=true, appearance.skip_overlap=0.3]
+  veto-dynamic-skip: [appearance.enabled=true, appearance.match=veto, appearance.gate=0.5, appearance.memory=0.95, appearance.dynamic=true, appearance.skip_overlap=0.3]
+
+chosen_from: [adaptive, adaptive-dynamic, adaptive-skip, adaptive-dynamic-skip, blend-dynamic-skip, veto-dynamic-skip]

@@ -402,6 +402,31 @@ Full write-up with charts: [docs/TRACKER_STUDY.md](docs/TRACKER_STUDY.md).
 - **Left:** per scene choice of tracker and settings is `pathsense tune` (step 4). The
   misses (tracks starting late, lost or split at the line) are the next tracking target.
 
+## 2026-10-31: appearance embeddings (Phase 3, step 5)
+
+Full tables in docs/TRACKER_STUDY.md, Appearance. Toggle: `appearance.enabled`, off.
+
+- **Decision: looks stay off for live tracking.** Vectors are good (99 to 100% right against
+  neighbours at 1 frame, 88 to 96% at 1 s, 73 to 88% at 5 s on clean boxes), but 71% of
+  1,815 sustained ID switches still score 0.7 or more, so a gate that catches them blocks
+  about 6 correct matches for each.
+- **Rule set before round 2:** choose on tune scenes, score check once. Chosen blend with
+  both protections: check F1 0.707 against 0.726. Fails.
+- **Narrow passes kept on record, not used:** veto 0.5 (67 wrong, 71 missed), adaptive (67,
+  70), adaptive with skip overlapped (66, 72), against 68 and 73 on the check scenes. At 1
+  to 3 crossings of 260, not chosen in advance, and no better on the crowds.
+- **My first write up was wrong twice:** it said nothing passed (veto 0.5 did, narrowly)
+  and that embeddings do not help live tracking, when only the method tried had failed.
+  Research then found the untested gap, confidence weighted memory, which round 2 tested.
+- **Other position only attempt:** stitching across the line: at best 7 fewer missed for 10
+  more wrong, no change on the check scenes.
+- **Porting caught a bug:** the study's rerun moved two line variants by one crossing;
+  `_forget` cleared the look before the last crossing was judged. Fixed, with a test. All
+  variants now match the prototype's numbers.
+- **Bad vectors:** 93 NaN rows at the end of MOT17-09 from half precision. Repaired, no
+  result changed.
+- **Open:** re-entry, which no clip of ours can test; MSMT17 weights are academic only.
+
 ## 2026-10-30: `pathsense tune` (Phase 3, step 4)
 
 `pathsense tune <scene>` replays the scene and 8 candidate setups

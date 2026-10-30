@@ -94,6 +94,14 @@ embedding is kept only if it reduces missed or wrong crossings on the check scen
 its cost per frame is reported next to the gain. LITE comes after, if OSNet earns its
 place and the cost needs cutting.
 
+**Result (2026-10-31).** Tested in and around the tracker, including Deep OC-SORT's
+confidence weighted memory and adaptive weighting: not kept for live tracking, off by
+default ([TRACKER_STUDY.md](TRACKER_STUDY.md#appearance-step-5-does-telling-people-apart-by-looks-recover-crossings)).
+Two corrections to the notes above. `trackers` has no appearance tracker in any release
+from 2.1.0, when it dropped DeepSORT and ReIDModel. And the OSNet weights cannot ship: they
+are trained on MSMT17, whose agreement allows academic use only. Re-entry, someone coming
+back minutes later, is untested and remains the open use.
+
 ## 4. Libraries for YOLO with ByteTrack
 
 | Library | Language | Has | Fit |

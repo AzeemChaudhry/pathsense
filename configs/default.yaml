@@ -38,3 +38,22 @@ analytics:
   zone_confirm: 0.5    # seconds inside (or outside) before a zone enter (or exit) counts
   zone_count_present: true   # people already inside when the video starts count as entered
   hidden_legs: 0.25    # box this much shorter than the person: feet from the head; 0: off
+
+appearance:            # tell people apart by clothing; off: see docs/TRACKER_STUDY.md
+  enabled: false       # true: one embedding per person per frame, in memory for this video
+  weights: data/models/osnet_x0_25_msmt17.pt
+  device: null         # null: GPU if available
+  batch: 256           # boxes at a time through the network
+  match: "off"         # tracker first pass, ByteTrack only: off | botsort | veto | blend | adaptive
+  closeness: 0.25      # botsort: how near in look; 0 same, 1 opposite
+  proximity: 0.5       # botsort: how near in overlap, as 1 - IoU
+  blend: 0.5           # blend: share of the score that is look
+  gate: 0              # veto, blend: a look below this refuses the match; 0: off
+  adaptive_weight: 0.75   # adaptive: base weight of look (Deep OC-SORT's MOT value)
+  adaptive_cap: 0.5    # adaptive: most a clear best match adds to that weight
+  memory: 0.9          # how much of a track's remembered look each new box keeps
+  dynamic: false       # a less confident box changes that memory less (Deep OC-SORT)
+  skip_overlap: 0      # no memory from a box overlapping another this much; 0: off
+  stitch_gate: 0       # the stitcher refuses a link that looks below this; 0: off
+  line_same: 0         # a bounce at or above this look counts every crossing; 0: off
+  line_different: 0    # a reversal below this look is dropped at once; 0: off

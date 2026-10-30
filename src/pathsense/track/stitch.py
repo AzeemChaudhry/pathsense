@@ -14,7 +14,8 @@ looks at people who vanished in the last `seconds`. One of them is the same pers
 - the box height is within `size` of theirs (from 0.67 to 1.5 times with 0.5).
 
 The closest match wins; each vanished person can be matched once. Only position, motion
-and box size are used: no appearance, no faces, nothing kept after the video.
+and box size are used here: no faces, nothing kept after the video. With appearance on,
+`pathsense.appearance.AppearanceStitcher` also refuses links that look wrong.
 """
 
 from __future__ import annotations
@@ -99,13 +100,17 @@ class Stitcher:
                     continue
                 expected = state.feet + state.velocity() * gap
                 off = float(np.hypot(*(feet[k] - expected))) / state.height
-                if off <= self.distance:
+                if off <= self.distance and self._looks_right(k, person):
                     pairs.append((off, k, person))
         matches: dict[int, int] = {}
         for _, k, person in sorted(pairs):
             if k not in matches and person not in matches.values():
                 matches[k] = person
         return matches
+
+    def _looks_right(self, k: int, person: int) -> bool:
+        """Another reason to refuse the link; see AppearanceStitcher."""
+        return True
 
     def _remember(self, person: int, feet: np.ndarray, height: float, t: float) -> None:
         state = self._people.get(person)

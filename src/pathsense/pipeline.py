@@ -3,7 +3,8 @@
     frame -> Detector -> Tracker -> Stitcher -> analytics -> FrameResult (people, events)
 
 The Stitcher gives people the tracker lost for a moment their old ID back, so analytics
-see one person, not a new one each time they are hidden.
+see one person, not a new one each time they are hidden. With `appearance.enabled` an
+Embedder runs between the detector and the tracker (pathsense.appearance; off by default).
 
 Analytics turn tracks into events: a `LineCounter` when the config has `analytics.line`,
 and a `ZoneCounter` for each of `analytics.zones`. Call `finish()` at the end of the video
@@ -16,13 +17,21 @@ from __future__ import annotations
 
 import dataclasses
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
+from functools import partial
+from typing import Any
 
 import supervision as sv
 
 from pathsense.analytics import Event, LineCounter, ZoneCounter
-from pathsense.config import AnalyticsConfig, Config, ConfigError
+from pathsense.appearance import (
+    AppearanceByteTrack,
+    AppearanceLine,
+    AppearanceStitcher,
+    Embedder,
+)
+from pathsense.config import AnalyticsConfig, AppearanceConfig, Config, ConfigError
 from pathsense.detect import DETECTORS, Detector, build_detector
 from pathsense.detect.base import drop_partial_duplicates
 from pathsense.io import Frame, VideoSource
@@ -48,8 +57,10 @@ class Pipeline:
         zones: list[ZoneCounter] | None = None,
         stitcher: Stitcher | None = None,
         drop_partial: bool = False,
+        embedder: Embedder | None = None,
     ) -> None:
         self.drop_partial = drop_partial
+        self.embedder = embedder
         self.detector = detector
         self.tracker = tracker
         self.stitcher = stitcher
@@ -68,27 +79,56 @@ class Pipeline:
             raise ConfigError(
                 f"Unknown tracker {config.tracker.name!r}; choose one of {sorted(TRACKERS)}"
             )
+        Pipeline.check_appearance(config)
+
+    @staticmethod
+    def check_appearance(config: Config) -> None:
+        look = config.appearance
+        if look.enabled and look.match != "off" and config.tracker.name != "bytetrack":
+            raise ConfigError(
+                f"appearance.match needs tracker.name bytetrack, not {config.tracker.name!r}"
+            )
 
     @classmethod
     def from_config(
         cls, config: Config, frame_rate: float = 30.0, detector: Detector | None = None
     ) -> Pipeline:
         """Build the detector and tracker the config names. `frame_rate` is the source's.
-        Pass `detector` to skip building one, e.g. when replaying saved detections."""
+        Pass `detector` to skip building one, e.g. when replaying saved detections; with
+        appearance on, those boxes then carry their vectors (`data["embedding"]`)."""
+        cls.check_appearance(config)
+        look = config.appearance
+        embedder = None
+        if look.enabled and detector is None:
+            embedder = Embedder(look.weights, look.device, look.batch)
         detector = build_detector(config.detector) if detector is None else detector
-        tracker = build_tracker(config.tracker.name, frame_rate, config.tracker.params)
+        tracker = build_tracker(
+            config.tracker.name, frame_rate, config.tracker.params, tracker_factory(look)
+        )
         analytics = config.analytics
         stitch = config.tracker.stitch_seconds
-        stitcher = (
-            Stitcher(stitch, config.tracker.stitch_distance, config.tracker.stitch_size)
-            if stitch > 0
-            else None
-        )
+        settings = (stitch, config.tracker.stitch_distance, config.tracker.stitch_size)
+        stitcher = None
+        if stitch > 0 and look.enabled and look.stitch_gate > 0:
+            seconds, distance, size = settings
+            stitcher = AppearanceStitcher(
+                look.stitch_gate, look.memory, seconds=seconds, distance=distance, size=size
+            )
+        elif stitch > 0:
+            stitcher = Stitcher(*settings)
         # Forget a person one frame after their ID can no longer return, from the tracker or
         # the stitcher.
         lost = max(tracker.lost_seconds, stitch) + 1 / frame_rate
-        line_counter, zones = build_counters(analytics, lost)
-        return cls(detector, tracker, line_counter, zones, stitcher, config.detector.drop_partial)
+        line_counter, zones = build_counters(analytics, lost, look)
+        return cls(
+            detector,
+            tracker,
+            line_counter,
+            zones,
+            stitcher,
+            config.detector.drop_partial,
+            embedder,
+        )
 
     def process(self, frame: Frame) -> FrameResult:
         start = time.perf_counter()
@@ -96,8 +136,12 @@ class Pipeline:
         if self.drop_partial:
             detections = drop_partial_duplicates(detections)
         detect_ms = (time.perf_counter() - start) * 1000
+        start = time.perf_counter()
+        if self.embedder:
+            detections.data["embedding"] = self.embedder(frame.image, detections.xyxy)
+        embed_ms = (time.perf_counter() - start) * 1000
         result = self.track(detections, frame)
-        return dataclasses.replace(result, detect_ms=detect_ms)
+        return dataclasses.replace(result, detect_ms=detect_ms, track_ms=result.track_ms + embed_ms)
 
     def track(self, detections: sv.Detections, frame: Frame) -> FrameResult:
         """Everything after the detector. Evaluation replays saved detections through it, so
@@ -130,14 +174,39 @@ class Pipeline:
         return [event for counter in self.counters for event in counter.finish()]
 
 
+def tracker_factory(look: AppearanceConfig) -> Callable[..., Any] | None:
+    """What replaces the tracker class when looks join its matching; None: nothing does."""
+    if not look.enabled or look.match == "off":
+        return None
+    return partial(
+        AppearanceByteTrack,
+        mode=look.match,
+        closeness=look.closeness,
+        proximity=look.proximity,
+        blend=look.blend,
+        gate=look.gate,
+        memory=look.memory,
+        adaptive_weight=look.adaptive_weight,
+        adaptive_cap=look.adaptive_cap,
+        dynamic=look.dynamic,
+        skip_overlap=look.skip_overlap,
+    )
+
+
 def build_counters(
-    analytics: AnalyticsConfig, lost: float
+    analytics: AnalyticsConfig, lost: float, look: AppearanceConfig | None = None
 ) -> tuple[LineCounter | None, list[ZoneCounter]]:
     """The line counter and zone counters `analytics` asks for. `lost` is how long a person
     can be unseen before they are gone. Evaluation builds them the same way to count ground
     truth tracks."""
+    decide = look is not None and look.enabled and (look.line_same or look.line_different)
+    line = (
+        partial(AppearanceLine, same=look.line_same, different=look.line_different)
+        if decide
+        else LineCounter
+    )
     line_counter = (
-        LineCounter(
+        line(
             *analytics.line,
             margin=analytics.line_margin,
             margin_height=analytics.line_margin_height,
