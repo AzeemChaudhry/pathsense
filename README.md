@@ -7,7 +7,7 @@ their movement into counts, occupancy, dwell time, trails, a heatmap and an even
 answers questions like *"how many people came in after 2 pm?"* or *"who waited longest at
 the counter?"*. The finished app runs entirely in your browser: **no video is uploaded**.
 
-> Status: **Phase 2, analytics and event log.** Phases 0 and 1 done. See the [roadmap](#roadmap) and [docs/PLAN.md](docs/PLAN.md).
+> Status: **Phase 3, evaluation and scene tuning.** Phases 0 to 2 done. See the [roadmap](#roadmap) and [docs/PLAN.md](docs/PLAN.md).
 
 <!-- Add once they exist:
 [![Demo](https://img.shields.io/badge/demo-Hugging%20Face%20Space-yellow)](https://huggingface.co/spaces/MuhammadAzeem/pathsense)
@@ -311,7 +311,7 @@ Filled in during Phase 3 and Phase 4.
 - [x] **Phase 0** Webcam baseline (YOLO26n + ByteTrack)
 - [x] **Phase 1** Pipeline package (detector interface, tracker wrapper, tests)
 - [x] **Phase 2** Analytics and event log
-- [ ] **Phase 3** Evaluation and scene tuning (tracker comparison on crowds, `pathsense tune`)
+- [ ] **Phase 3** Evaluation and scene tuning (tracker comparison on crowds, `pathsense tune`, recovering missed crossings)
 - [ ] **Phase 4** Train on Kaggle (Open Images), export ONNX, weights on the Hub
 - [ ] **Phase 5** Browser app: in browser detection, tracking and analytics
 - [ ] **Phase 6** Ask your footage: plain language Q&A over the event log
@@ -328,6 +328,8 @@ GPUs as described in [docs/COMPUTE.md](docs/COMPUTE.md).
 
 Plan: [docs/PLAN.md](docs/PLAN.md). Before and after each phase, with images and numbers:
 [docs/PROGRESS.md](docs/PROGRESS.md). Experiments are logged in [NOTES.md](NOTES.md).
+Libraries and methods for the browser app and appearance tracking:
+[docs/RESEARCH.md](docs/RESEARCH.md).
 
 ## Development
 
