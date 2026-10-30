@@ -323,8 +323,9 @@ weighs the same, and the sweep was run again. The first sweep's results are kept
 ## Appearance (step 5): does telling people apart by looks recover crossings?
 
 No use of looks earned its place, so `appearance.enabled` stays off. It is a toggle, not a
-deletion: the code is in `pathsense.appearance`, every number below reruns with
-`scripts/appearance_study`, and re-entry, which this could not test, is still open.
+deletion: the code is in `pathsense.appearance`, the numbers below rerun from the saved
+vectors with `scripts/appearance_study`, and re-entry, which this could not test, is still
+open.
 
 Looks here are OSNet x0.25 vectors (512 numbers describing clothing and build) for all
 1,174,080 boxes of the seven scenes, in memory for one video in the product. Scene files
@@ -378,7 +379,7 @@ scenes while it ran, so its check numbers are not clean.
 | Round 1 | | | |
 | BoT-SORT rule | 129 / 365 / 0.726 | 73 / 73 / 0.719 | 2,853 |
 | veto 0.5 | 132 / 364 / 0.726 | 67 / 71 / 0.733 | 2,906 |
-| veto 0.7 | 173 / 358 / 0.714 | 139 / 62 / 0.663 | 3,974 |
+| veto 0.7 | 173 / 358 / 0.714 | 139 / 62 / 0.663 | 3,973 |
 | blend 0.5 | 104 / 367 / 0.735 | 69 / 74 / 0.722 | 2,567 |
 | blend 0.5, gate 0.5 | 107 / 369 / 0.732 | 66 / 74 / 0.727 | 2,620 |
 | stitcher gate 0.8 | 123 / 375 / 0.721 | 66 / 74 / 0.727 | 3,210 |
@@ -406,14 +407,17 @@ The full table of 27 variants is written to `runs/appearance-study/report.md`.
 - **Blend's real gain is on crowds:** 15 to 19% fewer wrong crossings and 8 to 10% fewer
   IDs, but more misses, and it does not hold on the check scenes.
 - **The cost is an embedding for every person on every frame:** about 6 ms a box on the CPU
-  (ONNX, 12 threads), so close to a second a frame on MOT20-03. Published work agrees on
+  (measured with the ONNX export on 12 threads; `Embedder` uses PyTorch, not timed here), so
+  close to a second a frame on MOT20-03. Published work agrees on
   the direction: [BoT-SORT's authors](https://arxiv.org/pdf/2206.14651) say appearance falls
   short in crowded scenes, and [Hybrid-SORT](https://arxiv.org/pdf/2308.00783) reports
   limited gains on MOT17 and MOT20.
 
 Settings of ours in round 2: the paper gives no value for its confidence threshold, so it
-is `high_conf_det_threshold`; a pair must still pass the tracker's overlap test, so looks
-only rank pairs; and `memory` is the paper's 0.95. Other values were not tried.
+is `high_conf_det_threshold`; with `adaptive` a pair must still pass the tracker's overlap
+test, so looks only rank pairs; and `memory` is the paper's 0.95. Other values were not
+tried. `blend` differs: the threshold applies to the blended score, so a barely touching
+pair with a strong look can match, and a well overlapping pair with a weak look can fail.
 
 ### Limits, and what stays open
 
@@ -430,24 +434,33 @@ only rank pairs; and `memory` is the paper's 0.95. Other values were not tried.
   [release agreement](https://www.pkuvmc.com/agreement/RELEASE_AGREEMENT-MSMT17.pdf) allows
   academic use only and prohibits commercial use. Whether that reaches trained weights is a
   legal question we have not settled, so we treat them as research only.
+- **The stitcher and line uses are less settled than the tracker's.** Their memories take
+  every box: `dynamic` and `skip_overlap` protect the tracker's memory only, so in a crowd
+  they may compare against a look holding two people. That could be part of why they did
+  not help; it was not tested.
+- **Replays and live runs differ slightly.** Saved vectors are float16 and renormalised on
+  loading. Renormalising changed one figure in the study (an ID count, by 1), so scores
+  should be close to live, but no live run was compared.
 - **One small model and one detector.** OSNet x0.25, on one detector's boxes. Phase 4's
   detector will move these numbers.
 - **The saved vectors came from half precision on the GPU**, whose final batch on MOT17-09
   gave 93 invalid vectors. Those rows were recomputed in full precision and the results did
-  not change. `model.half()` is a [known cause](https://discuss.pytorch.org/t/training-with-half-precision/11815)
+  not change. The `embed` command now runs in full precision, so vectors made afresh will
+  differ slightly from these, and that rerun has not been done. `model.half()` is a [known cause](https://discuss.pytorch.org/t/training-with-half-precision/11815)
   of such overflows, though we did not confirm it was the cause here. `Embedder` runs in
   full precision and stops on an invalid vector.
 - **Library:** `trackers` dropped DeepSORT and ReIDModel in
   [2.1.0](https://github.com/roboflow/trackers/releases/tag/2.1.0), and its `iou=` hook only
   changes overlap, so `AppearanceByteTrack` follows ByteTrack's `update` step by step, with
-  a test against the library. A new release may need it revisited.
+  a test against the library. It relies on private names, so `trackers` is capped below 2.7
+  until that copy is checked, and only ByteTrack can be used with appearance on.
 
 To try it, get `osnet_x0_25_msmt17.pt` from the
 [torchreid model zoo](https://kaiyangzhou.github.io/deep-person-reid/MODEL_ZOO.html) into
 `data/models/`, then:
 
 ```bash
-uv run python scripts/appearance_study embed      # one vector per saved box (GPU, about 40 min)
+uv run python scripts/appearance_study embed      # one vector per saved box (GPU, roughly 40 min)
 uv run python scripts/appearance_study run        # 27 variants on 7 scenes (6 min on CPU)
 uv run python scripts/appearance_study people     # the first table
 uv run python scripts/appearance_study switches   # the second table

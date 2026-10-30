@@ -98,6 +98,7 @@ class AppearanceConfig:
     stitch_gate: float = 0.0  # the stitcher refuses a link that looks below this; 0: off
     line_same: float = 0.0  # a bounce at or above this look counts every crossing; 0: off
     line_different: float = 0.0  # a reversal below this look is dropped at once; 0: off
+    line_memory: float = 0.8  # as `memory`, for the look the line compares
 
     def __post_init__(self) -> None:
         for key in ("enabled", "dynamic"):
@@ -117,9 +118,17 @@ class AppearanceConfig:
         )
         for key in keys.split():
             object.__setattr__(self, key, non_negative(f"appearance.{key}", getattr(self, key)))
-        for key in ("blend", "memory"):
+        object.__setattr__(
+            self, "line_memory", non_negative("appearance.line_memory", self.line_memory)
+        )
+        for key in ("blend", "memory", "line_memory"):
             if getattr(self, key) >= 1:
                 raise ConfigError(f"appearance.{key} must be below 1, got {getattr(self, key)!r}")
+        for key in ("gate", "stitch_gate", "line_same", "line_different"):  # similarities
+            if getattr(self, key) > 1:
+                raise ConfigError(f"appearance.{key} must be 1 or less, got {getattr(self, key)!r}")
+        if self.match == "veto" and self.gate <= 0:
+            raise ConfigError("appearance.match veto needs appearance.gate above 0")
 
 
 @dataclass(frozen=True)

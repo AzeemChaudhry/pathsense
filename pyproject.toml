@@ -9,7 +9,7 @@ dependencies = [
     "numpy",
     "opencv-python",
     "supervision>=0.30",
-    "trackers>=2.6",
+    "trackers>=2.6,<2.7",  # pathsense.appearance follows private names; check before raising
     "ultralytics",
     "pyyaml",
 ]

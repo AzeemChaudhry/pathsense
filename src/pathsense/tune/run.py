@@ -158,7 +158,7 @@ class _Scene:
         embeddings = None
         if config.appearance.enabled:
             path = embeddings_path(self.saved_path, self.saved, config.appearance)
-            embeddings = load_embeddings(path)
+            embeddings = load_embeddings(path, self.saved)
         result = replay(pipeline, self.saved, embeddings)
         crossings = None
         if self.labels is not None and self.true_events is not None:

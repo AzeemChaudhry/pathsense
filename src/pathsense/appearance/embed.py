@@ -36,9 +36,7 @@ def crops(image: np.ndarray, boxes: np.ndarray) -> np.ndarray:
 
 
 class Embedder:
-    def __init__(
-        self, weights: str | Path, device: str | None = None, batch: int = 256, half: bool = False
-    ) -> None:
+    def __init__(self, weights: str | Path, device: str | None = None, batch: int = 256) -> None:
         if not Path(weights).is_file():
             raise ConfigError(
                 f"appearance.weights not found: {weights}. OSNet x0.25 (MSMT17) comes from the "

@@ -1891,7 +1891,7 @@ requires-dist = [
     { name = "roboflow", marker = "extra == 'data'" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "supervision", specifier = ">=0.30" },
-    { name = "trackers", specifier = ">=2.6" },
+    { name = "trackers", specifier = ">=2.6,<2.7" },
     { name = "ultralytics" },
 ]
 provides-extras = ["data", "dev", "rfdetr"]

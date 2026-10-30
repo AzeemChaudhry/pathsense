@@ -21,7 +21,6 @@ from pathsense.tune.replay import no_detector
 from pathsense.tune.run import _load_scene, _Scene
 
 HOLD = 15  # frames an ID must stay on a person, before and after, to count as a switch
-MEMORY = 0.9
 WORKERS = 4
 
 
@@ -33,7 +32,7 @@ def study_scene(name: str) -> _Scene:
 
 def _vectors(scene: _Scene) -> np.ndarray:
     look = load_config(scene=scene.path).appearance
-    return load_embeddings(embeddings_path(scene.saved_path, scene.saved, look))
+    return load_embeddings(embeddings_path(scene.saved_path, scene.saved, look), scene.saved)
 
 
 def _matched(boxes: sv.Detections, truth: sv.Detections | None) -> dict[int, int]:
@@ -94,6 +93,7 @@ def _switches(name: str) -> tuple[list[float], list[float], list[float]]:
     vectors = _vectors(scene)
     config = load_config(scene=scene.path)
     pipeline = Pipeline.from_config(config, scene.saved.fps, detector=no_detector)
+    keep = config.appearance.memory
     starts = scene.saved.starts
     memory: dict[int, np.ndarray] = {}
     last: dict[int, int] = {}
@@ -122,7 +122,7 @@ def _switches(name: str) -> tuple[list[float], list[float], list[float]]:
                     (overlapped if around[r].max() > 0.3 else clear).append(alike)
             if r in found:
                 last[track] = found[r]
-            mixed = look if old is None else MEMORY * old + (1 - MEMORY) * look
+            mixed = look if old is None else keep * old + (1 - keep) * look
             memory[track] = mixed / (np.linalg.norm(mixed) + 1e-12)
     switches = []
     for seq in runs.values():

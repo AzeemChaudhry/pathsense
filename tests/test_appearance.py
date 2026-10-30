@@ -1,5 +1,9 @@
 """Telling people apart by looks: off changes nothing, each use does what it says."""
 
+import subprocess
+import sys
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 import torch
@@ -7,15 +11,17 @@ from conftest import detections
 from trackers import ByteTrackTracker
 
 from pathsense.analytics import LineCounter
-from pathsense.appearance import AppearanceByteTrack, AppearanceLine, AppearanceStitcher, Embedder
-from pathsense.appearance.embed import crops
+from pathsense.appearance.embed import Embedder, crops
+from pathsense.appearance.line import AppearanceLine
 from pathsense.appearance.osnet import OSNet
-from pathsense.appearance.tracker import _boost, _overlapped
+from pathsense.appearance.stitch import AppearanceStitcher
+from pathsense.appearance.tracker import AppearanceByteTrack, _boost, _overlapped
 from pathsense.config import ConfigError, load_config
 from pathsense.pipeline import Pipeline, build_counters, tracker_factory
 from pathsense.track.stitch import Stitcher
 from pathsense.tune.cache import SavedDetections
-from pathsense.tune.embeddings import cached_embeddings, embeddings_path
+from pathsense.tune.embeddings import cached_embeddings, embeddings_path, load_embeddings
+from pathsense.tune.replay import replay
 
 RED, BLUE = np.eye(2, 4, 0, np.float32)[0], np.eye(2, 4, 1, np.float32)[1]
 
@@ -40,10 +46,23 @@ def random_stream(seed=0, frames=60):
         yield found, frame / 30
 
 
-def test_off_gives_exactly_what_the_library_gives():
-    ours, theirs = AppearanceByteTrack(mode="off"), ByteTrackTracker()
-    for found, t in random_stream():
-        a, b = ours.update(found, timestamp=t), theirs.update(found, timestamp=t)
+@pytest.mark.parametrize("seed", range(3))
+@pytest.mark.parametrize(
+    "params",
+    [
+        {},
+        {"minimum_consecutive_frames": 1},
+        {"lost_track_buffer": 5, "minimum_iou_threshold": 0.4},
+        {"track_activation_threshold": 0.3, "high_conf_det_threshold": 0.7},
+    ],
+)
+def test_off_gives_exactly_what_the_library_gives(params, seed):
+    ours, theirs = AppearanceByteTrack(mode="off", **params), ByteTrackTracker(**params)
+    for k, (found, t) in enumerate(random_stream(seed)):
+        t = None if seed == 2 else t - (k % 7 == 3) / 30  # no clock; a repeated timestamp
+        looked = found[np.arange(len(found))]  # with vectors, which must change nothing
+        looked.data["embedding"] = np.ones((len(found), 4), np.float32) / 2
+        a, b = ours.update(looked, timestamp=t), theirs.update(found, timestamp=t)
         assert a.tracker_id.tolist() == b.tracker_id.tolist()
         assert a.xyxy.tolist() == b.xyxy.tolist()
 
@@ -179,6 +198,12 @@ def test_a_track_lost_mid_reversal_is_still_judged_by_its_look():
     assert looks.dropped == 1
 
 
+def test_after_a_drop_the_line_compares_with_the_new_person():
+    looks = AppearanceLine(*LINE, different=0.5, memory=0.0, confirm=0.1, bounce=12)
+    assert bounce(looks, (RED, BLUE, BLUE)) == ["enter", "enter"]
+    assert looks._at_crossing[1] == pytest.approx(BLUE)
+
+
 def test_off_builds_the_plain_classes_and_no_embedder():
     config = load_config(overrides=["analytics.line=[[0, 1], [9, 1]]"])
     assert tracker_factory(config.appearance) is None
@@ -194,6 +219,7 @@ def test_on_builds_what_the_config_asks_for():
             "analytics.line=[[0, 1], [9, 1]]",
             "appearance.enabled=true",
             "appearance.match=veto",
+            "appearance.gate=0.5",
             "appearance.stitch_gate=0.7",
             "appearance.line_same=0.7",
         ]
@@ -207,16 +233,37 @@ def test_on_builds_what_the_config_asks_for():
 
 def test_looks_in_matching_need_bytetrack():
     config = load_config(
-        overrides=["appearance.enabled=true", "appearance.match=veto", "tracker.name=ocsort"]
+        overrides=["appearance.enabled=true", "appearance.line_same=0.7", "tracker.name=ocsort"]
     )
     with pytest.raises(ConfigError, match="bytetrack"):
         Pipeline.check(config)
 
 
+def test_the_line_settings_need_the_bounce_rule():
+    config = load_config(
+        overrides=[
+            "appearance.enabled=true",
+            "appearance.line_same=0.7",
+            "analytics.line_bounce=0",
+        ]
+    )
+    with pytest.raises(ConfigError, match="line_bounce"):
+        Pipeline.check(config)
+
+
+def test_the_plain_pipeline_needs_nothing_from_the_appearance_modules():
+    code = (
+        "import sys; import pathsense.pipeline, pathsense.tune; "
+        "assert not [m for m in sys.modules if m.startswith('pathsense.appearance.')]"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)
+
+
 @pytest.mark.parametrize(
     "override",
     ["appearance.match=fancy", "appearance.gate=-1", "appearance.blend=1", "appearance.batch=0",
-     "appearance.dynamic=1", "appearance.memory=1"],
+     "appearance.dynamic=1", "appearance.memory=1", "appearance.stitch_gate=1.5",
+     "appearance.line_same=2", "appearance.match=veto"],
 )  # fmt: skip
 def test_bad_settings_are_errors(override):
     with pytest.raises(ConfigError):
@@ -281,3 +328,43 @@ def test_saved_vectors_line_up_with_the_saved_boxes(tiny_video, tmp_path, weight
     assert vectors[:, 0].tolist() == [0, 1, 2]
     assert embeddings_path(path, saved, look).exists()
     assert cached_embeddings(tiny_video, saved, look, path, build=None)[2, 0] == 2  # from file
+
+
+def test_vectors_of_other_boxes_are_not_used(tmp_path, weights):
+    n = np.array([2])
+    box = np.array([[0, 0, 9, 9], [1, 1, 8, 8]], np.float32)
+    kept = dict(confidence=np.ones(2, np.float32), counts=n, index=np.arange(1))
+    saved = SavedDetections(xyxy=box, timestamp=np.zeros(1), fps=10.0, detector="key", **kept)
+    other = SavedDetections(xyxy=box + 1, timestamp=np.zeros(1), fps=10.0, detector="key", **kept)
+    look = load_config(overrides=[f"appearance.weights={weights}"]).appearance
+    path = tmp_path / "video.npz"
+    assert embeddings_path(path, saved, look) != embeddings_path(path, other, look)
+    short = embeddings_path(path, saved, look)
+    np.save(short, np.zeros((1, 512), np.float16))
+    with pytest.raises(ConfigError, match="1 rows for 2 boxes"):
+        load_embeddings(short, saved)
+
+
+def test_a_replay_gets_unit_vectors_and_does_not_keep_them(tmp_path):
+    saved = SavedDetections(
+        xyxy=np.array([[0, 0, 40, 90]], np.float32),
+        confidence=np.ones(1, np.float32),
+        counts=np.array([1]),
+        index=np.arange(1),
+        timestamp=np.zeros(1),
+        fps=10.0,
+    )
+    seen = []
+
+    class Spy:
+        def track(self, boxes, frame):
+            seen.append(np.linalg.norm(boxes.data["embedding"]))
+            boxes.tracker_id = np.array([1])
+            return SimpleNamespace(tracked=boxes, events=[])
+
+        def finish(self):
+            return []
+
+    result = replay(Spy(), saved, np.full((1, 512), 0.5, np.float16))
+    assert seen == pytest.approx([1.0])
+    assert "embedding" not in result.tracks[0].data

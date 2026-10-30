@@ -41,6 +41,7 @@ analytics:
 
 appearance:            # tell people apart by clothing; off: see docs/TRACKER_STUDY.md
   enabled: false       # true: one embedding per person per frame, in memory for this video
+                       # (`pathsense tune` saves them in data/cache, for research clips)
   weights: data/models/osnet_x0_25_msmt17.pt
   device: null         # null: GPU if available
   batch: 256           # boxes at a time through the network
@@ -57,3 +58,4 @@ appearance:            # tell people apart by clothing; off: see docs/TRACKER_ST
   stitch_gate: 0       # the stitcher refuses a link that looks below this; 0: off
   line_same: 0         # a bounce at or above this look counts every crossing; 0: off
   line_different: 0    # a reversal below this look is dropped at once; 0: off
+  line_memory: 0.8     # as memory, for the look the line compares

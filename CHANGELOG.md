@@ -14,8 +14,10 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
   OSNet embedding per person, used in ByteTrack's first matching pass (`match`: botsort,
   veto, blend, adaptive), to refuse stitcher links, and in the bounce rule. Off because on
   seven MOT scenes it did not earn an embedding for every person on every frame
-  (docs/TRACKER_STUDY.md, Appearance). Vectors stay in memory for one video. The weights
+  (docs/TRACKER_STUDY.md, Appearance). On a video, vectors stay in memory for that video;
+  `pathsense tune` and the study save them in `data/cache` for research clips. The weights
   are trained on MSMT17, for academic use only, and are not shipped.
+- `trackers` is capped below 2.7, since the appearance tracker follows its private names.
 - `scripts/appearance_study`: reruns that study, and `scripts/export_osnet.py` exports the
   network to ONNX. `pathsense tune` candidates can now set `appearance.` settings.
 - `pathsense tune <scene>`: chooses a scene's tracker settings against what really

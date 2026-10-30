@@ -425,6 +425,10 @@ Full tables in docs/TRACKER_STUDY.md, Appearance. Toggle: `appearance.enabled`, 
   variants now match the prototype's numbers.
 - **Bad vectors:** 93 NaN rows at the end of MOT17-09 from half precision. Repaired, no
   result changed.
+- **Review of PR 15:** the docs said looks only rank pairs, true for adaptive but not blend,
+  the setup chosen in advance. Also fixed: saved vectors now keyed on the boxes and checked
+  by row count, renormalised on loading (one ID count moved by 1). Stitcher and line
+  memories lack the tracker's protections, so those two results are less settled.
 - **Open:** re-entry, which no clip of ours can test; MSMT17 weights are academic only.
 
 ## 2026-10-30: `pathsense tune` (Phase 3, step 4)

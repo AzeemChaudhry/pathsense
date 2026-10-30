@@ -230,7 +230,7 @@ class LineCounter:
         self._crossed[track_id] = pending.side
         if self.bounce > 0 and reverses:
             if self._other_person(track_id):
-                self._counted(track_id)
+                self._counted(track_id)  # the ID is someone else now: compare with them next
                 return events
             self._held[track_id] = pending  # the look of the last counted crossing stays
             return events

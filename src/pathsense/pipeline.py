@@ -20,23 +20,20 @@ import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import supervision as sv
 
 from pathsense.analytics import Event, LineCounter, ZoneCounter
-from pathsense.appearance import (
-    AppearanceByteTrack,
-    AppearanceLine,
-    AppearanceStitcher,
-    Embedder,
-)
 from pathsense.config import AnalyticsConfig, AppearanceConfig, Config, ConfigError
 from pathsense.detect import DETECTORS, Detector, build_detector
 from pathsense.detect.base import drop_partial_duplicates
 from pathsense.io import Frame, VideoSource
 from pathsense.track import TRACKERS, Tracker, build_tracker
 from pathsense.track.stitch import Stitcher
+
+if TYPE_CHECKING:
+    from pathsense.appearance.embed import Embedder
 
 
 @dataclass(frozen=True)
@@ -84,10 +81,14 @@ class Pipeline:
     @staticmethod
     def check_appearance(config: Config) -> None:
         look = config.appearance
-        if look.enabled and look.match != "off" and config.tracker.name != "bytetrack":
+        if not look.enabled:
+            return
+        if config.tracker.name != "bytetrack":  # the only one tested to keep vectors on tracks
             raise ConfigError(
-                f"appearance.match needs tracker.name bytetrack, not {config.tracker.name!r}"
+                f"appearance needs tracker.name bytetrack, not {config.tracker.name!r}"
             )
+        if (look.line_same or look.line_different) and config.analytics.line_bounce <= 0:
+            raise ConfigError("appearance.line_same and line_different need analytics.line_bounce")
 
     @classmethod
     def from_config(
@@ -100,6 +101,8 @@ class Pipeline:
         look = config.appearance
         embedder = None
         if look.enabled and detector is None:
+            from pathsense.appearance.embed import Embedder
+
             embedder = Embedder(look.weights, look.device, look.batch)
         detector = build_detector(config.detector) if detector is None else detector
         tracker = build_tracker(
@@ -110,6 +113,8 @@ class Pipeline:
         settings = (stitch, config.tracker.stitch_distance, config.tracker.stitch_size)
         stitcher = None
         if stitch > 0 and look.enabled and look.stitch_gate > 0:
+            from pathsense.appearance.stitch import AppearanceStitcher
+
             seconds, distance, size = settings
             stitcher = AppearanceStitcher(
                 look.stitch_gate, look.memory, seconds=seconds, distance=distance, size=size
@@ -178,6 +183,8 @@ def tracker_factory(look: AppearanceConfig) -> Callable[..., Any] | None:
     """What replaces the tracker class when looks join its matching; None: nothing does."""
     if not look.enabled or look.match == "off":
         return None
+    from pathsense.appearance.tracker import AppearanceByteTrack
+
     return partial(
         AppearanceByteTrack,
         mode=look.match,
@@ -199,12 +206,16 @@ def build_counters(
     """The line counter and zone counters `analytics` asks for. `lost` is how long a person
     can be unseen before they are gone. Evaluation builds them the same way to count ground
     truth tracks."""
-    decide = look is not None and look.enabled and (look.line_same or look.line_different)
-    line = (
-        partial(AppearanceLine, same=look.line_same, different=look.line_different)
-        if decide
-        else LineCounter
-    )
+    line = LineCounter
+    if look is not None and look.enabled and (look.line_same or look.line_different):
+        from pathsense.appearance.line import AppearanceLine
+
+        line = partial(
+            AppearanceLine,
+            same=look.line_same,
+            different=look.line_different,
+            memory=look.line_memory,
+        )
     line_counter = (
         line(
             *analytics.line,

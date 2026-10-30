@@ -9,13 +9,9 @@ Off by default because on the MOT scenes it did not earn its cost: an embedding 
 person on every frame (docs/TRACKER_STUDY.md, Appearance). It stays so that scenes the
 study could not test, such as people leaving a shop and coming back, can be measured.
 
+Import the modules directly (`pathsense.appearance.embed`...): with appearance off, nothing
+here loads, so a `trackers` release cannot break the plain pipeline.
+
 Vectors stay in memory for one video: no faces, no names, nothing kept afterwards. Only
 `pathsense tune` and the study save them, for research clips, in data/cache.
 """
-
-from pathsense.appearance.embed import Embedder
-from pathsense.appearance.line import AppearanceLine
-from pathsense.appearance.stitch import AppearanceStitcher
-from pathsense.appearance.tracker import AppearanceByteTrack
-
-__all__ = ["AppearanceByteTrack", "AppearanceLine", "AppearanceStitcher", "Embedder"]
