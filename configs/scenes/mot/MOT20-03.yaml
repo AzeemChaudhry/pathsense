@@ -9,7 +9,7 @@ source: data/mot/videos/MOT20-03.mp4
 detector:
   imgsz: 1920       # people near the road are small
 
-# Crowd settings, chosen on this scene and MOT20-03 by the tracker study
+# Crowd settings, chosen on this scene and MOT20-05 by the tracker study
 # (docs/TRACKER_STUDY.md): matching boxes must overlap more, so an ID does not slide onto a
 # neighbour, and a lost person is stitched back only within 1 s. Not the default: on the
 # close-up grocery clip the 0.4 overlap breaks the shopper's track.

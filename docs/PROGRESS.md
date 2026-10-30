@@ -166,6 +166,7 @@ detector never boxes them as separate people. That is the cluster problem below.
 | New ID after leaving the frame for more than about 1 s; none of the three trackers recognises a returning person by appearance | Phase 0 | Phase 3: longer lost track buffer and an appearance based re-identification step |
 | Partly visible people at the frame edge missed or split | Phase 0 | Phase 4: fine tuning |
 | Detected people not tracked because the track start threshold is high | Phase 1 | Phase 3: the tracker study chose 0.4 for crowds, set in the crowd scene files; per scene choice in `pathsense tune` |
-| ID swaps in crowds give false crossings the wrong way (MOT20-03: 28 against 4) | Phase 2 | Phase 3: reduced, not solved. Over 7 MOT scenes, wrong crossings 471 to 191 ([tracker study](TRACKER_STUDY.md)); MOT20-03 29 to 11 |
+| ID swaps in crowds give false crossings the wrong way (MOT20-03: 28 against 4) | Phase 2 | Phase 3: reduced, not solved. Wrong crossings 392 to 129 on the two tune crowds, 79 to 62 on five check scenes ([tracker study](TRACKER_STUDY.md)); MOT20-03 29 to 11 |
+| Missed crossings in crowds: for 293 of 437 the detector saw the person; tracks start late, end or split at the line | Phase 3 | Phase 3: `pathsense tune` per scene; next tracking work after it; Phase 4 for the rest |
 | Groups standing close together are boxed as one or not at all | Phase 2 | Phase 3 measures it per scene; backlog: cluster detection |
 | Far groups in zones: we find 60 % of visible people (MOT17-02) | Phase 2 | Phase 3 scene tuning; backlog: zones guide detection |

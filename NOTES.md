@@ -373,13 +373,16 @@ Full write-up with charts: [docs/TRACKER_STUDY.md](docs/TRACKER_STUDY.md).
   ByteTrack, BoT-SORT, OC-SORT, C-BIoU), each as shipped and tuned, with our layers
   stacked. Chosen on MOT20-03 and 05, checked on 5 other MOT scenes. Crossings scored one
   by one against the labelled people. 532 sweep replays, 217 saved runs with videos.
-- **Result (all 7 scenes):** wrong crossings 471 (v0.3.0) to 191, missed 435 to 437, ID
-  switches 9,617 to 5,454, HOTA 36.3 to 37.8, IDF1 45.7 to 48.0. Tracking takes 4 to 8 ms
-  per frame on any tracker, against 38 to 57 ms for the detector.
+- **Result:** on the tune scenes wrong crossings 392 (v0.3.0) to 129, missed 366 to 364,
+  F1 0.633 to 0.727. On the 5 check scenes wrong 79 to 62 (all of it from MOT20-02),
+  missed 69 to 73, F1 0.721 to 0.735. Tracking takes 4 to 12 ms per frame on any tracker,
+  against 38 to 57 ms for the detector.
 - **Bounce rule (new):** fewer wrong crossings on every tracker, at most 3 more missed.
   **Adopted, default 12 s.**
-- **Stitcher in crowds:** adds wrong crossings on all five trackers (12 to 63%). Kept on for
-  sparse scenes (subway: 104 IDs without it, 78 with), 1 s in the crowd scene files.
+- **Stitcher in crowds:** adds wrong crossings on all five trackers (12 to 63%) and saves a
+  few misses. A 1 s stitch nudges ByteTrack's F1 up on the tune crowds but lowers it on
+  the check scenes for 4 trackers of 5. Kept on for sparse scenes (subway: 104 IDs
+  without it, 78 with), 1 s in the crowd scene files, per scene from `pathsense tune`.
 - **Per frame swap guard:** tried; swaps are slow drifts (median 0.04 box heights per
   frame against 0.02 for normal walking), so it caught 11% of swaps with 793 false
   alarms. **Not adopted**, kept in the study as a negative result.
@@ -389,5 +392,9 @@ Full write-up with charts: [docs/TRACKER_STUDY.md](docs/TRACKER_STUDY.md).
 - **Tuned ByteTrack is not the default:** its 0.4 overlap splits the grocery shopper's
   track (2 IN, 3 visits instead of 1 and 1). The overlap is the one setting responsible
   (DIoU and the longer buffer alone keep 1 IN). Crowd settings go in MOT20-03 and 05 only.
-- **Left:** misses are a detection limit (they hardly move with any tracker), so Phase 4.
-  Per scene choice of tracker and settings is `pathsense tune` (step 4).
+- **Review corrections (PR 12):** the check scenes do not confirm ByteTrack (OC-SORT with
+  bounce 0.773 and BoT-SORT 0.761 beat its 0.754); the ranking holds when the crossing
+  matcher is made stricter or looser. Misses are mostly tracking: for 293 of 437 the
+  detector had the person in most frames, only 28 never.
+- **Left:** per scene choice of tracker and settings is `pathsense tune` (step 4). The
+  misses (tracks starting late, lost or split at the line) are the next tracking target.

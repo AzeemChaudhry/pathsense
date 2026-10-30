@@ -7,32 +7,42 @@ labelled scenes, 217 runs, every one saved with a video.
 
 ## In short
 
-| all 7 scenes | v0.3.0 | chosen setup | change |
-| --- | --- | --- | --- |
-| wrong crossings (counted, but nobody crossed that way) | 471 | **191** | -59% |
-| missed crossings (someone crossed, not counted) | 435 | 437 | none |
-| ID switches | 9,617 | **5,454** | -43% |
-| HOTA / IDF1 | 36.3 / 45.7 | **37.8 / 48.0** | +1.5 / +2.3 |
-| tracking time per frame (one CPU core) | 6.0 ms | 6.0 ms | none |
+| v0.3.0 to the chosen setup | tune scenes (MOT20-03, 05) | check scenes (the other 5) |
+| --- | --- | --- |
+| wrong crossings (counted, but nobody crossed that way) | 392 to **129** (-67%) | 79 to **62** (-22%) |
+| missed crossings (someone crossed, not counted) | 366 to 364 | 69 to 73 |
+| crossing F1 | 0.633 to **0.727** | 0.721 to **0.735** |
+| ID switches | 7,760 to **4,028** (-48%) | 1,857 to **1,426** (-23%) |
+| IDF1 (mean per scene) | 42.1 to **45.9** | 47.1 to **48.8** |
+| tracking time per frame (one CPU core) | 11.8 to 12.4 ms | 3.7 to 3.5 ms |
 
 The chosen setup is ByteTrack with four settings changed, our stitcher at 1 s instead of
-2 s, and `line_bounce`, a new rule of ours. It was picked on two crowd scenes only and
-checked on the other five. What became the default, and what stays a crowd setting, is in
+2 s, and `line_bounce`, a new rule of ours. It was picked on the two tune scenes, so the
+gain there is what fitting can reach; the check scenes, never used to choose, are the fair
+measure. There the drop in wrong crossings comes from one scene, MOT20-02 (75 to 54); the
+other four go from 4 to 8. What became the default, and what stays a crowd setting, is in
 [Decisions](#decisions).
 
-- **Tuning the tracker is the biggest lever.** ByteTrack with stricter box matching and
-  a lower bar for new tracks halves its wrong crossings (378 to 200) and cuts ID
-  switches by 30%.
+- **Tuning the tracker is the biggest lever on the crowds.** ByteTrack with stricter box
+  matching and a lower bar for new tracks halves its wrong crossings there (310 to 143)
+  and cuts ID switches by 37%. On the check scenes the gain is smaller (68 to 57).
 - **The bounce rule works on every tracker.** It removes 4 to 15% of the wrong crossings
-  left after tuning, on all five trackers, and loses at most 3 real crossings.
-- **Our stitcher hurts in crowds.** On all five trackers it adds wrong crossings (by 12
-  to 63%): in a crowd, the person who vanished nearest to a new box is often someone
-  else. It stays for sparse scenes and becomes a per scene choice.
+  left after tuning, on all five trackers, loses at most 3 real crossings, and raises
+  the F1 on the check scenes for all five.
+- **Our stitcher trades wrong crossings for misses.** In crowds it adds wrong crossings on
+  all five trackers (by 12 to 63%) and saves a few misses. On the two crowds that still
+  nudges ByteTrack's F1 up, so the chosen setup has it; on the check scenes it lowers the
+  F1 for four trackers out of five. It becomes a per scene setting.
 - **A per frame swap detector does not work** (measured, kept in the study only): most
   swaps are slow drifts between overlapping people, not jumps.
-- **The misses are a detection problem.** They barely move with any layer (436 to
-  448 across the tuned ByteTrack setups, 435 for v0.3.0), so Phase 4 (training the detector on crowds) is the lever
-  for them, not tracking.
+- **Most misses are tracking, not detection.** For 293 of the 437 missed crossings, the
+  detector had a box on the person in most frames around the crossing; only 28 were
+  never detected. No layer here reduces them, so they are the next tracking problem
+  ([Misses](#where-the-misses-come-from)), alongside Phase 4's crowd trained detector.
+- **The check scenes do not confirm one tracker for every scene.** ByteTrack is best on
+  the crowds, but on the check scenes OC-SORT with bounce (0.773) and BoT-SORT as
+  shipped (0.761) score higher than ByteTrack with bounce (0.754). Choosing the tracker
+  per scene is what `pathsense tune` (step 4) is for.
 
 ## The pipeline being tested
 
@@ -48,6 +58,9 @@ flowchart LR
 
 Every run replays the same saved detections, so the only thing that changes is what
 comes after the detector. Replays go through `Pipeline.track`, the code a live video uses.
+The one difference is that a replay passes no images, so BoT-SORT cannot use its camera
+motion compensation. It is switched off in every BoT-SORT run here (`enable_cmc: false`);
+with fixed cameras there is no camera motion to correct.
 
 ## Setup
 
@@ -76,7 +89,14 @@ show whether a choice holds or was fitted to two videos.
 **Metrics.**
 - *Crossings, one by one.* Each of our crossings is tied to the labelled person under
   its box. It is right only if that person crossed the same way within 2 s. A wrong
-  crossing and a missed one do not cancel out, as they do in a total.
+  crossing and a missed one do not cancel out, as they do in a total. A swap shows up
+  twice: a wrong crossing on the person the ID moved to, and a missed one for the person
+  who really crossed.
+- *Is the scoring fair?* Every saved run was rescored with a stricter box overlap (0.5
+  instead of 0.3), a longer look after the crossing (1 s instead of 0.5) and a wider time
+  window (3 s instead of 2). The F1 values move by up to 0.03, but the trackers keep their
+  order on all seven scenes, and on the check scenes OC-SORT and BoT-SORT stay ahead of
+  ByteTrack.
 - *Crossing F1*: every crossing weighs the same, so a false IN costs as much as a missed
   OUT. This is what settings were chosen by.
 - *HOTA, MOTA, IDF1, ID switches*: the standard tracking measures, computed with
@@ -103,8 +123,9 @@ this one?
 | a real IN | 1 |
 | a box with nobody in it | 1 to 2 |
 
-So about 22 of 29 are the tracker. Neither the stitcher nor the hidden legs estimate was
-involved. A swapped ID leaves a pattern in the events: OUT (person A), IN (the ID slides
+So 18 are swaps, and 4 or 5 more are the tracker following one box over a group: about 22
+of 29 are the tracker. Neither the stitcher nor the hidden legs estimate is the cause: with
+both off, v0.3.0 still counts 29 INs on MOT20-03, 28 of them wrong. A swapped ID leaves a pattern in the events: OUT (person A), IN (the ID slides
 back onto B behind them), OUT (B reaches the line). That pattern is what the bounce rule
 looks for.
 
@@ -124,7 +145,8 @@ The trackers sit on a line from "counts everything" to "counts only what it is s
 SORT counts the most real crossings and the most false ones. OC-SORT is the opposite: it
 rarely counts a crossing that did not happen, but misses 769, because it drops tracks in
 the crowd. Tuning moves every tracker towards the middle. ByteTrack tuned is the best
-balance on the crowds; BoT-SORT keeps identities best.
+balance on the crowds; BoT-SORT keeps identities best (without camera motion
+compensation, as above).
 
 The tuned settings, chosen on the two crowds:
 
@@ -157,7 +179,7 @@ it is dropped, and the crossings on either side count. Someone who really turns 
 at the line crosses back once and stays, so their crossing is only late, not lost. A
 person's first crossing is never held.
 
-| all 7 scenes | wrong IN | wrong OUT | missed IN | missed OUT | check F1 |
+| | wrong IN (7 scenes) | wrong OUT (7 scenes) | missed IN (7 scenes) | missed OUT (7 scenes) | F1, check scenes |
 | --- | --- | --- | --- | --- | --- |
 | SORT tuned | 151 | 210 | 67 | 300 | 0.696 |
 | + bounce | 139 | 206 | 67 | 300 | 0.698 |
@@ -175,18 +197,29 @@ real ones, and raises the F1 on the check scenes. It costs nothing measurable in
 does not catch a swap whose second person never reaches the line, which is why ByteTrack
 still makes 61 wrong INs. On MOT20-05 alone, wrong crossings fell from 310 (v0.3.0) to 83.
 
-The hold makes a reversing crossing reach the event log up to 12 s late, dated when it
-happened. Totals shown live are late by the same amount for those few crossings.
+The rule has two costs:
+- **Delay.** A reversing crossing reaches the event log up to 12 s late (12.5 s with the
+  0.5 s confirmation), dated when it happened. The live IN and OUT totals lag by the same
+  amount for those few crossings.
+- **Dithering.** Someone who crosses, crosses back and crosses again within 12 s looks
+  exactly like a swap, so their crossing back is dropped: IN, OUT, IN counts as IN, IN. On
+  these scenes the rule removed far more swaps than it cost, but a doorway where people
+  often step out and back in would see it.
 
-### Stitcher (since 0.3.0): helps sparse scenes, hurts crowds
+### Stitcher (since 0.3.0): trades wrong crossings for misses
 
 The stitcher gives a person the tracker lost their old ID back when a new box appears
 where they were heading. On the sample clips it fixed split tracks. In crowds it adds
 wrong crossings on all five trackers: ByteTrack 200 to 225, SORT 361 to 437, OC-SORT 67 to
 109. When dozens of people vanish and appear every second, the nearest vanished person is
-often the wrong one. It saves a few misses (ByteTrack 448 to 436) but loses on F1 on the
-check scenes for four trackers out of five. It becomes a per scene choice: on for sparse
-scenes with pillars and doors, off in crowds.
+often the wrong one. In return it saves a few misses (ByteTrack 448 to 436).
+
+Which side wins depends on the scene. On the two tune crowds, a 1 s stitch raises
+ByteTrack's F1 slightly (0.711 to 0.716 alone, 0.720 to 0.727 with bounce), so the sweep
+chose it, and the crowd scene files use it. On the check scenes it lowers the F1 for four
+trackers out of five (ByteTrack with bounce: 0.754 to 0.735, with 8 more wrong crossings
+and 3 more missed). So it is a per scene setting: on for sparse scenes with pillars and
+doors, where it mends split tracks; short or off in crowds, as `pathsense tune` decides.
 
 ### Guard (experimental, not shipped): a per frame swap detector
 
@@ -221,12 +254,38 @@ crossings on four trackers out of five and 0.5 to 3.4 ms per frame. It is kept i
 | MOT20-05 | v0.3.0 | 156 / 46 | 517 / 594 | 310 | 277 | 32.1 |
 | | chosen | 41 / 46 | 411 / 594 | 83 | 271 | 36.6 |
 
-The count error (right chart) barely moves while wrong crossings fall by three quarters.
-In v0.3.0, false crossings were filling the gap left by missed ones: MOT20-05's OUT total
-of 517 looked closer to the truth (594) than the new 411, but 310 of v0.3.0's crossings
-were wrong. That is why crossings are scored one by one here, and why totals alone would
-have led to the wrong choice. MOT20-01 is the one scene that got slightly worse (3 more
-wrong, 4 more missed out of 35).
+The total count error per scene (right chart) barely moves while wrong crossings fall by
+three quarters (MOT20-05: 187 to 188; MOT20-03: 57 to 61), but which way it errs changes.
+On MOT20-05 the IN error falls from 110 to 5 and the OUT error grows from 77 to 183. In
+v0.3.0, false crossings were filling the gap left by missed ones: MOT20-05's OUT total of
+517 looked closer to the truth (594) than the new 411, but 310 of v0.3.0's crossings were
+wrong. That is why crossings are scored one by one here, and why totals alone would have
+led to the wrong choice.
+
+Two check scenes got slightly worse: MOT20-01 (3 more wrong, 4 more missed, out of 35
+true crossings) and MOT17-02 (1 more wrong, IDF1 39.3 to 38.4).
+
+## Where the misses come from
+
+The misses hardly move with any layer (436 to 448 across the tuned ByteTrack setups, 435
+for v0.3.0), which first looked like a detection limit. It is not, mostly. For each of
+the chosen setup's 437 missed crossings, the saved detections and tracks were checked
+against the labelled person in the second around the crossing:
+
+| what happened to the person who crossed | missed |
+| --- | --- |
+| no track on them (detected or not) | 131 |
+| one ID on them before and after, but no matching crossing | 125 |
+| their track starts or ends at the line | 93 |
+| their ID changes at the line | 54 |
+| a swap: our ID crossed, but is scored on someone else | 34 |
+
+The detector had a box on the person in most frames around the crossing for 293 of the
+437, in some frames for 116, and never for 28. So a better detector will help, but most
+misses are the tracker starting tracks late, losing them at the line, or splitting them.
+Part of the 125 group may be the scoring being strict: for 117 of those, that ID did log a
+crossing the same way, but more than 2 s away or while it covered someone else. 23 of the
+437 are people labelled as standing still (MOT class 7) whose boxes still cross the line.
 
 ## A correction made during the study
 
@@ -260,10 +319,11 @@ What changes in the product, and why each choice is no wider than the evidence:
    the people count from 78 to 104 IDs and platform enters from 78 to 91: in sparse scenes
    it still mends split tracks. In crowds it adds wrong crossings (above), so crowd scenes
    set it lower.
-5. **ByteTrack stays the tracker.** It is the best balance on the crowds, and as fast as
-   any. BoT-SORT keeps identities slightly better (IDF1 49.2 against 47.8) and OC-SORT
-   counts fewer false crossings in sparse scenes; `pathsense tune` will offer both per
-   scene.
+5. **ByteTrack stays the default tracker.** It is the best on the two crowds and over
+   all seven scenes, and as fast as any. The check scenes do not single it out: OC-SORT
+   with bounce (0.773) and BoT-SORT as shipped (0.761) score higher there, and BoT-SORT
+   keeps identities slightly better (IDF1 49.2 against 47.8). So the default does not
+   change, and `pathsense tune` will choose among all five per scene.
 
 The sample clip runs (sample clips are public, so these are reproducible by anyone):
 
@@ -277,15 +337,18 @@ The sample clip runs (sample clips are public, so these are reproducible by anyo
 ## Limits
 
 - One detector (YOLO26n at `imgsz` 1920 for most scenes, saved once). A better detector
-  will move every number, the misses most; the study reruns in about an hour.
+  will move every number; the study reruns in about an hour.
 - Two tune scenes. Both are night crowds walking mostly one way. The check scenes show
-  the choice holds on average but not on every scene (MOT20-01).
+  the layers hold up, but the tracker choice does not, and two scenes got slightly
+  worse (MOT20-01, MOT17-02).
 - The best tracker depends on the scene: on the check scenes OC-SORT with bounce scores
   higher (0.773) than ByteTrack with bounce (0.754), because they are sparser and reward
   OC-SORT's caution. This is what `pathsense tune` (Phase 3, step 4) is for: choosing the
   tracker and its settings per scene, from a short labelled clip.
-- No appearance features (ReID) were tried. The motion-only trackers already fall to the
-  detector's limit on misses; ReID would have to beat that and still run in a browser.
+- No appearance features (ReID) were tried. They might mend the misses where an ID
+  changes at the line, but would have to earn their cost in a browser.
+- The labels' crossings include people hidden at that moment (any visibility) and people
+  labelled as standing still, so a few true crossings cannot be seen by any detector.
 
 ## Reproduce
 

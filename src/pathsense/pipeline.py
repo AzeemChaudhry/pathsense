@@ -101,7 +101,12 @@ class Pipeline:
 
     def track(self, detections: sv.Detections, frame: Frame) -> FrameResult:
         """Everything after the detector. Evaluation replays saved detections through it, so
-        a replay runs the same code as a live video (`frame.image` may then be None)."""
+        a replay runs the same code as a live video (`frame.image` may then be None).
+
+        `detections` must already be through `drop_partial_duplicates` when the scene sets
+        `detector.drop_partial`; `process` does that, and saved detections keep the setting
+        they were saved with.
+        Without an image, BoT-SORT cannot compensate camera motion."""
         start = time.perf_counter()
         tracked = self.tracker.update(detections, frame=frame.image, timestamp=frame.timestamp)
         if self.stitcher:

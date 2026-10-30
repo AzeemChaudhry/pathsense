@@ -40,7 +40,8 @@ Three rules keep the count honest:
   another person, changes nothing. `finish()` counts flips still waiting when the video
   ends, even if the feet are on the line.
 
-One more rule is off by default:
+One more rule is off in this class (`bounce=0`) and on in the pipeline
+(`analytics.line_bounce`, 12 s by default):
 
 - **Bounce.** In a dense crowd the tracker sometimes slides an ID from one person onto the
   person behind them. The ID then seems to turn round: person A's crossing, a crossing
@@ -48,8 +49,11 @@ One more rule is off by default:
   a crossing that reverses the ID's last one is held for `bounce` seconds; if the ID
   crosses back the original way within that time, the held one is dropped and the other
   two count. Someone who really turns round at the line crosses back once and stays, so
-  their crossing is only late, not lost. On MOT20-03 a bounce of 5 s removed 10 of 29
-  wrong-way crossings without changing the other direction (docs/TRACKER_STUDY.md).
+  their crossing is only late, not lost. Someone who dithers, crossing, crossing back and
+  crossing again within `bounce`, looks exactly like a swap: their middle crossing is
+  dropped (IN, OUT, IN counts as IN, IN). A held crossing waits at most `bounce` plus
+  `confirm` seconds, so the totals lag by at most that. On the tracker study's crowds it
+  removed 4 to 15% of the wrong crossings left after tuning (docs/TRACKER_STUDY.md).
 """
 
 from __future__ import annotations
@@ -177,9 +181,12 @@ class LineCounter:
             if clear.get(track_id) == pending.side and t - pending.t >= self.confirm - EPS:
                 events += self._count(track_id, pending)
         for track_id, held in list(self._held.items()):
+            # Past `bounce`, wait only for a crossing back that started in time and is
+            # still being confirmed, and never past `bounce + confirm`.
             pending = self._pending.get(track_id)
             waiting = pending is not None and pending.t - held.t <= self.bounce + EPS
-            if not waiting and t - held.t > self.bounce + EPS:
+            overdue = t - held.t > self.bounce + self.confirm + EPS
+            if (overdue or not waiting) and t - held.t > self.bounce + EPS:
                 events.append(self._event(track_id, self._held.pop(track_id)))
         for track_id, last in list(self._last_seen.items()):
             if track_id not in seen and t - last >= self.lost - EPS:

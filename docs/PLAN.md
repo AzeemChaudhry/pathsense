@@ -116,8 +116,10 @@ after numbers on CCTV style video.
   crowds (MOT20) ByteTrack swaps IDs and the line counts false crossings the wrong way
   (MOT20-03: 28 against 4); far groups in zones are undercounted. Both go to Phase 3.
 - **Phase 3 in progress.** Steps 1 and 2 done (2026-10-30, [TRACKER_STUDY.md](TRACKER_STUDY.md)):
-  the wrong-way crossings are tracker ID swaps; across 7 MOT scenes, tuned ByteTrack with
-  the new bounce rule cuts wrong crossings from 471 to 191 without missing more, and ID
-  switches by 43%. `line_bounce` is on by default; the crowd tracker settings live in the
-  crowd scene files, since they split tracks on the close-up grocery clip. Next: step 4,
-  `pathsense tune` (step 3's crossing safeguard is the bounce rule).
+  the wrong-way crossings are tracker ID swaps. Tuned ByteTrack with the new bounce rule
+  cuts wrong crossings from 392 to 129 on the two crowds it was tuned on and from 79 to 62
+  on the five check scenes, without missing more. The check scenes favour OC-SORT and
+  BoT-SORT, so the tracker is a per scene choice. `line_bounce` is on by default; the
+  crowd tracker settings live in the crowd scene files, since they split tracks on the
+  close-up grocery clip. Next: step 4, `pathsense tune` (step 3's crossing safeguard is
+  the bounce rule).

@@ -3,7 +3,9 @@
 Totals hide errors that cancel: a missed OUT and a false OUT give the right count. Here
 each of our crossings is tied to the labelled person under its box (`Identity`), and it is
 right only when that person crossed the same way within `window` seconds. A crossing by an
-ID the tracker moved onto someone else lands on the wrong person and counts as false.
+ID the tracker moved onto someone else lands on the wrong person and counts as false; if
+the person who really crossed has no right crossing of their own, it is also missed, so
+one swap can count twice.
 """
 
 from __future__ import annotations

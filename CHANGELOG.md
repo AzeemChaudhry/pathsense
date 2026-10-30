@@ -14,7 +14,9 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
   behind, which looks like a U-turn at the line. A crossing that reverses the ID's last
   one now waits this many seconds and is dropped if the ID crosses back. On by default at
   12 s: on seven MOT scenes it removes wrong crossings with every tracker tried, and on the
-  sample clips it changes one count (docs/TRACKER_STUDY.md).
+  sample clips it changes one count (docs/TRACKER_STUDY.md). A held crossing waits at most
+  `line_bounce` plus `line_confirm`; someone who crosses, crosses back and crosses again
+  within it loses the crossing back.
 - Trackers `sort` and `cbiou` (C-BIoU), and `tracker.params.iou` to choose how box overlap
   is measured (`iou`, `giou`, `diou`, `ciou`, `biou`).
 - `pathsense.eval`: MOT label loading, HOTA, MOTA, IDF1 and ID switches (TrackEval rules),

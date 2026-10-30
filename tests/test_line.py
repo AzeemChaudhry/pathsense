@@ -328,6 +328,42 @@ def test_a_held_crossing_counts_when_the_track_ends():
     assert (counter.entered, counter.exited) == (1, 1)
 
 
+def test_a_held_crossing_counts_when_the_video_ends():
+    counter = LineCounter(START, END, bounce=5.0)
+    assert walk(counter, 5, 960, [600, 500, 580]) == [Event(0.1, 1, 5, "exit")]
+    assert counter.finish() == [Event(0.2, 2, 5, "enter")]
+
+
+def test_a_crossing_back_still_being_confirmed_drops_the_held_one():
+    # Held at 0.5 s; the ID flips back at 1.4 s, inside the 1 s bounce, but is only
+    # confirmed at 1.7 s, past it. The hold waits for it.
+    counter = LineCounter(START, END, confirm=0.3, bounce=1.0)
+    ys = [600] + [500] * 4 + [580] * 9 + [500] * 6
+    events = walk(counter, 6, 960, ys) + counter.finish()
+    assert events == [Event(0.1, 1, 6, "exit"), Event(1.4, 14, 6, "exit")]
+    assert counter.bounced == 1
+
+
+def test_a_hold_never_waits_past_bounce_plus_confirm():
+    # As above, but the feet stay on the line after flipping back, so that flip is never
+    # confirmed; the held crossing is released once 1.3 s have passed.
+    counter = LineCounter(START, END, confirm=0.3, bounce=1.0)
+    ys = [600] + [500] * 4 + [580] * 9 + [500] + [540] * 10
+    released = {}
+    for frame, y in enumerate(ys):
+        for event in counter.update(person(7, 960, y), t=frame / 10, frame=frame):
+            released[event] = frame
+    assert released == {Event(0.1, 1, 7, "exit"): 4, Event(0.5, 5, 7, "enter"): 19}
+
+
+def test_someone_dithering_at_the_line_loses_the_middle_crossing():
+    # The documented cost of the rule: IN, OUT, IN within the bounce counts as IN, IN.
+    counter = LineCounter(START, END, bounce=5.0)
+    events = walk(counter, 8, 960, [500, 580, 500, 580]) + counter.finish()
+    assert [e.type for e in events] == ["enter", "enter"]
+    assert counter.bounced == 1
+
+
 def test_a_first_crossing_is_never_held():
     counter = LineCounter(START, END, bounce=5.0)
     assert walk(counter, 4, 960, [500, 560, 580]) == [Event(0.1, 1, 4, "enter")]
