@@ -408,8 +408,11 @@ The full table of 27 variants is written to `runs/appearance-study/report.md`.
 - **Blend's real gain is on crowds:** 15 to 19% fewer wrong crossings and 8 to 10% fewer
   IDs, but more misses, and it does not hold on the check scenes.
 - **The cost is an embedding for every person on every frame:** about 6 ms a box on the CPU
-  (measured with the ONNX export on 12 threads; `Embedder` uses PyTorch, not timed here), so
-  close to a second a frame on MOT20-03. Published work agrees on
+  (measured with the ONNX export on 12 threads), so close to a second a frame on MOT20-03.
+  Live on the GTX 1650 with `Embedder`, people-walking fell from 91.6 to 18 FPS: about 46 ms
+  a frame where tracking alone takes 0.8 ms. With appearance on and nothing using it, its
+  event log was identical to appearance off, and the count kept the hand count (11 IN, 7
+  OUT). Published work agrees on
   the direction: [BoT-SORT's authors](https://arxiv.org/pdf/2206.14651) say appearance falls
   short in crowded scenes, and [Hybrid-SORT](https://arxiv.org/pdf/2308.00783) reports
   limited gains on MOT17 and MOT20.
@@ -439,9 +442,10 @@ pair with a strong look can match, and a well overlapping pair with a weak look 
   every box: `dynamic` and `skip_overlap` protect the tracker's memory only, so in a crowd
   they may compare against a look holding two people. That could be part of why they did
   not help; it was not tested.
-- **Replays and live runs differ slightly.** Saved vectors are float16; `replay` and the
-  quality tables renormalise them. Renormalising changed one figure in the study (an ID count, by 1), so scores
-  should be close to live, but no live run was compared.
+- **Replays and live runs agree where checked.** Saved vectors are float16; `replay` and
+  the quality tables renormalise them, which changed one figure in the study (an ID count,
+  by 1). On people-walking with veto 0.5, a live run and a replay gave the same 94 events.
+  That is one sparse clip, on which veto changes nothing, not a crowd.
 - **One small model and one detector.** OSNet x0.25, on one detector's boxes. Phase 4's
   detector will move these numbers.
 - **The saved vectors came from half precision on the GPU**, whose final batch on MOT17-09

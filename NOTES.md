@@ -429,6 +429,9 @@ Full tables in docs/TRACKER_STUDY.md, Appearance. Toggle: `appearance.enabled`, 
   the setup chosen in advance. Also fixed: saved vectors now keyed on the boxes and checked
   by row count, renormalised in replays (one ID count moved by 1). Stitcher and line
   memories lack the tracker's protections, so those two results are less settled.
+- **Live check (people-walking):** on with nothing used gives a byte identical event log to
+  off, 11 IN and 7 OUT; 91.6 to 18 FPS on the GTX 1650. Live and replay with veto 0.5 gave
+  the same 94 events.
 - **Open:** re-entry, which no clip of ours can test; MSMT17 weights are academic only.
 
 ## 2026-10-30: `pathsense tune` (Phase 3, step 4)
