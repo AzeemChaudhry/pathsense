@@ -60,7 +60,10 @@ from pathsense.tune.replay import Replay, no_detector, replay
 from pathsense.tune.truth import Truth, count_key, scene_truth
 
 CANDIDATES = Path(__file__).resolve().parents[3] / "configs" / "tune" / "candidates.yaml"
-FIXED = ("detector.", "analytics.line=", "analytics.zones=")  # what a candidate may not set
+# What a candidate may set: the tracker and the counting rules, but not the line and zones
+# (the truth is counted on the scene's own) nor the detector (the boxes are saved).
+TUNABLE = ("tracker.", "analytics.")
+FIXED = ("analytics.line=", "analytics.line.", "analytics.zones=", "analytics.zones.")
 
 
 @dataclass(frozen=True)
@@ -71,10 +74,11 @@ class Candidate:
 
     def __post_init__(self) -> None:
         for override in self.overrides:
-            if override.replace(" ", "").startswith(FIXED):
+            key = override.replace(" ", "")
+            if not key.startswith(TUNABLE) or key.startswith(FIXED):
                 raise ConfigError(
-                    f"candidate {self.name!r}: {override!r} cannot be tuned; the detections "
-                    "are saved and the truth is counted on the scene's own line and zones"
+                    f"candidate {self.name!r}: {override!r} cannot be tuned; a candidate sets "
+                    "tracker and analytics settings, not the line, zones or detector"
                 )
 
 
@@ -321,8 +325,8 @@ class TuneReport:
             f"- **Swaps:** {split['swap']}, an ID crossed but is scored on someone else (also "
             "counted as wrong).",
             f"- **Both:** {split['both']}, detected only in some frames.",
-            f"- **Unclear:** {split['unclear']}, one ID on them throughout but no matching "
-            "crossing (too far in time, or scored on someone else).",
+            f"- **Unclear:** {split['unclear']}, one ID on them throughout, but its crossing, "
+            "if any, was more than 2 s away or did not match.",
             "",
             f"Counting rules: with perfect tracks (the labels), the rules alone give "
             f"{d.rules_wrong} wrong and {d.rules_missed} missed; these overlap the groups above.",
@@ -396,8 +400,13 @@ def tune(
             if chosen.candidate == CURRENT
             else loaded.run(chosen.candidate)
         )
+        if score.counts != chosen.score.counts or score.crossings != chosen.score.crossings:
+            raise RuntimeError(f"replaying {chosen.candidate.name!r} again gave another result")
+        # The report's numbers and its diagnosis then come from one and the same replay.
+        chosen = Trial(chosen.candidate, score)
+        trials = [chosen if t.candidate == chosen.candidate else t for t in trials]
         assert score.crossings is not None
-        diagnosis = _diagnose(loaded, best, score.crossings)  # tracks and crossings agree
+        diagnosis = _diagnose(loaded, best, score.crossings)
     unscored = tuple(k for k in loaded.countable if k not in loaded.true_counts)
     profile = scene_profile(loaded.saved, current.tracks)
     return TuneReport(scene, profile, trials, chosen, diagnosis, unscored)

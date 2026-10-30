@@ -144,6 +144,7 @@ def test_candidates_are_checked(tmp_path):
         "candidates: [{name: a, why: b, set: [detector.conf=0.3]}]",  # boxes are saved
         "candidates: [{name: a, why: b, set: ['analytics.line=[[0, 0], [9, 9]]']}]",
         "candidates: [{name: a, why: b, set: ['analytics.zones=[]']}]",
+        "candidates: [{name: a, why: b, set: [camera.fps=10]}]",  # only tracker, analytics
     ):
         path.write_text(bad)
         with pytest.raises(ConfigError):
@@ -295,3 +296,72 @@ def test_parallel_and_serial_tuning_agree(tmp_path, tiny_video, fake_detector):
     parallel = tune(scene, candidates, cache_folder=tmp_path / "cache", jobs=2)
     assert [t.score.counts for t in serial.trials] == [t.score.counts for t in parallel.trials]
     assert serial.chosen.candidate == parallel.chosen.candidate
+
+
+def test_every_kind_of_miss_lands_in_one_group():
+    from pathsense.eval.misses import DETECTED, TRACKED
+    from pathsense.tune.run import Diagnosis
+
+    every = Counter({(t, d): 1 for t in TRACKED for d in DETECTED})
+    split = Diagnosis(every, 0, 0).split()
+    assert sum(split.values()) == len(TRACKED) * len(DETECTED)
+    assert split == {"detector": 5, "swap": 2, "tracker": 3, "both": 4, "unclear": 1}
+    alone = {(t, d): Diagnosis(Counter({(t, d): 1}), 0, 0).split() for t, d in every}
+    half, some, never = DETECTED
+    no_track, one_id, starts, changes, swap = TRACKED
+    assert alone[no_track, never]["detector"] == alone[swap, half]["swap"] == 1
+    assert alone[changes, half]["tracker"] == alone[starts, some]["both"] == 1
+    assert alone[one_id, half]["unclear"] == alone[one_id, some]["both"] == 1
+
+
+def test_parallel_tuning_with_labels_matches_serial(tmp_path, tiny_video, fake_detector):
+    labels = tmp_path / "gt.txt"
+    labels.write_text("".join(f"{f + 1},7,{4 * f},5,10,35,1,1,1.0\n" for f in range(12)))
+    scene = write_scene(tmp_path, tiny_video, f"{{labels: {labels}}}")
+    candidates = load_candidates(CANDIDATES)[:2]
+    serial = tune(scene, candidates, cache_folder=tmp_path / "cache", jobs=1)
+    parallel = tune(scene, candidates, cache_folder=tmp_path / "cache", jobs=2)
+    for a, b in zip(serial.trials, parallel.trials, strict=True):
+        assert a.score.crossings == b.score.crossings and a.score.counts == b.score.counts
+    assert parallel.chosen in parallel.trials
+
+
+def test_a_second_tune_call_sees_an_edited_truth(tmp_path, tiny_video, fake_detector):
+    scene = write_scene(tmp_path, tiny_video, "{exit: 1}")
+    assert tune(scene, [], cache_folder=tmp_path / "cache").chosen.score.count_error == 0
+    scene.write_text(scene.read_text().replace("{exit: 1}", "{exit: 3}"))
+    assert tune(scene, [], cache_folder=tmp_path / "cache").chosen.score.count_error == 2
+
+
+def test_a_local_weights_file_is_part_of_the_key(tmp_path, tiny_video):
+    weights = tmp_path / "w.pt"
+    weights.write_bytes(b"one")
+    config = DetectorConfig(name="fake", weights=str(weights))
+    before = detector_key(config, tiny_video)
+    weights.write_bytes(b"retrained")
+    assert detector_key(config, tiny_video) != before
+    with pytest.raises(ConfigError, match="video not found"):
+        detector_key(config, tmp_path / "missing.mp4")
+
+
+def test_an_interrupted_save_leaves_the_old_file(tmp_path, monkeypatch):
+    saved = SavedDetections(
+        xyxy=np.zeros((0, 4), np.float32),
+        confidence=np.zeros(0, np.float32),
+        counts=np.array([0]),
+        index=np.array([0]),
+        timestamp=np.array([0.0]),
+        fps=10.0,
+        detector="old",
+    )
+    path = tmp_path / "d.npz"
+    saved.save(path)
+
+    def fail(self, out):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(SavedDetections, "_write", fail)
+    with pytest.raises(KeyboardInterrupt):
+        saved.save(path)
+    assert SavedDetections.load(path).detector == "old"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["d.npz"]  # no temporary left

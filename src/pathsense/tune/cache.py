@@ -9,9 +9,11 @@ tracking), so it runs once and the boxes are saved:
         pipeline.track(boxes, frame)
 
 The file remembers what it was made from: the video (its full path, size and time
-modified) and the detector settings (model, weights file, input size, confidence, tiling,
-dropping partial boxes). A change to any of them makes a new one. The device is not part
-of it: a GPU and a CPU give the same boxes up to rounding.
+modified) and the detector settings (model, input size, confidence, tiling, dropping
+partial boxes, and the weights file when it is a local one). A change to any of them makes
+a new one. Two limits: pretrained weights the model library downloads are known by name
+only, and moving the repo or touching the video also makes a new one (a full detector
+pass). The device is not part of it: a GPU and a CPU give the same boxes up to rounding.
 """
 
 from __future__ import annotations
@@ -29,7 +31,7 @@ from pathlib import Path
 import numpy as np
 import supervision as sv
 
-from pathsense.config import DetectorConfig
+from pathsense.config import ConfigError, DetectorConfig
 from pathsense.detect import Detector, build_detector
 from pathsense.detect.base import drop_partial_duplicates
 from pathsense.io import Frame, VideoSource
@@ -53,6 +55,8 @@ def detector_key(config: DetectorConfig, video: Path | str | None = None) -> str
     if config.weights and Path(config.weights).is_file():
         settings["weights_file"] = _stamp(config.weights)  # retrained in place: new boxes
     if video is not None:
+        if not Path(video).is_file():
+            raise ConfigError(f"video not found: {video}")
         settings["video"] = _stamp(video)
     return json.dumps(settings, sort_keys=True)
 
@@ -102,9 +106,14 @@ class SavedDetections:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         handle, temporary = tempfile.mkstemp(dir=path.parent, suffix=".npz")
-        with os.fdopen(handle, "wb") as out:
-            self._write(out)
-        os.replace(temporary, path)
+        try:
+            with os.fdopen(handle, "wb") as out:
+                self._write(out)
+            os.chmod(temporary, 0o644)  # mkstemp makes it private to its owner
+            os.replace(temporary, path)
+        except BaseException:
+            Path(temporary).unlink(missing_ok=True)
+            raise
 
     def _write(self, out) -> None:
         np.savez(

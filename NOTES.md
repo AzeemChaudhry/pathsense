@@ -409,9 +409,8 @@ Full write-up with charts: [docs/TRACKER_STUDY.md](docs/TRACKER_STUDY.md).
 scene's `truth:` block, and keeps the scene's own setup unless one is strictly better.
 Reports in `runs/tune/<scene>/report.md`.
 
-- **Reproduces the study.** MOT20-03 as it is: F1 0.805, 46 wrong, 93 missed, the same as
-  the study's chosen setup (docs/TRACKER_STUDY.md, per scene table; from
-  `runs/tracker-study/results.csv`, local). The study scripts now run on the same package code; 34 of 35 rerun setups
+- **Reproduces the study.** MOT20-03 as it is: 11 IN, 322 OUT, 46 wrong and 93 missed,
+  the chosen setup's MOT20-03 row in docs/TRACKER_STUDY.md (per scene table). The study scripts now run on the same package code; 34 of 35 rerun setups
   matched the saved results exactly, and the full rerun moved three runs by one crossing,
   all from the bounce hold cap added in the review of PR 12 (not from the refactor).
 - **What it picks**, scored on the same clip it chose on (so optimistic):

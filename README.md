@@ -283,9 +283,14 @@ F1, then by count error. A setup replaces the scene's own only if it comes out s
 ahead in that order. Candidates may change the tracker and the counting rules, not the
 detector or the line and zones. The report describes the scene, compares every setup,
 shows the block to paste into the scene file, and puts every missed crossing in one group:
-the detector's (never detected), the tracker's (detected, but the track was lost, split or
-swapped), both, or unclear; it also says what the counting rules alone get wrong with
-perfect tracks. It never edits the scene file itself.
+the detector's (never detected), the tracker's (detected, but the track was lost or
+split), a swap (an ID crossed but on someone else), both (detected only at times), or
+unclear; it also says what the counting rules alone get wrong with perfect tracks. It
+never edits the scene file itself.
+
+The saved boxes are made again when the video file changes or moves (moving the repo
+counts), or when a local weights file changes; pretrained weights the model library
+downloads are known by name only. `--refresh` makes them again in any case.
 
 The scene file says what really happened in a `truth:` block, either hand labels or hand
 counts:
