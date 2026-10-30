@@ -8,6 +8,18 @@ source: data/mot/videos/MOT20-05.mp4
 detector:
   imgsz: 1920       # a dense crowd of small people
 
+# Crowd settings, chosen on MOT20-03 and this scene by the tracker study
+# (docs/TRACKER_STUDY.md): matching boxes must overlap more, so an ID does not slide onto a
+# neighbour, and a lost person is stitched back only within 1 s. Not the default: on the
+# close-up grocery clip the 0.4 overlap breaks the shopper's track.
+tracker:
+  params:
+    lost_track_buffer: 60
+    minimum_iou_threshold: 0.4
+    track_activation_threshold: 0.4
+    iou: diou
+  stitch_seconds: 1
+
 analytics:
   line: [[0, 600], [1654, 600]]
   zones:

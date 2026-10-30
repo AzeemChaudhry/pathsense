@@ -1,5 +1,7 @@
 """The pipeline end to end with a fake detector and the real tracker and video reader."""
 
+import dataclasses
+
 import numpy as np
 import pytest
 from conftest import detections
@@ -132,3 +134,14 @@ def test_partial_duplicates_are_dropped_only_when_the_scene_asks(monkeypatch, ti
         with VideoSource(str(tiny_video)) as source:
             last = list(pipeline.run(source))[-1]
         assert len(last.tracked) == people
+
+
+def test_replaying_saved_detections_matches_the_live_run(tiny_video):
+    # Evaluation replays saved detections through track(); it must give the live result.
+    with VideoSource(str(tiny_video)) as source:
+        live = list(Pipeline(WalkingPerson(), Tracker("bytetrack", frame_rate=10)).run(source))
+    fake, replay = WalkingPerson(), Pipeline(None, Tracker("bytetrack", frame_rate=10))
+    with VideoSource(str(tiny_video)) as source:
+        for frame, want in zip(source, live, strict=True):
+            got = replay.track(fake(frame.image), dataclasses.replace(frame, image=None))
+            assert got.tracked.tracker_id.tolist() == want.tracked.tracker_id.tolist()

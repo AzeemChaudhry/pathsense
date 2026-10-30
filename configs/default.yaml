@@ -32,6 +32,7 @@ analytics:
   line_margin: 5       # feet closer than this many pixels to the line do not change side
   line_margin_height: 0      # > 0: margin at least this share of the person's height
   line_confirm: 0.5    # seconds on the new side before a crossing counts (stops arm waving)
+  line_bounce: 12      # drop a crossing the same ID undoes within this many seconds (0: off)
   # Zones, e.g. [{name: door, polygon: [[100, 500], [400, 500], [400, 900], [100, 900]]}]
   zones: []
   zone_confirm: 0.5    # seconds inside (or outside) before a zone enter (or exit) counts

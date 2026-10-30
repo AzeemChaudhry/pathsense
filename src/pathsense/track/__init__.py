@@ -9,9 +9,15 @@ longer than `lost_track_buffer` comes back with a new ID (NOTES.md, Phase 0).
 
 | name      | idea                                                                    |
 | --------- | ----------------------------------------------------------------------- |
+| sort      | one matching pass on Kalman predicted boxes: the classic baseline       |
 | bytetrack | two matching passes: confident boxes first, then low confidence ones    |
 | botsort   | ByteTrack style matching plus camera motion compensation (uses frames)  |
 | ocsort    | corrects the motion model after occlusions using the observed path      |
+| cbiou     | BoT-SORT style passes on boxes enlarged by a buffer, for jerky motion   |
+
+`params: {iou: giou}` swaps how box overlap is measured for the trackers that take it
+(`iou`, `giou`, `diou`, `ciou`, `biou`; see IOU_MEASURES). docs/TRACKER_STUDY.md compares
+all of them on MOT17 and MOT20.
 """
 
 from __future__ import annotations
@@ -22,15 +28,29 @@ from typing import Any
 
 import numpy as np
 import supervision as sv
-from trackers import BoTSORTTracker, ByteTrackTracker, OCSORTTracker
+from trackers import (
+    BIoU,
+    BoTSORTTracker,
+    ByteTrackTracker,
+    CBIoUTracker,
+    CIoU,
+    DIoU,
+    GIoU,
+    IoU,
+    OCSORTTracker,
+    SORTTracker,
+)
 
 from pathsense.config import ConfigError
 
 TRACKERS = {
+    "sort": SORTTracker,
     "bytetrack": ByteTrackTracker,
     "botsort": BoTSORTTracker,
     "ocsort": OCSORTTracker,
+    "cbiou": CBIoUTracker,
 }
+IOU_MEASURES = {"iou": IoU, "giou": GIoU, "diou": DIoU, "ciou": CIoU, "biou": BIoU}
 # Only BoT-SORT looks at the image (to estimate camera motion); the others warn if given one.
 USES_FRAME = {"botsort"}
 
@@ -69,6 +89,8 @@ class Tracker:
         params, skipped = split_params(name, params)
         if skipped:
             warnings.warn(f"{name} does not use {skipped}; skipped", stacklevel=2)
+        if "iou" in params:
+            params["iou"] = iou_measure(params["iou"])
         self._tracker = TRACKERS[name](frame_rate=frame_rate, **params)
 
     def update(
@@ -98,8 +120,15 @@ class Tracker:
         self._tracker.reset()
 
 
+def iou_measure(name: Any):
+    """`params.iou` from a config ("giou") -> the measure object the tracker takes."""
+    if name not in IOU_MEASURES:
+        raise ConfigError(f"Unknown tracker iou {name!r}; choose one of {sorted(IOU_MEASURES)}")
+    return IOU_MEASURES[name]()
+
+
 def build_tracker(name: str, frame_rate: float = 30.0, params: dict[str, Any] | None = None):
     return Tracker(name, frame_rate=frame_rate, **(params or {}))
 
 
-__all__ = ["TRACKERS", "Tracker", "build_tracker"]
+__all__ = ["IOU_MEASURES", "TRACKERS", "Tracker", "build_tracker"]

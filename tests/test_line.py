@@ -301,3 +301,88 @@ def test_hidden_legs_stop_a_cart_from_making_crossings():
             tracked.tracker_id = np.array([1])
             events += counter.update(tracked, t=frame / 10, frame=frame)
         assert len(events) == expected
+
+
+def test_an_id_swap_in_a_crowd_drops_the_crossing_back():
+    # The ID goes up across the line (A), slides back onto B behind (down), then B goes up.
+    ys = [600, 560, 500, 480, 560, 580, 590, 500, 480, 470]
+    for bounce, types in ((0.0, ["exit", "enter", "exit"]), (2.0, ["exit", "exit"])):
+        counter = LineCounter(START, END, bounce=bounce)
+        events = walk(counter, 1, 960, ys) + counter.finish()
+        assert [e.type for e in events] == types
+    assert counter.bounced == 1
+
+
+def test_turning_round_at_the_line_still_counts_both_crossings():
+    # Also the release by time: nothing comes back, so the hold ends after `bounce`.
+    counter = LineCounter(START, END, bounce=2.0)
+    events = walk(counter, 2, 960, [600, 560, 500, 480] + [560, 580, 600] * 10)  # stays down
+    assert [(e.type, e.frame) for e in events] == [("exit", 2), ("enter", 4)]  # late, not lost
+    assert counter.bounced == 0
+
+
+def test_a_held_crossing_counts_when_the_track_ends():
+    counter = LineCounter(START, END, bounce=5.0, lost=0.5)
+    walk(counter, 3, 960, [600, 500, 480, 560, 580])  # up, then back down, then gone
+    assert (counter.entered, counter.exited) == (0, 1)  # the crossing back is held
+    assert counter.update(person(9, 0, 0)[:0], t=2.0, frame=20) == [Event(0.3, 3, 3, "enter")]
+    assert (counter.entered, counter.exited) == (1, 1)
+
+
+def test_a_held_crossing_counts_when_the_video_ends():
+    counter = LineCounter(START, END, bounce=5.0)
+    assert walk(counter, 5, 960, [600, 500, 580]) == [Event(0.1, 1, 5, "exit")]
+    assert counter.finish() == [Event(0.2, 2, 5, "enter")]
+
+
+def test_a_crossing_back_still_being_confirmed_drops_the_held_one():
+    # Held at 0.5 s; the ID flips back at 1.4 s, inside the 1 s bounce, but is only
+    # confirmed at 1.7 s, past it. The hold waits for it.
+    counter = LineCounter(START, END, confirm=0.3, bounce=1.0)
+    ys = [600] + [500] * 4 + [580] * 9 + [500] * 6
+    events = walk(counter, 6, 960, ys) + counter.finish()
+    assert events == [Event(0.1, 1, 6, "exit"), Event(1.4, 14, 6, "exit")]
+    assert counter.bounced == 1
+
+
+def test_a_hold_never_waits_past_bounce_plus_confirm():
+    # As above, but the feet stay on the line after flipping back, so that flip is never
+    # confirmed; the held crossing is released once 1.3 s have passed.
+    counter = LineCounter(START, END, confirm=0.3, bounce=1.0)
+    ys = [600] + [500] * 4 + [580] * 9 + [500] + [540] * 10
+    released = {}
+    for frame, y in enumerate(ys):
+        for event in counter.update(person(7, 960, y), t=frame / 10, frame=frame):
+            released[event] = frame
+    assert released == {Event(0.1, 1, 7, "exit"): 4, Event(0.5, 5, 7, "enter"): 19}
+    assert counter.bounced == 0
+    assert counter.finish() == [Event(1.4, 14, 7, "exit")]  # the late crossing back, held
+
+
+def test_someone_dithering_at_the_line_loses_the_middle_crossing():
+    # The documented cost of the rule: IN, OUT, IN within the bounce counts as IN, IN.
+    counter = LineCounter(START, END, bounce=5.0)
+    events = walk(counter, 8, 960, [500, 580, 500, 580]) + counter.finish()
+    assert [e.type for e in events] == ["enter", "enter"]
+    assert counter.bounced == 1
+
+
+def test_a_third_crossing_after_the_window_counts_all_three():
+    # Up, back down, then up again 3 s later: past the 1 s bounce, so not a swap.
+    counter = LineCounter(START, END, bounce=1.0)
+    events = walk(counter, 9, 960, [600, 500, 580] + [580] * 30 + [500, 480]) + counter.finish()
+    assert [e.type for e in events] == ["exit", "enter", "exit"]
+    assert counter.bounced == 0
+
+
+def test_the_bounce_rule_with_the_production_confirm():
+    counter = LineCounter(START, END, confirm=0.5, bounce=12.0)
+    ys = [600] * 3 + [500] * 8 + [580] * 8 + [500] * 8
+    events = walk(counter, 10, 960, ys) + counter.finish()
+    assert [(e.type, e.frame) for e in events] == [("exit", 3), ("exit", 19)]
+    assert counter.bounced == 1
+
+
+def test_a_first_crossing_is_never_held():
+    counter = LineCounter(START, END, bounce=5.0)
+    assert walk(counter, 4, 960, [500, 560, 580]) == [Event(0.1, 1, 4, "enter")]
