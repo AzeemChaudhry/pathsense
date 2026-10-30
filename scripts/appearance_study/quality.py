@@ -35,6 +35,12 @@ def _vectors(scene: _Scene) -> np.ndarray:
     return load_embeddings(embeddings_path(scene.saved_path, scene.saved, look), scene.saved)
 
 
+def _unit(vectors: np.ndarray) -> np.ndarray:
+    """As `replay` does: float16 rounds a vector's length."""
+    vectors = np.asarray(vectors, np.float32)
+    return vectors / (np.linalg.norm(vectors, axis=-1, keepdims=True) + 1e-12)
+
+
 def _matched(boxes: sv.Detections, truth: sv.Detections | None) -> dict[int, int]:
     """Row of `boxes` -> label, where each is the other's best at IoU 0.5 or more."""
     if truth is None or len(truth) == 0 or len(boxes) == 0:
@@ -58,7 +64,7 @@ def _people(name: str) -> str:
         for row, label in _matched(boxes, scene.labels.get(frame.index)).items():
             x1, _, x2, y2 = boxes.xyxy[row]
             height = y2 - boxes.xyxy[row][1]
-            look = np.asarray(vectors[starts[k] + row], np.float32)
+            look = _unit(vectors[starts[k] + row])
             found[label] = (look, (x1 + x2) / 2, y2, height)
         who[frame.index] = found
     cells = [name]
@@ -100,7 +106,7 @@ def _switches(name: str) -> tuple[list[float], list[float], list[float]]:
     runs: dict[int, list] = {}  # track -> [[label, frames, look on the first frame], ...]
     clear, overlapped = [], []
     for k, (frame, boxes) in enumerate(scene.saved):
-        looks = np.asarray(vectors[starts[k] : starts[k + 1]], np.float32)
+        looks = _unit(vectors[starts[k] : starts[k + 1]])
         boxes.data["row"] = np.arange(len(boxes))
         tracked = pipeline.track(boxes, frame).tracked
         if len(tracked) == 0:

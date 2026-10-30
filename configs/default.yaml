@@ -39,7 +39,7 @@ analytics:
   zone_count_present: true   # people already inside when the video starts count as entered
   hidden_legs: 0.25    # box this much shorter than the person: feet from the head; 0: off
 
-appearance:            # tell people apart by clothing; off: see docs/TRACKER_STUDY.md
+appearance:            # tell people apart by clothing; off: see docs/TRACKER_STUDY.md. ByteTrack only
   enabled: false       # true: one embedding per person per frame, in memory for this video
                        # (`pathsense tune` saves them in data/cache, for research clips)
   weights: data/models/osnet_x0_25_msmt17.pt

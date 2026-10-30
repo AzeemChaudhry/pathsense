@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+import warnings
 from types import SimpleNamespace
 
 import numpy as np
@@ -65,6 +66,19 @@ def test_off_gives_exactly_what_the_library_gives(params, seed):
         a, b = ours.update(looked, timestamp=t), theirs.update(found, timestamp=t)
         assert a.tracker_id.tolist() == b.tracker_id.tolist()
         assert a.xyxy.tolist() == b.xyxy.tolist()
+
+
+def test_off_matches_the_library_on_empty_frames_and_repeated_times():
+    params = {"lost_track_buffer": 2, "minimum_consecutive_frames": 1}
+    ours, theirs = AppearanceByteTrack(mode="off", **params), ByteTrackTracker(**params)
+    one = detections([[10, 10, 50, 110]])
+    for found, t in [(one, 0.0), (detections([]), 0.1), (one, 0.1), (one, 0.05), (one, 0.2),
+                     (detections([]), 1.0), (detections([]), 2.0), (one, 3.0)]:  # fmt: skip
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # the library warns about the time going back
+            a, b = ours.update(found, timestamp=t), theirs.update(found, timestamp=t)
+        assert a.tracker_id.tolist() == b.tracker_id.tolist()
+        assert len(ours.tracks) == len(theirs.tracks)
 
 
 def track_two(**settings):

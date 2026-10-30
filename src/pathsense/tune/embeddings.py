@@ -23,7 +23,7 @@ from pathsense.config import AppearanceConfig, ConfigError
 from pathsense.io import VideoSource
 from pathsense.tune.cache import SavedDetections, _stamp
 
-FEATURES = 512
+FEATURES = 512  # as pathsense.appearance.embed; not imported, so a plain tune loads none of it
 FORMAT = 1  # raise when the crop, the normalising or the network changes
 
 

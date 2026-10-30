@@ -427,7 +427,7 @@ Full tables in docs/TRACKER_STUDY.md, Appearance. Toggle: `appearance.enabled`, 
   result changed.
 - **Review of PR 15:** the docs said looks only rank pairs, true for adaptive but not blend,
   the setup chosen in advance. Also fixed: saved vectors now keyed on the boxes and checked
-  by row count, renormalised on loading (one ID count moved by 1). Stitcher and line
+  by row count, renormalised in replays (one ID count moved by 1). Stitcher and line
   memories lack the tracker's protections, so those two results are less settled.
 - **Open:** re-entry, which no clip of ours can test; MSMT17 weights are academic only.
 

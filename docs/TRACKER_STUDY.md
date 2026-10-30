@@ -323,9 +323,8 @@ weighs the same, and the sweep was run again. The first sweep's results are kept
 ## Appearance (step 5): does telling people apart by looks recover crossings?
 
 No use of looks earned its place, so `appearance.enabled` stays off. It is a toggle, not a
-deletion: the code is in `pathsense.appearance`, the numbers below rerun from the saved
-vectors with `scripts/appearance_study`, and re-entry, which this could not test, is still
-open.
+deletion: the code is in `pathsense.appearance`, `scripts/appearance_study` reruns the
+study, and re-entry, which this could not test, is still open.
 
 Looks here are OSNet x0.25 vectors (512 numbers describing clothing and build) for all
 1,174,080 boxes of the seven scenes, in memory for one video in the product. Scene files
@@ -438,15 +437,17 @@ pair with a strong look can match, and a well overlapping pair with a weak look 
   every box: `dynamic` and `skip_overlap` protect the tracker's memory only, so in a crowd
   they may compare against a look holding two people. That could be part of why they did
   not help; it was not tested.
-- **Replays and live runs differ slightly.** Saved vectors are float16 and renormalised on
-  loading. Renormalising changed one figure in the study (an ID count, by 1), so scores
+- **Replays and live runs differ slightly.** Saved vectors are float16; `replay` and the
+  quality tables renormalise them. Renormalising changed one figure in the study (an ID count, by 1), so scores
   should be close to live, but no live run was compared.
 - **One small model and one detector.** OSNet x0.25, on one detector's boxes. Phase 4's
   detector will move these numbers.
 - **The saved vectors came from half precision on the GPU**, whose final batch on MOT17-09
   gave 93 invalid vectors. Those rows were recomputed in full precision and the results did
-  not change. The `embed` command now runs in full precision, so vectors made afresh will
-  differ slightly from these, and that rerun has not been done. `model.half()` is a [known cause](https://discuss.pytorch.org/t/training-with-half-precision/11815)
+  not change. These same files were then renamed by hand to the code's current key, so
+  the tables below were rerun with today's code, on vectors made by the earlier script.
+  The `embed` command now runs in full precision, so anyone running it gets vectors that
+  differ slightly, and scores that may shift; that full rerun has not been done. `model.half()` is a [known cause](https://discuss.pytorch.org/t/training-with-half-precision/11815)
   of such overflows, though we did not confirm it was the cause here. `Embedder` runs in
   full precision and stops on an invalid vector.
 - **Library:** `trackers` dropped DeepSORT and ReIDModel in

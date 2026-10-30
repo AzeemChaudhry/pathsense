@@ -40,6 +40,7 @@ class AppearanceLine(LineCounter):
         then, now = self._at_crossing.get(track_id), self._looks.get(track_id)
         return None if then is None or now is None else float(then @ now)
 
+    # `_count` asks each of these once per decision; both also count the answer.
     def _same_person(self, track_id: int) -> bool:
         alike = self._alike(track_id)
         keep = self.same > 0 and alike is not None and alike >= self.same
