@@ -16,7 +16,9 @@ labelled scenes, 217 runs, every one saved with a video.
 | tracking time per frame (one CPU core) | 6.0 ms | 6.0 ms | none |
 
 The chosen setup is ByteTrack with four settings changed, our stitcher at 1 s instead of
-2 s, and `line_bounce`, a new rule of ours. It was picked on two crowd scenes only and checked on the other five.
+2 s, and `line_bounce`, a new rule of ours. It was picked on two crowd scenes only and
+checked on the other five. What became the default, and what stays a crowd setting, is in
+[Decisions](#decisions).
 
 - **Tuning the tracker is the biggest lever.** ByteTrack with stricter box matching and
   a lower bar for new tracks halves its wrong crossings (378 to 200) and cuts ID
@@ -238,7 +240,39 @@ weighs the same, and the sweep was run again. The first sweep's results are kept
 
 ## Decisions
 
-PRODUCT_DEFAULTS
+What changes in the product, and why each choice is no wider than the evidence:
+
+1. **`analytics.line_bounce` is on by default, at 12 s.** It helped on every tracker and
+   on the check scenes. On the four public sample clips it changes one count: subway
+   boardings 7 to 6. people-walking keeps its hand count (11 IN, 7 OUT); grocery and
+   market are unchanged. Its cost is that a crossing back is logged up to 12 s late (with
+   its real time).
+2. **The tracker defaults stay as in 0.3.0.** The tuned ByteTrack settings were also run
+   on the four sample clips. people-walking and market keep their counts, but the grocery
+   shopper is counted twice (2 IN, 3 aisle visits, where 1 is right). One setting does it:
+   the 0.4 overlap. The shopper walks towards a 4K camera, his box grows fast from frame
+   to frame, its overlap with the last one sometimes falls below 0.4, and the track breaks.
+   In a crowd that same strictness is what stops an ID sliding onto a neighbour.
+3. **The two crowds get the crowd settings in their scene files** (MOT20-03 and 05): the
+   tuned ByteTrack and a 1 s stitch. Only the scenes the settings were chosen on; the
+   others get theirs from `pathsense tune`.
+4. **The stitcher stays on (2 s) by default.** On the subway clip, turning it off raised
+   the people count from 78 to 104 IDs and platform enters from 78 to 91: in sparse scenes
+   it still mends split tracks. In crowds it adds wrong crossings (above), so crowd scenes
+   set it lower.
+5. **ByteTrack stays the tracker.** It is the best balance on the crowds, and as fast as
+   any. BoT-SORT keeps identities slightly better (IDF1 49.2 against 47.8) and OC-SORT
+   counts fewer false crossings in sparse scenes; `pathsense tune` will offer both per
+   scene.
+
+The sample clip runs (sample clips are public, so these are reproducible by anyone):
+
+| clip | v0.3.0 | + bounce | tuned ByteTrack + bounce | expected |
+| --- | --- | --- | --- | --- |
+| people-walking | 11 IN, 7 OUT | 11 IN, 7 OUT | 11 IN, 7 OUT | 11 IN, 7 OUT (hand count) |
+| grocery-store | 1 IN, 1 visit | 1 IN, 1 visit | 2 IN, 3 visits | 1 IN, 1 visit |
+| subway | 7 boarded, 10 off | 6 boarded, 10 off | 7 boarded, 11 off | not hand counted |
+| market-square | 1 IN, 16 OUT | 1 IN, 16 OUT | 1 IN, 17 OUT | not hand counted |
 
 ## Limits
 

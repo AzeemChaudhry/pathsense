@@ -361,3 +361,33 @@ This becomes the "Design decisions" section of the README.
   against the hand labelled truth: line 8 IN (8), 4 OUT (5); shop front 37 enters (42
   seen), 21 exits (26 seen), dwell 450 s (448 seen), 13 inside (13.1 seen). On both clips
   the event log alone gives the same counts and the same total dwell (`load_events`).
+
+## 2026-10-30: tracker study (Phase 3, steps 1 and 2)
+
+Full write-up with charts: [docs/TRACKER_STUDY.md](docs/TRACKER_STUDY.md).
+
+- **Cause first.** The 29 wrong-way INs on MOT20-03 traced against the labels: 18 are the
+  tracker moving an ID to another person, 4 to 5 an ID moving onto a group box, 3 people
+  who turned back at the line, 1 a real IN, 1 to 2 an empty box.
+- **Setup.** Detections saved once per scene, then replayed through 5 trackers (SORT,
+  ByteTrack, BoT-SORT, OC-SORT, C-BIoU), each as shipped and tuned, with our layers
+  stacked. Chosen on MOT20-03 and 05, checked on 5 other MOT scenes. Crossings scored one
+  by one against the labelled people. 532 sweep replays, 217 saved runs with videos.
+- **Result (all 7 scenes):** wrong crossings 471 (v0.3.0) to 191, missed 435 to 437, ID
+  switches 9,617 to 5,454, HOTA 36.3 to 37.8, IDF1 45.7 to 48.0. Tracking takes 4 to 8 ms
+  per frame on any tracker, against 38 to 57 ms for the detector.
+- **Bounce rule (new):** fewer wrong crossings on every tracker, at most 3 more missed.
+  **Adopted, default 12 s.**
+- **Stitcher in crowds:** adds wrong crossings on all five trackers (12 to 63%). Kept on for
+  sparse scenes (subway: 104 IDs without it, 78 with), 1 s in the crowd scene files.
+- **Per frame swap guard:** tried; swaps are slow drifts (median 0.04 box heights per
+  frame against 0.02 for normal walking), so it caught 11% of swaps with 793 false
+  alarms. **Not adopted**, kept in the study as a negative result.
+- **First sweep objective was wrong:** averaging F1 per direction chose BoT-SORT, which
+  removed 19 false INs by missing about 100 real OUTs. Changed to crossing F1 with every
+  crossing equal, and reran.
+- **Tuned ByteTrack is not the default:** its 0.4 overlap splits the grocery shopper's
+  track (2 IN, 3 visits instead of 1 and 1). The overlap is the one setting responsible
+  (DIoU and the longer buffer alone keep 1 IN). Crowd settings go in MOT20-03 and 05 only.
+- **Left:** misses are a detection limit (they hardly move with any tracker), so Phase 4.
+  Per scene choice of tracker and settings is `pathsense tune` (step 4).

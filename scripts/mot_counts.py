@@ -134,8 +134,9 @@ def score(scene: Path, overrides: list[str]) -> None:
     video = Path(scene_source(scene))
     labels = ROOT / "gt" / f"{video.stem}.txt"
     tracks = {"truth": ground_truth(labels), "seen": ground_truth(labels, SEEN)}
-    # The labelled boxes already end at the feet: no hidden legs estimate for truth.
-    analytics = dataclasses.replace(config.analytics, hidden_legs=0.0)
+    # Labelled boxes end at the feet and labelled IDs never swap: no hidden legs estimate
+    # and no bounce rule for truth.
+    analytics = dataclasses.replace(config.analytics, hidden_legs=0.0, line_bounce=0.0)
     empty = sv.Detections.empty()
     empty.tracker_id = np.array([], int)
     with VideoSource(str(video)) as source:

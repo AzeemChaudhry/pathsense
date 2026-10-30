@@ -12,8 +12,9 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 - `analytics.line_bounce`: in a dense crowd the tracker can slide an ID onto the person
   behind, which looks like a U-turn at the line. A crossing that reverses the ID's last
-  one now waits this many seconds and is dropped if the ID crosses back. Off by default;
-  see docs/TRACKER_STUDY.md for the measured effect.
+  one now waits this many seconds and is dropped if the ID crosses back. On by default at
+  12 s: on seven MOT scenes it removes wrong crossings with every tracker tried, and on the
+  sample clips it changes one count (docs/TRACKER_STUDY.md).
 - Trackers `sort` and `cbiou` (C-BIoU), and `tracker.params.iou` to choose how box overlap
   is measured (`iou`, `giou`, `diou`, `ciou`, `biou`).
 - `pathsense.eval`: MOT label loading, HOTA, MOTA, IDF1 and ID switches (TrackEval rules),
@@ -25,6 +26,9 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Changed
 
+- The MOT20-03 and MOT20-05 scene files set the crowd tracker settings the study chose
+  (stricter box matching, 1 s stitch). The defaults stay: the stricter matching splits the
+  grocery shopper's track.
 - `Pipeline.track` runs everything after the detector, so evaluation replays saved
   detections through the same code as a live video; `Pipeline.from_config` takes an
   optional `detector`.

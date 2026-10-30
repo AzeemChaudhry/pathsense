@@ -104,7 +104,7 @@ class AnalyticsConfig:
     line_confirm: float = 0.5  # seconds on the new side before a crossing counts
     # Seconds to hold a crossing that reverses the ID's last one; dropped if the ID crosses
     # back within that time (an ID swap in a crowd, pathsense.analytics.line). 0: off.
-    line_bounce: float = 0.0
+    line_bounce: float = 12.0
     # Zones: [{name: door, polygon: [[x1, y1], [x2, y2], [x3, y3], ...]}, ...]
     zones: tuple[ZoneSpec, ...] = ()
     zone_confirm: float = 0.5  # seconds inside (or outside) before an enter (or exit) counts

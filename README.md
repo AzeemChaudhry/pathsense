@@ -118,7 +118,7 @@ swapping a model is one line, never a code change. Typos are errors, not silent 
 | `analytics.line_margin` | `5` | feet closer than this many pixels to the line do not change side |
 | `analytics.line_margin_height` | `0` | if above 0, the margin is at least this share of the person's height (0.15: 100 px for someone 680 px tall) |
 | `analytics.line_confirm` | `0.5` | seconds a person must stay on the new side before a crossing counts |
-| `analytics.line_bounce` | `0` | if above 0, a crossing that reverses the ID's last one waits this many seconds and is dropped if the ID crosses back: a tracker ID swap in a crowd ([tracker study](docs/TRACKER_STUDY.md)) |
+| `analytics.line_bounce` | `12` | if above 0, a crossing that reverses the ID's last one waits this many seconds and is dropped if the ID crosses back: a tracker ID swap in a crowd ([tracker study](docs/TRACKER_STUDY.md)) |
 | `analytics.zones` | `[]` | areas, `[{name: door, polygon: [[x1, y1], [x2, y2], [x3, y3], ...]}]`: enter, exit and dwell events, and how many are inside |
 | `analytics.zone_confirm` | `0.5` | seconds inside (or outside) before a zone enter (or exit) counts |
 | `analytics.zone_count_present` | `true` | people already inside when the video starts count as entered; `false`: inside, but not counted as entering |
