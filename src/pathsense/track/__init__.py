@@ -3,9 +3,9 @@
     tracker = Tracker("bytetrack")
     tracked = tracker.update(detections, frame=frame, timestamp=seconds)
 
-All three trackers match boxes by motion and overlap only; none of them remembers what a
-person looks like (no appearance re-identification), so someone who leaves the frame for
-longer than `lost_track_buffer` comes back with a new ID (NOTES.md, Phase 0).
+All of them match boxes by motion and overlap only; none remembers what a person looks
+like, so someone who leaves the frame for longer than `lost_track_buffer` comes back with a
+new ID (NOTES.md, Phase 0). `pathsense.appearance` adds looks to ByteTrack, off by default.
 
 | name      | idea                                                                    |
 | --------- | ----------------------------------------------------------------------- |
@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import inspect
 import warnings
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -81,8 +82,15 @@ def split_params(name: str, params: dict[str, Any]) -> tuple[dict[str, Any], lis
 
 
 class Tracker:
-    def __init__(self, name: str = "bytetrack", frame_rate: float = 30.0, **params: Any) -> None:
-        """`frame_rate` scales the lost track budget; `params` go to the tracker class."""
+    def __init__(
+        self,
+        name: str = "bytetrack",
+        frame_rate: float = 30.0,
+        factory: Callable[..., Any] | None = None,
+        **params: Any,
+    ) -> None:
+        """`frame_rate` scales the lost track budget; `params` go to the tracker class, or
+        to `factory` when it replaces that class (a subclass with the same settings)."""
         if name not in TRACKERS:
             raise ConfigError(f"Unknown tracker {name!r}; choose one of {sorted(TRACKERS)}")
         self.name = name
@@ -91,7 +99,7 @@ class Tracker:
             warnings.warn(f"{name} does not use {skipped}; skipped", stacklevel=2)
         if "iou" in params:
             params["iou"] = iou_measure(params["iou"])
-        self._tracker = TRACKERS[name](frame_rate=frame_rate, **params)
+        self._tracker = (factory or TRACKERS[name])(frame_rate=frame_rate, **params)
 
     def update(
         self,
@@ -127,8 +135,13 @@ def iou_measure(name: Any):
     return IOU_MEASURES[name]()
 
 
-def build_tracker(name: str, frame_rate: float = 30.0, params: dict[str, Any] | None = None):
-    return Tracker(name, frame_rate=frame_rate, **(params or {}))
+def build_tracker(
+    name: str,
+    frame_rate: float = 30.0,
+    params: dict[str, Any] | None = None,
+    factory: Callable[..., Any] | None = None,
+):
+    return Tracker(name, frame_rate=frame_rate, factory=factory, **(params or {}))
 
 
 __all__ = ["IOU_MEASURES", "TRACKERS", "Tracker", "build_tracker"]

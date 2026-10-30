@@ -218,16 +218,35 @@ class LineCounter:
         self._side[track_id] = pending.side
         held = self._held.pop(track_id, None)
         if held is not None and pending.t - held.t <= self.bounce + EPS:
-            self.bounced += 1  # straight back the original way: the held one was a swap
             self._crossed[track_id] = pending.side
+            same = self._same_person(track_id)
+            self._counted(track_id)
+            if same:
+                return [self._event(track_id, held), self._event(track_id, pending)]
+            self.bounced += 1  # straight back the original way: the held one was a swap
             return [self._event(track_id, pending)]
         events = [self._event(track_id, held)] if held else []
         reverses = self._crossed.get(track_id, pending.side) != pending.side
         self._crossed[track_id] = pending.side
         if self.bounce > 0 and reverses:
-            self._held[track_id] = pending
+            if self._other_person(track_id):
+                self._counted(track_id)  # the ID is someone else now: compare with them next
+                return events
+            self._held[track_id] = pending  # the look of the last counted crossing stays
             return events
+        self._counted(track_id)
         return events + [self._event(track_id, pending)]
+
+    def _same_person(self, track_id: int) -> bool:
+        """A held bounce was really one person turning back; see AppearanceLine."""
+        return False
+
+    def _other_person(self, track_id: int) -> bool:
+        """A reversal is plainly the ID moving to someone else; see AppearanceLine."""
+        return False
+
+    def _counted(self, track_id: int) -> None:
+        """A crossing was settled for this ID."""
 
     def _event(self, track_id: int, pending: _Pending) -> Event:
         if pending.side > 0:

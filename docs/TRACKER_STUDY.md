@@ -41,6 +41,10 @@ other four go from 4 to 8. What became the default, and what stays a crowd setti
   changes there. Only 28 were never detected. No layer here more than barely reduces
   them, so they are the next tracking problem
   ([Misses](#where-the-misses-come-from)), alongside Phase 4's crowd trained detector.
+- **Telling people apart by looks did not earn its cost** (step 5): the vectors are good,
+  but most ID switches do not look like switches at that moment, and no setup chosen in
+  advance held on the check scenes. It stays as a toggle, off
+  ([Appearance](#appearance-step-5-does-telling-people-apart-by-looks-recover-crossings)).
 - **The check scenes do not confirm one tracker for every scene.** ByteTrack is best on
   the crowds, but on the check scenes OC-SORT with bounce (0.773) and BoT-SORT as
   shipped (0.761) score higher than ByteTrack with bounce (0.754). Choosing the tracker
@@ -316,6 +320,159 @@ improvement, so the objective was changed to plain crossing F1, where every cros
 weighs the same, and the sweep was run again. The first sweep's results are kept
 (`runs/tracker-study/sweep-v1-macro/`).
 
+## Appearance (step 5): does telling people apart by looks recover crossings?
+
+No use of looks earned its place, so `appearance.enabled` stays off. It is a toggle, not a
+deletion: the code is in `pathsense.appearance`, `scripts/appearance_study` reruns the
+study, and re-entry, which this could not test, is still open.
+
+Looks here are OSNet x0.25 vectors (512 numbers describing clothing and build) for all
+1,174,080 boxes of the seven scenes, in memory for one video in the product. Scene files
+are used as shipped: only the two crowds have the chosen setup ([Decisions](#decisions)),
+so `baseline` differs from the tables above on the check scenes (F1 0.726, not 0.735).
+The numbers here come from vectors made in half precision; a fresh `embed` runs in full
+precision and may move them slightly ([Limits](#limits-and-what-stays-open)).
+
+### Are the vectors any good? Yes
+
+Scored against the labels, on boxes matched to one labelled person: is a person's later box
+closer than every neighbour within one person height?
+
+| scene | 1 frame | 1 s | 5 s |
+| --- | --- | --- | --- |
+| MOT17-02 | 99% | 89% | 80% |
+| MOT17-04 | 100% | 96% | 88% |
+| MOT17-09 | 100% | 96% | 84% |
+| MOT20-01 | 99% | 88% | 73% |
+| MOT20-02 | 99% | 91% | 79% |
+| MOT20-03 | 99% | 91% | 75% |
+| MOT20-05 | 99% | 92% | 79% |
+
+They are strong on clean boxes but not unique, and they fade with time. The longest gap
+tested is 5 s.
+
+### Why that does not fix tracking
+
+At 1,815 sustained ID switches (the ID on one person for 15 frames or more, then on
+another for 15 or more), the new box was compared with the track's remembered look:
+
+| boxes | n | below 0.5 | below 0.6 | below 0.7 |
+| --- | --- | --- | --- | --- |
+| real ID switches | 1,815 | 1.8% | 10.5% | 28.9% |
+| same person, clear view | 604,603 | 0.0% | 0.0% | 0.4% |
+| same person, overlapped | 29,239 | 0.0% | 0.2% | 1.9% |
+
+Most switches do not look like switches at that moment: 71% still score 0.7 or more. A gate
+at 0.7 would catch about 525 real switches and block about 3,000 correct matches. The
+likely reason is that the first box after a swap shows both people, which matches
+[ByteTrack's](https://www.ecva.net/papers/eccv_2022/papers_ECCV/papers/136820001.pdf)
+reason for keeping overlap in its second pass, but we did not test it directly. Switches
+counted this way are approximate: crowded labels can also look like switches.
+
+### Every use tried
+
+Tune scenes are MOT20-03 and 05, check scenes the other five. Round 1 was seen on the check
+scenes while it ran, so its check numbers are not clean.
+
+| use | tune: wrong / missed / F1 | check: wrong / missed / F1 | IDs |
+| --- | --- | --- | --- |
+| **baseline** | 129 / 364 / 0.727 | 68 / 73 / 0.726 | 2,848 |
+| Round 1 | | | |
+| BoT-SORT rule | 129 / 365 / 0.726 | 73 / 73 / 0.719 | 2,853 |
+| veto 0.5 | 132 / 364 / 0.726 | 67 / 71 / 0.733 | 2,906 |
+| veto 0.7 | 173 / 358 / 0.714 | 139 / 62 / 0.663 | 3,973 |
+| blend 0.5 | 104 / 367 / 0.735 | 69 / 74 / 0.722 | 2,567 |
+| blend 0.5, gate 0.5 | 107 / 369 / 0.732 | 66 / 74 / 0.727 | 2,620 |
+| stitcher gate 0.8 | 123 / 375 / 0.721 | 66 / 74 / 0.727 | 3,210 |
+| bounce keeps a look alike 0.7 | 139 / 364 / 0.723 | 69 / 72 / 0.727 | 2,848 |
+| bounce drops a look unlike 0.6 | 128 / 364 / 0.727 | 60 / 79 / 0.723 | 2,848 |
+| Round 2, from [Deep OC-SORT](https://arxiv.org/abs/2302.11813) | | | |
+| adaptive | 130 / 367 / 0.724 | 67 / 70 / 0.735 | 2,841 |
+| adaptive, confidence memory | 130 / 366 / 0.725 | 72 / 68 / 0.733 | 2,839 |
+| adaptive, skip overlapped | 129 / 366 / 0.725 | 66 / 72 / 0.732 | 2,836 |
+| adaptive, both | 126 / 365 / 0.727 | 69 / 69 / 0.735 | 2,831 |
+| **blend, both (chosen on tune)** | 110 / 370 / 0.730 | 71 / 79 / **0.707** | 2,589 |
+| veto 0.5, both | 145 / 365 / 0.720 | 80 / 72 / 0.712 | 3,040 |
+
+The full table of 27 variants is written to `runs/appearance-study/report.md`.
+
+- **Round 2's rule was fixed first:** choose by F1 on the tune scenes alone, then score the
+  check scenes once. The choice, blend with both protections, fails: 3 more wrong and 6
+  more missed on the check scenes.
+- **Three setups pass the step 5 rule literally, and we do not trust them.** Veto 0.5,
+  adaptive, and adaptive with skip overlapped each find 1 to 3 more crossings of 260 on
+  the check scenes without adding wrong ones, but miss the same or more and add wrong
+  crossings or match worse on the crowds, and were not chosen in advance. Choosing them now
+  would be choosing after seeing the answer. Adaptive is the most interesting: it barely
+  moves IDs and moves neither group by more than 3 crossings.
+- **Blend's real gain is on crowds:** 15 to 19% fewer wrong crossings and 8 to 10% fewer
+  IDs, but more misses, and it does not hold on the check scenes.
+- **The cost is an embedding for every person on every frame:** about 6 ms a box on the CPU
+  (measured with the ONNX export on 12 threads), so close to a second a frame on MOT20-03.
+  Live on the GTX 1650 with `Embedder`, people-walking fell from 91.6 to 18 FPS: about 46 ms
+  a frame where tracking alone takes 0.8 ms. With appearance on and nothing using it, its
+  event log was identical to appearance off, and the count kept the hand count (11 IN, 7
+  OUT). Published work agrees on
+  the direction: [BoT-SORT's authors](https://arxiv.org/pdf/2206.14651) say appearance falls
+  short in crowded scenes, and [Hybrid-SORT](https://arxiv.org/pdf/2308.00783) reports
+  limited gains on MOT17 and MOT20.
+
+Settings of ours in round 2: the paper gives no value for its confidence threshold, so it
+is `high_conf_det_threshold`; with `adaptive` a pair must still pass the tracker's overlap
+test, so looks only rank pairs; and `memory` is the paper's 0.95. Other values were not
+tried. `blend` differs: the threshold applies to the blended score, so a barely touching
+pair with a strong look can match, and a well overlapping pair with a weak look can fail.
+
+### Limits, and what stays open
+
+- **Re-entry is untested.** Someone leaving a shop and coming back minutes later is a
+  different job: position says nothing after that long, embeddings are only needed when
+  someone appears or leaves, and a lone person walking in gives a cleaner box. None of
+  our clips can test it: the longest is 133 s and grocery-store is 33 s with about one
+  person. It needs a public clip of several minutes with people returning, labels for who
+  is who, and a threshold sweep for wrongly merged people against wrongly split ones, since
+  [open set matching](https://arxiv.org/html/2409.03879v1) lives on that threshold. Staff in
+  uniform are a known risk, and sources on it are mostly vendors. Recognising a returning
+  person also sits close to the project's privacy line, so it needs its own decision.
+- **The weights cannot ship.** They are trained on MSMT17, and its
+  [release agreement](https://www.pkuvmc.com/agreement/RELEASE_AGREEMENT-MSMT17.pdf) allows
+  academic use only and prohibits commercial use. Whether that reaches trained weights is a
+  legal question we have not settled, so we treat them as research only.
+- **The stitcher and line uses are less settled than the tracker's.** Their memories take
+  every box: `dynamic` and `skip_overlap` protect the tracker's memory only, so in a crowd
+  they may compare against a look holding two people. That could be part of why they did
+  not help; it was not tested.
+- **Replays and live runs agree where checked.** Saved vectors are float16; `replay` and
+  the quality tables renormalise them, which changed one figure in the study (an ID count,
+  by 1). On people-walking with veto 0.5, a live run and a replay gave the same 94 events.
+  That is one sparse clip, on which veto changes nothing, not a crowd.
+- **One small model and one detector.** OSNet x0.25, on one detector's boxes. Phase 4's
+  detector will move these numbers.
+- **The saved vectors came from half precision on the GPU**, whose final batch on MOT17-09
+  gave 93 invalid vectors. Those rows were recomputed in full precision and the results did
+  not change. These same files were then renamed by hand to the code's current key, so
+  the tables above were rerun with today's code, on vectors made by the earlier script.
+  The `embed` command now runs in full precision, so anyone running it gets vectors that
+  differ slightly, and scores that may shift; that full rerun has not been done. `model.half()` is a [known cause](https://discuss.pytorch.org/t/training-with-half-precision/11815)
+  of such overflows, though we did not confirm it was the cause here. `Embedder` runs in
+  full precision and stops on an invalid vector.
+- **Library:** `trackers` dropped DeepSORT and ReIDModel in
+  [2.1.0](https://github.com/roboflow/trackers/releases/tag/2.1.0), and its `iou=` hook only
+  changes overlap, so `AppearanceByteTrack` follows ByteTrack's `update` step by step, with
+  a test against the library. It relies on private names, so `trackers` is capped below 2.7
+  until that copy is checked, and only ByteTrack can be used with appearance on.
+
+To try it, get `osnet_x0_25_msmt17.pt` from the
+[torchreid model zoo](https://kaiyangzhou.github.io/deep-person-reid/MODEL_ZOO.html) into
+`data/models/`, then:
+
+```bash
+uv run python scripts/appearance_study embed      # one vector per saved box (GPU, roughly 40 min)
+uv run python scripts/appearance_study run        # 27 variants on 7 scenes (6 min on CPU)
+uv run python scripts/appearance_study people     # the first table
+uv run python scripts/appearance_study switches   # the second table
+```
+
 ## Decisions
 
 What changes in the product, and why each choice is no wider than the evidence:
@@ -364,8 +521,8 @@ The sample clip runs (sample clips are public, so these are reproducible by anyo
   higher (0.773) than ByteTrack with bounce (0.754), because they are sparser and reward
   OC-SORT's caution. This is what `pathsense tune` (Phase 3, step 4) is for: choosing the
   tracker and its settings per scene, from a short labelled clip.
-- No appearance features (ReID) were tried. They might mend the misses where an ID
-  changes at the line, but would have to earn their cost in a browser.
+- Appearance features (ReID) were tried afterwards and did not earn their cost
+  ([Appearance](#appearance-step-5-does-telling-people-apart-by-looks-recover-crossings)).
 - The labels' crossings include people hidden at that moment (any visibility) and people
   labelled as standing still, so a few true crossings cannot be seen by any detector.
 

@@ -132,4 +132,7 @@ after numbers on CCTV style video.
   scene files, since they split tracks on the close-up grocery clip. Step 3's crossing
   safeguard is the bounce rule. Step 4, `pathsense tune`, built (NOTES.md): it reproduces
   the study and picks a setup per scene against the scene's `truth:` block; subway has no
-  truth yet. Next: step 5, recovering missed crossings, then the gate run.
+  truth yet. Step 5 done (2026-10-31, [TRACKER_STUDY.md](TRACKER_STUDY.md#appearance-step-5-does-telling-people-apart-by-looks-recover-crossings)):
+  no change passed clearly, so nothing new is on by default. Position only stitching at
+  the line and appearance embeddings both failed or passed too narrowly to trust;
+  embeddings stay as a toggle, off, and re-entry remains untested. Next: the gate run.

@@ -385,6 +385,7 @@ Branches, signed commits, CI, `@claude` reviews, versioning and releases are des
 
 - PathSense counts and tracks anonymous people. It does **not** identify who anyone is: no face recognition, demographics or emotion analysis.
 - The browser app processes video on your device; nothing is uploaded.
+- An optional, off by default research setting compares clothing vectors to follow people. On a video they stay in memory for that video and are never tied to a name; only the tuning and study tools save them to disk, for research clips ([details](docs/TRACKER_STUDY.md#appearance-step-5-does-telling-people-apart-by-looks-recover-crossings)).
 - Only footage recorded with the consent of the people in it is used for training or demos.
 - Public camera feeds are out of scope.
 

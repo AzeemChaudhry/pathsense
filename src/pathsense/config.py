@@ -71,6 +71,68 @@ class TrackerConfig:
             object.__setattr__(self, key, non_negative(f"tracker.{key}", getattr(self, key)))
 
 
+APPEARANCE_MATCHES = ("off", "botsort", "veto", "blend", "adaptive")
+
+
+@dataclass(frozen=True)
+class AppearanceConfig:
+    """Tell people apart by how they look (pathsense.appearance). Off: on the MOT scenes it
+    did not earn its cost (docs/TRACKER_STUDY.md, Appearance). Each use below is 0 or "off"
+    until set, so `enabled` alone changes nothing but the time spent."""
+
+    enabled: bool = False
+    weights: str = "data/models/osnet_x0_25_msmt17.pt"
+    device: str | None = None  # None: GPU if available
+    batch: int = 256  # boxes at a time through the network
+    # The tracker's first pass, ByteTrack only: off | botsort | veto | blend | adaptive
+    match: str = "off"
+    closeness: float = 0.25  # botsort: how near in look; 0 same, 1 opposite
+    proximity: float = 0.5  # botsort: how near in overlap, as 1 - IoU
+    blend: float = 0.5  # blend: share of the score that is look
+    gate: float = 0.0  # veto, blend: a look below this refuses the match; 0: off
+    adaptive_weight: float = 0.75  # adaptive: base weight of look (Deep OC-SORT's MOT value)
+    adaptive_cap: float = 0.5  # adaptive: most a clear best match adds to that weight
+    memory: float = 0.9  # how much of a track's remembered look each new box keeps
+    dynamic: bool = False  # a less confident box changes that memory less (Deep OC-SORT)
+    skip_overlap: float = 0.0  # no memory from a box overlapping another this much; 0: off
+    stitch_gate: float = 0.0  # the stitcher refuses a link that looks below this; 0: off
+    line_same: float = 0.0  # a bounce at or above this look counts every crossing; 0: off
+    line_different: float = 0.0  # a reversal below this look is dropped at once; 0: off
+    line_memory: float = 0.8  # as `memory`, for the look the line compares
+
+    def __post_init__(self) -> None:
+        for key in ("enabled", "dynamic"):
+            if not isinstance(getattr(self, key), bool):
+                raise ConfigError(
+                    f"appearance.{key} must be true or false, got {getattr(self, key)!r}"
+                )
+        if self.match not in APPEARANCE_MATCHES:
+            raise ConfigError(
+                f"appearance.match must be one of {APPEARANCE_MATCHES}, got {self.match!r}"
+            )
+        if isinstance(self.batch, bool) or not isinstance(self.batch, int) or self.batch < 1:
+            raise ConfigError(f"appearance.batch must be a whole number >= 1, got {self.batch!r}")
+        keys = (
+            "closeness proximity blend gate adaptive_weight adaptive_cap memory skip_overlap "
+            "stitch_gate line_same line_different"
+        )
+        for key in keys.split():
+            object.__setattr__(self, key, non_negative(f"appearance.{key}", getattr(self, key)))
+        object.__setattr__(
+            self, "line_memory", non_negative("appearance.line_memory", self.line_memory)
+        )
+        for key in ("blend", "memory", "line_memory"):
+            if getattr(self, key) >= 1:
+                raise ConfigError(f"appearance.{key} must be below 1, got {getattr(self, key)!r}")
+        for key in ("gate", "stitch_gate", "line_same", "line_different"):  # similarities
+            if getattr(self, key) > 1:
+                raise ConfigError(f"appearance.{key} must be 1 or less, got {getattr(self, key)!r}")
+        if self.match == "veto" and self.gate <= 0:
+            raise ConfigError("appearance.match veto needs appearance.gate above 0")
+        if self.match in ("adaptive", "botsort") and self.gate > 0:
+            raise ConfigError(f"appearance.gate does not apply to match {self.match}")
+
+
 @dataclass(frozen=True)
 class CameraConfig:
     # Measure a new camera once and reuse the result (pathsense.io.camera). Off: OpenCV's
@@ -188,6 +250,7 @@ class Config:
     tracker: TrackerConfig = field(default_factory=TrackerConfig)
     camera: CameraConfig = field(default_factory=CameraConfig)
     analytics: AnalyticsConfig = field(default_factory=AnalyticsConfig)
+    appearance: AppearanceConfig = field(default_factory=AppearanceConfig)
 
 
 SECTIONS = {
@@ -195,6 +258,7 @@ SECTIONS = {
     "tracker": TrackerConfig,
     "camera": CameraConfig,
     "analytics": AnalyticsConfig,
+    "appearance": AppearanceConfig,
 }
 
 

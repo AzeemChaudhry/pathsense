@@ -55,14 +55,15 @@ from pathsense.eval.crossings import DIRECTIONS
 from pathsense.eval.misses import DETECTED, TRACKED
 from pathsense.pipeline import Pipeline
 from pathsense.tune.cache import CACHE, SavedDetections, cache_path, cached_detections
+from pathsense.tune.embeddings import cached_embeddings, embeddings_path, load_embeddings
 from pathsense.tune.profile import SceneProfile, scene_profile
 from pathsense.tune.replay import Replay, no_detector, replay
 from pathsense.tune.truth import Truth, count_key, scene_truth
 
 CANDIDATES = Path(__file__).resolve().parents[3] / "configs" / "tune" / "candidates.yaml"
-# What a candidate may set: the tracker and the counting rules, but not the line and zones
-# (the truth is counted on the scene's own) nor the detector (the boxes are saved).
-TUNABLE = ("tracker.", "analytics.")
+# What a candidate may set: the tracker, looks and counting rules, but not the line and
+# zones (the truth is counted on the scene's own) nor the detector (the boxes are saved).
+TUNABLE = ("tracker.", "analytics.", "appearance.")
 FIXED = ("analytics.line=", "analytics.line.", "analytics.zones=", "analytics.zones.")
 
 
@@ -141,6 +142,7 @@ class _Scene:
 
     path: Path
     config: Path | None
+    saved_path: Path
     saved: SavedDetections
     labels: dict | None
     true_events: list[Event] | None
@@ -153,7 +155,11 @@ class _Scene:
     def run(self, candidate: Candidate) -> tuple[Score, Replay]:
         config = self.candidate_config(candidate)
         pipeline = Pipeline.from_config(config, self.saved.fps, detector=no_detector)
-        result = replay(pipeline, self.saved)
+        embeddings = None
+        if config.appearance.enabled:
+            path = embeddings_path(self.saved_path, self.saved, config.appearance)
+            embeddings = load_embeddings(path, self.saved)
+        result = replay(pipeline, self.saved, embeddings)
         crossings = None
         if self.labels is not None and self.true_events is not None:
             identity = Identity()
@@ -193,7 +199,7 @@ def _load_scene(scene: Path, config: Path | None, saved: Path) -> _Scene:
         true_events = label_events(analytics, labels, frames, detections.fps)
         found = counts_of(true_events)
         counts = {key: found.get(key, 0) for key in countable}
-    return _Scene(scene, config, detections, labels, true_events, counts, countable)
+    return _Scene(scene, config, saved, detections, labels, true_events, counts, countable)
 
 
 _worker_scene = cache(_load_scene)  # in a worker process: load once for all its trials
@@ -383,6 +389,10 @@ def tune(
     everyone = [CURRENT, *(load_candidates() if candidates is None else candidates)]
     # Loaded on every call, not cached: the files may have changed since an earlier one.
     loaded = _load_scene(scene, config, saved)
+    for candidate in everyone:  # once, here: not in each worker
+        look = loaded.candidate_config(candidate).appearance
+        if look.enabled:
+            cached_embeddings(video, loaded.saved, look, saved)
     if jobs > 1:
         spawn = multiprocessing.get_context("spawn")
         work = [(scene, config, saved, c) for c in everyone]
