@@ -17,7 +17,7 @@ import supervision as sv
 from guard import IdentityGuard
 
 from pathsense.analytics import Event
-from pathsense.config import Config, TrackerConfig, load_config
+from pathsense.config import Config, TrackerConfig, load_config, scene_source
 from pathsense.eval import (
     Identity,
     ground_truth,
@@ -27,9 +27,9 @@ from pathsense.eval import (
     write_mot,
 )
 from pathsense.pipeline import Pipeline
-from pathsense.tune import NO_DETECTOR, SavedDetections
+from pathsense.tune import SavedDetections, no_detector
 from pathsense.tune import replay as replay_detections
-from pathsense.tune.cache import CACHE
+from pathsense.tune.cache import cached_detections
 
 DATA = Path("data/mot")
 SCENES = Path("configs/scenes/mot")
@@ -58,8 +58,10 @@ class Setup:
 
 @cache
 def detections(scene: str) -> SavedDetections:
-    """The scene's saved detections, made by `pathsense tune` or the study's cache step."""
-    return SavedDetections.load(CACHE / f"{scene}.npz")
+    """The scene's saved detections (shared with `pathsense tune`), checked against the
+    scene's video and detector settings; made if missing or out of date."""
+    path = SCENES / f"{scene}.yaml"
+    return cached_detections(scene_source(path), load_config(scene=path).detector)
 
 
 @cache
@@ -81,7 +83,7 @@ def replay(setup: Setup, scene: str, out: Path | None = None, full: bool = True)
     (MOT format), the events and the metrics there. `full=False` skips HOTA and the
     other tracking metrics, for quick sweeps."""
     saved = detections(scene)
-    pipeline = Pipeline.from_config(setup.config(scene), saved.fps, detector=NO_DETECTOR)
+    pipeline = Pipeline.from_config(setup.config(scene), saved.fps, detector=no_detector)
     if setup.guard:
         guard, update = IdentityGuard(*setup.guard), pipeline.tracker.update
         pipeline.tracker.update = lambda dets, frame=None, timestamp=None: guard(

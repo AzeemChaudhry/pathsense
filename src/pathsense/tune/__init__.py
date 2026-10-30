@@ -13,13 +13,13 @@ report describes the scene (profile) and what is left wrong (run).
 
 from pathsense.tune.cache import SavedDetections, cached_detections, detect_video
 from pathsense.tune.profile import SceneProfile, scene_profile
-from pathsense.tune.replay import NO_DETECTOR, Replay, replay
+from pathsense.tune.replay import Replay, no_detector, replay
 from pathsense.tune.run import CANDIDATES, Candidate, TuneReport, load_candidates, tune
 from pathsense.tune.truth import Truth, scene_truth
 
 __all__ = [
     "CANDIDATES",
-    "NO_DETECTOR",
+    "no_detector",
     "Candidate",
     "Replay",
     "SavedDetections",

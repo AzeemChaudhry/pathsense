@@ -1,27 +1,34 @@
+import os
+import shutil
+from collections import Counter
+from pathlib import Path
+
 import numpy as np
 import pytest
+import yaml
 from conftest import detections
 from test_pipeline import WalkingPerson
 
 from pathsense.cli import main
 from pathsense.config import ConfigError, DetectorConfig, load_config
 from pathsense.detect import DETECTORS
+from pathsense.eval import CrossingScore
 from pathsense.io import VideoSource
 from pathsense.pipeline import Pipeline
 from pathsense.tune import (
-    NO_DETECTOR,
     Candidate,
     SavedDetections,
     cached_detections,
     detect_video,
     load_candidates,
+    no_detector,
     replay,
     scene_profile,
     scene_truth,
     tune,
 )
-from pathsense.tune.cache import detector_key
-from pathsense.tune.run import CANDIDATES, Score
+from pathsense.tune.cache import cache_path, detector_key
+from pathsense.tune.run import CANDIDATES, Score, Trial, TuneReport
 
 # WalkingPerson moves right 4 px a frame across the 64x48 tiny video; a line down the
 # middle at x = 20, drawn top to bottom, makes that one exit (pathsense.analytics.line).
@@ -77,11 +84,27 @@ def test_the_detector_runs_once_per_video_and_settings(tmp_path, tiny_video, fak
     first = cached_detections(tiny_video, config, tmp_path)
     again = cached_detections(tiny_video, config, tmp_path)
     assert len(fake_detector) == 1 and len(first) == len(again) == 12
-    assert first.size == (64, 48) and first.detector == detector_key(config)
+    assert first.size == (64, 48) and first.detector == detector_key(config, tiny_video)
     cached_detections(tiny_video, DetectorConfig(name="fake", conf=0.3), tmp_path)
     assert len(fake_detector) == 2  # other settings: other boxes
     cached_detections(tiny_video, DetectorConfig(name="fake", conf=0.3, device="cpu"), tmp_path)
     assert len(fake_detector) == 2  # the device does not change the boxes
+    cached_detections(tiny_video, DetectorConfig(name="fake", conf=0.3), tmp_path, refresh=True)
+    assert len(fake_detector) == 3  # asked to run again
+
+
+def test_saved_detections_belong_to_one_video(tmp_path, tiny_video, fake_detector):
+    config = DetectorConfig(name="fake")
+    other = tmp_path / "other" / tiny_video.name  # same name, another folder
+    other.parent.mkdir()
+    shutil.copy(tiny_video, other)
+    assert cache_path(tiny_video, tmp_path) != cache_path(other, tmp_path)
+    cached_detections(tiny_video, config, tmp_path)
+    cached_detections(other, config, tmp_path)
+    assert len(fake_detector) == 2
+    os.utime(other, ns=(1, 1))  # the video replaced in place
+    cached_detections(other, config, tmp_path)
+    assert len(fake_detector) == 3
 
 
 def test_truth_is_labels_or_counts(tmp_path):
@@ -118,6 +141,9 @@ def test_candidates_are_checked(tmp_path):
         "candidates: [{name: a, why: b, set: tracker.name=sort}]",
         "candidates: [{name: current, why: b, set: []}]",
         "candidates: [{name: a, why: b, set: []}, {name: a, why: c, set: []}]",
+        "candidates: [{name: a, why: b, set: [detector.conf=0.3]}]",  # boxes are saved
+        "candidates: [{name: a, why: b, set: ['analytics.line=[[0, 0], [9, 9]]']}]",
+        "candidates: [{name: a, why: b, set: ['analytics.zones=[]']}]",
     ):
         path.write_text(bad)
         with pytest.raises(ConfigError):
@@ -127,6 +153,29 @@ def test_candidates_are_checked(tmp_path):
 def test_scores_compare_crossings_first_then_counts():
     hand = Score({"enter": 3}, {"enter": 4, "exit": 1}, None, ids=5, track_ms=1.0)
     assert hand.count_error == 2 and hand.objective == (-2,)
+    exact = CrossingScore(tp=Counter(exit=1))
+    close = Score({"exit": 2}, {"exit": 1}, exact, ids=1, track_ms=1.0)
+    right = Score({"exit": 1}, {"exit": 1}, exact, ids=1, track_ms=1.0)
+    assert close.objective < right.objective  # same F1: the count error decides
+
+
+def test_the_chosen_block_is_ready_to_paste():
+    crowd = next(c for c in load_candidates(CANDIDATES) if c.name == "crowd")
+    trial = Trial(crowd, Score({}, {}, None, ids=0, track_ms=0.0))
+    report = TuneReport(Path("s.yaml"), None, [trial], trial, None)
+    block = yaml.safe_load(report.chosen_yaml())
+    assert block == {
+        "tracker": {
+            "name": "bytetrack",
+            "params": {
+                "lost_track_buffer": 60,
+                "minimum_iou_threshold": 0.4,
+                "track_activation_threshold": 0.4,
+                "iou": "diou",
+            },
+            "stitch_seconds": 1,
+        }
+    }
 
 
 def test_tune_keeps_the_scene_unless_a_candidate_is_strictly_better(
@@ -208,9 +257,41 @@ def test_a_replay_of_saved_detections_gives_the_live_result(tiny_video):
         results = list(live.run(source))
         events = [e for r in results for e in r.events] + live.finish()
     saved = detect_video(tiny_video, WalkingPerson())
-    again = replay(Pipeline.from_config(config, saved.fps, detector=NO_DETECTOR), saved)
+    again = replay(Pipeline.from_config(config, saved.fps, detector=no_detector), saved)
     assert again.events == events and [e.type for e in events] == ["exit"]
     for result in results:
         got = again.tracks[result.frame.index]
         assert got.tracker_id.tolist() == result.tracked.tracker_id.tolist()
         assert np.allclose(got.xyxy, result.tracked.xyxy)
+
+
+def test_tune_splits_every_missed_crossing(tmp_path, tiny_video, fake_detector):
+    # Labels: person 7 is the one the fake detector sees; person 8 walks the other way
+    # across the line, lower in the frame, and is never detected.
+    labels = tmp_path / "gt.txt"
+    rows = [f"{f + 1},7,{4 * f},5,10,35,1,1,1.0" for f in range(12)]
+    rows += [f"{f + 1},8,{50 - 4 * f},30,10,17,1,1,1.0" for f in range(12)]
+    labels.write_text("\n".join(rows) + "\n")
+    scene = write_scene(tmp_path, tiny_video, f"{{labels: {labels}}}")
+    report = tune(scene, [], cache_folder=tmp_path / "cache")
+    assert report.chosen.score.truth == {"enter": 1, "exit": 1}
+    split = report.diagnosis.split()
+    assert split == {"detector": 1, "tracker": 0, "swap": 0, "both": 0, "unclear": 0}
+    assert sum(split.values()) == sum(report.chosen.score.crossings.fn.values())
+    assert "**Detector:** 1" in report.markdown()
+
+
+def test_tune_says_which_counts_are_not_scored(tmp_path, tiny_video, fake_detector):
+    scene = write_scene(tmp_path, tiny_video, "{enter: 0}")  # the exits are not given
+    report = tune(scene, [], cache_folder=tmp_path / "cache")
+    assert report.unscored == ("exit",)
+    assert "exit (not scored)" in report.markdown()
+
+
+def test_parallel_and_serial_tuning_agree(tmp_path, tiny_video, fake_detector):
+    scene = write_scene(tmp_path, tiny_video, "{exit: 1}")
+    candidates = load_candidates(CANDIDATES)[:2]
+    serial = tune(scene, candidates, cache_folder=tmp_path / "cache", jobs=1)
+    parallel = tune(scene, candidates, cache_folder=tmp_path / "cache", jobs=2)
+    assert [t.score.counts for t in serial.trials] == [t.score.counts for t in parallel.trials]
+    assert serial.chosen.candidate == parallel.chosen.candidate

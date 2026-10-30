@@ -409,8 +409,9 @@ Full write-up with charts: [docs/TRACKER_STUDY.md](docs/TRACKER_STUDY.md).
 scene's `truth:` block, and keeps the scene's own setup unless one is strictly better.
 Reports in `runs/tune/<scene>/report.md`.
 
-- **Reproduces the study.** MOT20-03 as it is: F1 0.805, 46 wrong, 93 missed, the study's
-  numbers. The study scripts now run on the same package code; 34 of 35 rerun setups
+- **Reproduces the study.** MOT20-03 as it is: F1 0.805, 46 wrong, 93 missed, the same as
+  the study's chosen setup (docs/TRACKER_STUDY.md, per scene table; from
+  `runs/tracker-study/results.csv`, local). The study scripts now run on the same package code; 34 of 35 rerun setups
   matched the saved results exactly, and the full rerun moved three runs by one crossing,
   all from the bounce hold cap added in the review of PR 12 (not from the refactor).
 - **What it picks**, scored on the same clip it chose on (so optimistic):
@@ -423,7 +424,7 @@ Reports in `runs/tune/<scene>/report.md`.
   | MOT20-01 | F1 0.679 | bounce off: 0.724 (the rule drops 2 real crossings here) |
   | MOT20-02 | F1 0.707, 64 wrong | OC-SORT: 0.783, 26 wrong |
   | people-walking, grocery-store | 0 off | keeps the scene's setup |
-  | market-square | 2 off | longer memory: 1 off (one person at the fountain) |
+  | market-square | 2 off | longer memory: 1 off (one person at the fountain, within the eye count's own error) |
 
   Not applied yet: the gate run should check each pick on a part of the clip it was not
   chosen on.
@@ -431,7 +432,8 @@ Reports in `runs/tune/<scene>/report.md`.
   the MOT17 streets (seen from above, packed people barely overlap); people per frame did.
   So the profile reports numbers and draws no verdict.
 - **Truth for the sample clips:** people-walking and grocery-store from the earlier hand
-  counts. market-square counted by eye from frames (16 OUT, 0 IN, 6 at the fountain); the
-  pipeline's 16 OUT agrees. subway has none: with the doors open, dozens board and get off
+  counts. market-square counted by eye from frames (16 OUT, 0 IN, 6 at the fountain),
+  with the OUT count uncertain by up to 3; the pipeline's 16 OUT agrees, a weak check at
+  that uncertainty. subway has none: with the doors open, dozens board and get off
   at several doors and the far ones are too small to count from frames. Far more than the
   pipeline's 7 board, so its subway counts are well short. It needs box by box labels.

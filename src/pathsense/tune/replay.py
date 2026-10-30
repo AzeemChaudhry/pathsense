@@ -1,6 +1,6 @@
 """Replay saved detections through a pipeline: everything after the detector, frame by frame.
 
-    pipeline = Pipeline.from_config(config, saved.fps, detector=NO_DETECTOR)
+    pipeline = Pipeline.from_config(config, saved.fps, detector=no_detector)
     result = replay(pipeline, saved)
     result.events, result.tracks[frame_index], result.track_ms
 
@@ -20,7 +20,7 @@ from pathsense.pipeline import Pipeline
 from pathsense.tune.cache import SavedDetections
 
 
-def NO_DETECTOR(image) -> sv.Detections:  # noqa: N802 (a constant that is a function)
+def no_detector(image) -> sv.Detections:
     """Stands in for the detector when replaying: Pipeline.track never calls it."""
     raise RuntimeError("a replay passes saved detections to Pipeline.track")
 
@@ -51,4 +51,4 @@ def replay(pipeline: Pipeline, saved: SavedDetections) -> Replay:
     return Replay(events, tracks, seconds * 1000 / max(len(saved), 1))
 
 
-__all__ = ["NO_DETECTOR", "Replay", "replay"]
+__all__ = ["no_detector", "Replay", "replay"]

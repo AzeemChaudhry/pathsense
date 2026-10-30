@@ -32,6 +32,17 @@ TRACK_LOOK = 1.0  # seconds before, and after, the crossing
 
 DETECTED = ("at least half", "some", "never")
 TRACKED = ("no track", "one ID, no match", "starts or ends", "ID changes", "swap")
+# How misses_table() names them, as docs/TRACKER_STUDY.md does.
+LABELS = {
+    "at least half": "detected in at least half the frames",
+    "some": "detected in some frames",
+    "never": "detected never",
+    "no track": "no track on them",
+    "one ID, no match": "one ID before and after, no matching crossing",
+    "starts or ends": "track starts or ends at the line",
+    "ID changes": "ID changes at the line",
+    "swap": "swap: our ID crossed, scored on someone else",
+}
 
 
 def _best(box: np.ndarray, boxes: np.ndarray) -> int | None:
@@ -125,13 +136,15 @@ def explain_misses(
 def misses_table(table: Counter) -> str:
     """explain_misses() as a Markdown table, with totals."""
     lines = [
-        "| what our tracks did | " + " | ".join(f"detected: {d}" for d in DETECTED) + " | all |",
+        "| what our tracks did | " + " | ".join(LABELS[d] for d in DETECTED) + " | all |",
         "| --- |" + " --- |" * (len(DETECTED) + 1),
     ]
     for t in (*TRACKED, None):
         row = [table[t, d] if t else sum(table[x, d] for x in TRACKED) for d in DETECTED]
-        lines.append(f"| {t or 'all'} | " + " | ".join(map(str, row)) + f" | {sum(row)} |")
+        lines.append(
+            f"| {LABELS[t] if t else 'all'} | " + " | ".join(map(str, row)) + f" | {sum(row)} |"
+        )
     return "\n".join(lines) + "\n"
 
 
-__all__ = ["DETECTED", "TRACKED", "detected", "explain_misses", "misses_table", "tracked"]
+__all__ = ["DETECTED", "LABELS", "TRACKED", "detected", "explain_misses", "misses_table", "tracked"]

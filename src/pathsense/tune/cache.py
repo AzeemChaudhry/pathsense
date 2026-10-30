@@ -8,15 +8,19 @@ tracking), so it runs once and the boxes are saved:
     for frame, boxes in saved:          # frame.image is None: only the boxes were kept
         pipeline.track(boxes, frame)
 
-The file remembers the detector settings it was made with; a change to any of them (model,
-input size, confidence, tiling, dropping partial boxes) makes a new one. The device is not
-part of it: a GPU and a CPU give the same boxes up to rounding.
+The file remembers what it was made from: the video (its full path, size and time
+modified) and the detector settings (model, weights file, input size, confidence, tiling,
+dropping partial boxes). A change to any of them makes a new one. The device is not part
+of it: a GPU and a CPU give the same boxes up to rounding.
 """
 
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
+import os
+import tempfile
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -34,11 +38,30 @@ CACHE = Path("data/cache")
 WARMUP = 5  # first frames left out of the detector time: model loading, CUDA start up
 
 
-def detector_key(config: DetectorConfig) -> str:
-    """The detector settings that change the boxes, as one comparable string."""
-    settings = dataclasses.asdict(config)
+def _stamp(path: Path | str) -> str:
+    """A file's full path, size and time modified: changes when the file is replaced."""
+    path = Path(path).resolve()
+    stat = path.stat()
+    return f"{path}:{stat.st_size}:{stat.st_mtime_ns}"
+
+
+def detector_key(config: DetectorConfig, video: Path | str | None = None) -> str:
+    """What the boxes were made from, as one comparable string: the detector settings
+    that change them, the weights file if it is a local one, and the video."""
+    settings: dict = dataclasses.asdict(config)
     settings.pop("device")
+    if config.weights and Path(config.weights).is_file():
+        settings["weights_file"] = _stamp(config.weights)  # retrained in place: new boxes
+    if video is not None:
+        settings["video"] = _stamp(video)
     return json.dumps(settings, sort_keys=True)
+
+
+def cache_path(video: Path | str, folder: Path | str = CACHE) -> Path:
+    """Where a video's saved detections go: named after the video, and its full path so two
+    videos with the same name in different folders do not share a file."""
+    resolved = str(Path(video).resolve()).encode()
+    return Path(folder) / f"{Path(video).stem}-{hashlib.sha1(resolved).hexdigest()[:8]}.npz"
 
 
 @dataclass(frozen=True)
@@ -75,10 +98,17 @@ class SavedDetections:
             yield Frame(None, int(index), float(t)), boxes  # type: ignore[arg-type]
 
     def save(self, path: Path | str) -> None:
+        """Write to a temporary file, then rename: an interrupted run leaves no half file."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
+        handle, temporary = tempfile.mkstemp(dir=path.parent, suffix=".npz")
+        with os.fdopen(handle, "wb") as out:
+            self._write(out)
+        os.replace(temporary, path)
+
+    def _write(self, out) -> None:
         np.savez(
-            path,
+            out,
             xyxy=self.xyxy,
             conf=self.confidence,
             n=self.counts,
@@ -146,9 +176,9 @@ def cached_detections(
     build: Callable[[DetectorConfig], Detector] = build_detector,
 ) -> SavedDetections:
     """The saved detections for `video` with these detector settings, made if missing,
-    made with other settings, or `refresh` is set. Kept in `folder/<video name>.npz`."""
-    path = Path(folder) / f"{Path(video).stem}.npz"
-    key = detector_key(config)
+    made from another video or other settings, or `refresh` is set (cache_path())."""
+    path = cache_path(video, folder)
+    key = detector_key(config, video)
     if path.exists() and not refresh:
         saved = SavedDetections.load(path)
         if saved.detector == key:

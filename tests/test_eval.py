@@ -108,6 +108,6 @@ def test_a_miss_is_explained_by_detection_and_tracking():
     assert explain_misses([missed], [], labels, found, split, FPS) == {
         ("ID changes", "at least half"): 1
     }
-    assert "| ID changes | 1 | 0 | 0 | 1 |" in misses_table(
+    assert "| ID changes at the line | 1 | 0 | 0 | 1 |" in misses_table(
         explain_misses([missed], [], labels, found, split, FPS)
     )

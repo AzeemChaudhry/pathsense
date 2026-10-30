@@ -21,7 +21,6 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
   has none yet: too crowded to count from frames.
 - `pathsense.eval.label_events` and `pathsense.eval.explain_misses`: the labelled people's
   own events, and why each true crossing was missed. The tracker study now uses them.
-
 - `analytics.line_bounce`: in a dense crowd the tracker can slide an ID onto the person
   behind, which looks like a U-turn at the line. A crossing that reverses the ID's last
   one now waits this many seconds and is dropped if the ID crosses back. On by default at
@@ -50,8 +49,10 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 - `Pipeline.track` runs everything after the detector, so evaluation replays saved
   detections through the same code as a live video; `Pipeline.from_config` takes an
   optional `detector`.
-- The tracker study's detections live in `data/cache/`, shared with `pathsense tune`, and
-  its replay, labels and misses analysis are the package's own code.
+- The tracker study's saved detections moved from `data/mot/dets/` to `data/cache/`,
+  shared with `pathsense tune` and checked against the video and detector settings; run
+  `scripts/tracker_study cache` again to make them. Its replay, labels and misses analysis
+  are the package's own code.
 
 ### Removed
 

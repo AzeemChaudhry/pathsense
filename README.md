@@ -256,7 +256,7 @@ study is defined in `configs/study/trackers.yaml`; the results are in
 [docs/TRACKER_STUDY.md](docs/TRACKER_STUDY.md).
 
 ```bash
-uv run python scripts/tracker_study cache   # detector once per scene (GPU, about 10 min)
+uv run python scripts/tracker_study cache   # detector once per scene into data/cache (GPU, about 10 min)
 uv run python scripts/tracker_study all     # sweep, run, render, report, check (CPU, 2 to 3 h)
 uv run python scripts/tracker_study check   # where the misses come from; matcher rescoring (2 min)
 ```
@@ -275,14 +275,17 @@ tracker settings against what really happened there:
 uv run pathsense tune configs/scenes/mot/MOT20-03.yaml   # report in runs/tune/MOT20-03/
 ```
 
-It runs the detector over the scene's video once (saved in `data/cache/`, reused until the
-detector settings change), then replays those boxes through the scene as it is and through
-each setup in [configs/tune/candidates.yaml](configs/tune/candidates.yaml), and scores
-them. A setup replaces the scene's own only if it scores strictly better. The report
-describes the scene, compares every setup, shows the block to paste into the scene file,
-and says what is left and whose it is: the detector's (people never detected), the
-tracker's (detected, but the track was lost or split) or the counting rules' (errors even
-with perfect tracks). It never edits the scene file itself.
+It runs the detector over the scene's video once (saved in `data/cache/`, made again if
+the video, the weights file or a detector setting changes), then replays those boxes
+through the scene as it is and through each setup in
+[configs/tune/candidates.yaml](configs/tune/candidates.yaml), and scores them: by crossing
+F1, then by count error. A setup replaces the scene's own only if it comes out strictly
+ahead in that order. Candidates may change the tracker and the counting rules, not the
+detector or the line and zones. The report describes the scene, compares every setup,
+shows the block to paste into the scene file, and puts every missed crossing in one group:
+the detector's (never detected), the tracker's (detected, but the track was lost, split or
+swapped), both, or unclear; it also says what the counting rules alone get wrong with
+perfect tracks. It never edits the scene file itself.
 
 The scene file says what really happened in a `truth:` block, either hand labels or hand
 counts:
@@ -298,7 +301,8 @@ truth:
 ```
 
 Labels score every crossing one by one; hand counts only score totals, where a false
-crossing and a missed one cancel out.
+crossing and a missed one cancel out. A count left out of `truth:` is not scored, and the
+report marks it so (grocery-store gives no exits, for example).
 
 ### Checks
 
