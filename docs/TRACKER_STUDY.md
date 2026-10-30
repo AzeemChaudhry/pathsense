@@ -282,7 +282,7 @@ who crossed. Was a saved detection on them (a box at IoU 0.5 or more) in the fra
 0.5 s of the crossing? And which of our IDs was on them in the second before and the second
 after?
 
-| what our tracks did | detected in at least half the frames | in some frames | never | all |
+| what our tracks did | detected in at least half the frames | detected in some frames | detected never | all |
 | --- | --- | --- | --- | --- |
 | no track on them | 64 | 44 | 23 | 131 |
 | one ID before and after, no matching crossing | 114 | 11 | 0 | 125 |

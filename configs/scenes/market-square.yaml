@@ -26,3 +26,12 @@ analytics:
     - name: fountain
       polygon: [[820, 1130], [1350, 1130], [1500, 1260], [1520, 1520], [1400, 1640],
                 [850, 1640], [720, 1530], [700, 1250]]
+
+# Counted by eye from frames every 0.5 s (kerb) and 1 s (fountain), not by a person on
+# site: 16 walk down into the street, nobody up into the square; the 6 people at the
+# fountain are there from the start. Two of the 16 drift slowly across the kerb and one
+# is at the right edge, so the OUT count may be off by up to 3.
+truth:
+  enter: 0
+  exit: 16
+  zones: {fountain: 6}

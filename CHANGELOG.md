@@ -10,6 +10,17 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Added
 
+- `pathsense tune <scene>`: chooses a scene's tracker settings against what really
+  happened there. It runs the detector once (saved in `data/cache/`), replays the scene
+  and each setup in `configs/tune/candidates.yaml`, and scores them against the scene's
+  new `truth:` block (hand labels or hand counts). The report describes the scene,
+  compares the setups, shows the block to paste, and says whether what is left belongs to
+  the detector, the tracker or the counting rules. It never edits the scene file.
+- `truth:` blocks in the MOT scene files (their labels), in people-walking and
+  grocery-store (their hand counts) and in market-square (counted from frames). subway
+  has none yet: too crowded to count from frames.
+- `pathsense.eval.label_events` and `pathsense.eval.explain_misses`: the labelled people's
+  own events, and why each true crossing was missed. The tracker study now uses them.
 - `analytics.line_bounce`: in a dense crowd the tracker can slide an ID onto the person
   behind, which looks like a U-turn at the line. A crossing that reverses the ID's last
   one now waits this many seconds and is dropped if the ID crosses back. On by default at
@@ -38,6 +49,14 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 - `Pipeline.track` runs everything after the detector, so evaluation replays saved
   detections through the same code as a live video; `Pipeline.from_config` takes an
   optional `detector`.
+- The tracker study's saved detections moved from `data/mot/dets/` to `data/cache/`,
+  shared with `pathsense tune` and checked against the video and detector settings; run
+  `scripts/tracker_study cache` again to make them. Its replay, labels and misses analysis
+  are the package's own code.
+
+### Removed
+
+- The top-level `eval/` placeholder; evaluation is in `src/pathsense/eval`.
 
 ## [0.3.0] - 2026-10-28
 

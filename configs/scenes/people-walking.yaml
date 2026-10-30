@@ -13,3 +13,8 @@ analytics:
   zones:
     - name: lower half
       polygon: [[0, 675], [1920, 675], [1920, 1080], [0, 1080]]
+
+# Hand counts, for `pathsense tune` (NOTES.md).
+truth:
+  enter: 11
+  exit: 7

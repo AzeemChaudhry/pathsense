@@ -13,3 +13,7 @@ analytics:
   zones:
     - name: shop front
       polygon: [[100, 100], [620, 100], [620, 420], [100, 420]]
+
+# What really happened, for `pathsense tune`: every person boxed in every frame by hand.
+truth:
+  labels: data/mot/gt/MOT17-04.txt

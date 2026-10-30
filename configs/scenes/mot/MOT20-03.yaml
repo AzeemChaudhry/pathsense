@@ -27,3 +27,7 @@ analytics:
   zones:
     - name: crossing
       polygon: [[200, 10], [640, 10], [620, 110], [180, 120]]
+
+# What really happened, for `pathsense tune`: every person boxed in every frame by hand.
+truth:
+  labels: data/mot/gt/MOT20-03.txt

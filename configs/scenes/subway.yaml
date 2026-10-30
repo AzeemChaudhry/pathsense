@@ -29,3 +29,8 @@ analytics:
       polygon: [[1265, 520], [1250, 600], [1220, 720], [1178, 960], [1092, 1440], [962, 1920],
                 [844, 2400], [640, 2880], [465, 3120], [250, 3480], [120, 3700], [60, 3840],
                 [2160, 3840], [2160, 520]]
+
+# No truth block: with the doors open (22 to 31 s), dozens of people board and get off at
+# several doors at once, and at the far doors they are small and hidden behind each
+# other, so neither a count by eye from frames nor the pipeline's own (7 boarded, 10 off)
+# can be trusted. Far more than 7 board. It needs labelling with a tool, box by box.

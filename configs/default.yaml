@@ -11,7 +11,7 @@ detector:
   drop_partial: false  # drop a partial box of a person also boxed whole (eye level, carts)
 
 tracker:
-  name: bytetrack      # bytetrack | botsort | ocsort
+  name: bytetrack      # bytetrack | botsort | ocsort | sort | cbiou
   # Extra tracker arguments, e.g. lost_track_buffer: 60. A setting the chosen tracker does
   # not take is skipped with a warning (OC-SORT has no activation threshold).
   params:
