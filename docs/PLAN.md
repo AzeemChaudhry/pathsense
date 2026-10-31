@@ -103,6 +103,12 @@ passes on the check scenes. Appearance embeddings (clothing, in memory for one v
 tried there for re-linking lost people ([RESEARCH.md](RESEARCH.md)). Which trackers the
 browser ships is decided at Phase 5, from the results after Phase 4's detector.
 
+**Plan change 2026-10-31:** the tracker study held the detector fixed, and a test of input
+size on subway and MOT20-02 showed how much that hid. Phase 3 gains a detector study on 7
+MOT scenes and 80 PersonPath22 videos, and the scene analyzer moves here from later: fit
+now on COCO weights, fit again after Phase 4's training. Phase 5 must measure its input size,
+since at 640 crowds lose most of their crossings.
+
 **Stretch (C):** on a cloud GPU, auto label real security camera frames from MEVA
 (CC BY 4.0) with SAM 3 or a large RF-DETR, train the nano model on them, publish before and
 after numbers on CCTV style video.
@@ -135,4 +141,9 @@ after numbers on CCTV style video.
   truth yet. Step 5 done (2026-10-31, [TRACKER_STUDY.md](TRACKER_STUDY.md#appearance-step-5-does-telling-people-apart-by-looks-recover-crossings)):
   no change passed clearly, so nothing new is on by default. Position only stitching at
   the line and appearance embeddings both failed or passed too narrowly to trust;
-  embeddings stay as a toggle, off, and re-entry remains untested. Next: the gate run.
+  embeddings stay as a toggle, off, and re-entry remains untested.
+  Detector study and scene analyzer done (2026-10-31, [DETECTOR_STUDY.md](DETECTOR_STUDY.md)):
+  across 84 scored cameras, input size matters most, and `yolo26s` at 1920 with a lower
+  first pass bar beats the default on held out scenes (scene F1 0.600 against 0.411). The
+  gate table is in the README. MOT20-03 and the check scenes meet the gate; MOT20-05 and the
+  sample clips do not improve, and subway has no truth. **Awaiting a decision on the gate.**

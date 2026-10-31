@@ -102,6 +102,10 @@ from 2.1.0, when it dropped DeepSORT and ReIDModel. And the OSNet weights cannot
 are trained on MSMT17, whose agreement allows academic use only. Re-entry, someone coming
 back minutes later, is untested and remains the open use.
 
+**Input size (2026-10-31).** These notes missed it, and it matters more than any library
+here: on MOT20-02 a crossing F1 of 0.31 at 640 against 0.71 at 1600
+([DETECTOR_STUDY.md](DETECTOR_STUDY.md)). The browser must measure what it can afford.
+
 ## 4. Libraries for YOLO with ByteTrack
 
 | Library | Language | Has | Fit |

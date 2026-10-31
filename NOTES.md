@@ -402,6 +402,27 @@ Full write-up with charts: [docs/TRACKER_STUDY.md](docs/TRACKER_STUDY.md).
 - **Left:** per scene choice of tracker and settings is `pathsense tune` (step 4). The
   misses (tracks starting late, lost or split at the line) are the next tracking target.
 
+## 2026-10-31: detector study and scene analyzer
+
+Full tables in docs/DETECTOR_STUDY.md.
+
+- **Why:** Phase 3 held the detector fixed. A sweep of input size showed F1 0.306 at 640 and
+  0.708 at 1600 on MOT20-02, flat to 1920, and worse above it.
+- **Result:** on 39 held out scenes, scene F1 0.411 for the default, 0.528 for `yolo26n` at
+  1920, 0.567 for `yolo26s` at 1920, 0.600 with confidence 0.3, crowd settings and a low bar.
+- **Found by the gate table, not the sweep:** `yolo26s` collapsed on MOT20-05 (recall 0.28).
+  Not the 300 box cap: 108 boxes a frame, but only 4 at 0.6 or more. Lowering
+  `high_conf_det_threshold`, never swept, gave 0.70.
+- **Per scene rules lost** (0.601 against 0.619, five folds), so the analyzer ships one
+  setup. Its rules are data, to fit again after training.
+- **Size sweep (one off, `yolo26n`):** MOT20-02 F1 0.306 at 640, 0.708 at 1600, 0.707 at
+  1920, 0.674 at 3200; wrong 64 at 1920, 95 at 3200. Subway levelled off near 10.7 people
+  a frame.
+- **Decision: no default changes.** The chosen setup loses to the scene files on MOT20-05 and
+  the sample clips. Gate left for Azeem.
+- **Process:** the laptop suspended 04:23 to 12:05 and lost 8 hours. Long runs now go under
+  `systemd-inhibit --what=sleep:idle`. RF-DETR's two largest sizes were dropped for time.
+
 ## 2026-10-31: appearance embeddings (Phase 3, step 5)
 
 Full tables in docs/TRACKER_STUDY.md, Appearance. Toggle: `appearance.enabled`, off.

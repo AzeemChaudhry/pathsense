@@ -10,6 +10,13 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Added
 
+- `pathsense analyze <video>` and `pathsense run --auto`: scan a video and use the settings
+  that suit it, with no labels. Rules are in `configs/analyzer.yaml`, to fit again after
+  training. For now one setup fits all, so `--auto` means `yolo26s` at 1920 with a low bar:
+  a per scene rule lost on held out scenes. `--auto` refuses a scene file.
+- Detector study on 84 cameras (docs/DETECTOR_STUDY.md), with `scripts/detector_study` and
+  `scripts/personpath22.py`, and an eleven scene gate table in the README. Defaults do not
+  change. Three new `pathsense tune` candidates lower ByteTrack's first pass bar.
 - `appearance:` config section and `pathsense.appearance`, off by default: an optional
   OSNet embedding per person, used in ByteTrack's first matching pass (`match`: botsort,
   veto, blend, adaptive), to refuse stitcher links, and in the bounce rule. Off because on
