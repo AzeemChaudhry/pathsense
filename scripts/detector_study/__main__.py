@@ -21,7 +21,7 @@ import sys
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 from concurrent.futures import ProcessPoolExecutor  # noqa: E402
-from functools import cache  # noqa: E402
+from functools import lru_cache  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 import numpy as np  # noqa: E402
@@ -106,7 +106,7 @@ def detect(study: dict) -> None:
             print(f"{detector} failed: {type(error).__name__}: {str(error)[:100]}", flush=True)
 
 
-@cache
+@lru_cache(maxsize=4)  # scenes are large; a worker needs few at once
 def _scene(scene: str, folder: str):
     return _load_scene(Path(scene), None, cache_path(scene_source(scene), folder))
 
