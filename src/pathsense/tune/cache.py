@@ -90,6 +90,15 @@ class SavedDetections:
     def __len__(self) -> int:
         return len(self.counts)
 
+    def above(self, confidence: float) -> SavedDetections:
+        """The boxes at this confidence or more, as a detector set to it would give."""
+        keep = self.confidence >= confidence
+        frames = np.repeat(np.arange(len(self.counts)), self.counts)
+        counts = np.bincount(frames[keep], minlength=len(self.counts))
+        return dataclasses.replace(
+            self, xyxy=self.xyxy[keep], confidence=self.confidence[keep], counts=counts
+        )
+
     def __iter__(self) -> Iterator[tuple[Frame, sv.Detections]]:
         starts = self.starts
         for k, (index, t) in enumerate(zip(self.index, self.timestamp, strict=True)):

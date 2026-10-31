@@ -61,3 +61,26 @@ candidates:
     why: the scene as it is, without the bounce rule, to show what the rule changes here
     set:
       - analytics.line_bounce=0
+
+  - name: low bar
+    why: a model that is less sure of itself needs a lower bar for the first matching pass
+    set:
+      - tracker.name=bytetrack
+      - "tracker.params={high_conf_det_threshold: 0.4, track_activation_threshold: 0.3}"
+      - tracker.stitch_seconds=2
+
+  - name: crowd, low bar
+    why: the crowd settings with a first pass bar that suits a less sure model
+    set:
+      - tracker.name=bytetrack
+      - "tracker.params={lost_track_buffer: 60, minimum_iou_threshold: 0.4, iou: diou,
+         high_conf_det_threshold: 0.4, track_activation_threshold: 0.3}"
+      - tracker.stitch_seconds=1
+
+  - name: crowd, lower bar
+    why: as crowd, low bar, further down, trading wrong crossings for found ones
+    set:
+      - tracker.name=bytetrack
+      - "tracker.params={lost_track_buffer: 60, minimum_iou_threshold: 0.4, iou: diou,
+         high_conf_det_threshold: 0.3, track_activation_threshold: 0.25}"
+      - tracker.stitch_seconds=1

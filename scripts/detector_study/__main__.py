@@ -5,6 +5,7 @@
     uv run python scripts/detector_study stage1       # every model and size (CPU)
     uv run python scripts/detector_study stage2       # the best, with every setting (CPU)
     uv run python scripts/detector_study report       # tables
+    uv run python scripts/detector_study test         # the held out scenes, once
 
 Defined in configs/study/detectors.yaml, written up in docs/DETECTOR_STUDY.md. Saved boxes
 go to data/cache/study/, results to runs/detector-study/ (not in git). Every step can be
@@ -28,7 +29,7 @@ import numpy as np  # noqa: E402
 import yaml  # noqa: E402
 
 from pathsense.config import load_config, read_yaml, scene_source  # noqa: E402
-from pathsense.tune.cache import SavedDetections, cache_path, cached_detections  # noqa: E402
+from pathsense.tune.cache import cache_path, cached_detections  # noqa: E402
 from pathsense.tune.run import _load_scene, load_candidates  # noqa: E402
 
 STUDY = Path("configs/study/detectors.yaml")
@@ -114,23 +115,13 @@ def _scene(scene: str, folder: str):
     return _load_scene(Path(scene), None, cache_path(scene_source(scene), folder))
 
 
-def above(saved: SavedDetections, confidence: float) -> SavedDetections:
-    """The saved boxes at this confidence or more, as a detector set to it would give."""
-    keep = saved.confidence >= confidence
-    frames = np.repeat(np.arange(len(saved.counts)), saved.counts)
-    counts = np.bincount(frames[keep], minlength=len(saved.counts))
-    return dataclasses.replace(
-        saved, xyxy=saved.xyxy[keep], confidence=saved.confidence[keep], counts=counts
-    )
-
-
 def _score(job: tuple) -> dict | None:
     detector, confidence, candidate, scene, group = job
     try:
         loaded = _scene(scene, str(_folder(detector)))
     except FileNotFoundError:
         return None  # this detector never finished the scene
-    loaded = dataclasses.replace(loaded, saved=above(loaded.saved, confidence))
+    loaded = dataclasses.replace(loaded, saved=loaded.saved.above(confidence))
     score, _ = loaded.run(candidate)
     c = score.crossings
     return {
@@ -179,12 +170,12 @@ def run(jobs: list[tuple], path: Path) -> None:
 
 
 def rows(*paths: Path) -> list[dict]:
-    found = []
+    found: dict[tuple, dict] = {}  # a run can be in both stages: once each
     for path in paths:
         if path.exists():
             with path.open() as saved:
-                found += list(csv.DictReader(saved))
-    return found
+                found |= {_key(row): row for row in csv.DictReader(saved)}
+    return list(found.values())
 
 
 def totals(found: list[dict], group: set[str]) -> dict[tuple, tuple]:
@@ -264,6 +255,18 @@ def main() -> None:
         jobs = [(d, conf, c, s, g) for d in best for conf in study["confidence"]
                 for c in candidates.values() for s, g in choosing.items()]  # fmt: skip
         run(jobs, OUT / "stage2.csv")
+    elif command == "test":
+        held = {s: g for s, g in scenes.items() if g == "test"}
+        jobs = [
+            (d, final["confidence"], candidates[final["candidate"]], s, g)
+            for final in study["final"]
+            for d in [final]
+            for s, g in held.items()
+        ]
+        run(jobs, OUT / "test.csv")
+        table = totals(rows(OUT / "test.csv"), {"test"})
+        for key, v in sorted(table.items(), key=lambda kv: -kv[1][5]):
+            print(key, f"scene F1 {v[5]:.3f} F1 {v[4]:.3f}", *v[:4], f"scenes {v[6]}")
     elif command == "report":
         report(study)
 

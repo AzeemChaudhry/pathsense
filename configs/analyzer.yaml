@@ -5,7 +5,17 @@
 scan: {name: yolo26n, imgsz: 1280}
 frames: 40
 
+# On 45 labelled scenes, a rule choosing per scene gained nothing once scenes were held out
+# (F1 0.596 against 0.594 for one setup), so for now one setup fits all. Fit again after
+# Phase 4's training (docs/DETECTOR_STUDY.md).
 rules:
-  - name: default
-    why: what ships
-    set: []
+  - name: yolo26s at 1920, crowd settings, low bar
+    why: the best single setup on 45 labelled scenes
+    set:
+      - detector.name=yolo26s
+      - detector.imgsz=1920
+      - detector.conf=0.3
+      - tracker.name=bytetrack
+      - "tracker.params={lost_track_buffer: 60, minimum_iou_threshold: 0.4, iou: diou,
+         high_conf_det_threshold: 0.4, track_activation_threshold: 0.3}"
+      - tracker.stitch_seconds=1
