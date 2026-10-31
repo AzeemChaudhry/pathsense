@@ -36,6 +36,9 @@ SCENES = Path("data/personpath22/scenes")
 CACHE = Path("data/cache/study")
 OUT = Path("runs/detector-study")
 WORKERS = 8
+# A line can look busy to scripts/personpath22.py yet see too few crossings by the scorer's
+# rules, and one crossing then swings a scene's F1. Too few: not scored, for any setup.
+MIN_TRUE = 4
 FIELDS = "detector imgsz confidence candidate scene group tp wrong missed ids".split()
 
 
@@ -188,7 +191,7 @@ def totals(found: list[dict], group: set[str]) -> dict[tuple, tuple]:
     """(detector, size, confidence, candidate) -> tp, wrong, missed, ids, F1, mean scene F1."""
     table: dict[tuple, list] = {}
     for row in found:
-        if row["group"] in group:
+        if row["group"] in group and int(row["tp"]) + int(row["missed"]) >= MIN_TRUE:
             key = (row["detector"], row["imgsz"], row["confidence"], row["candidate"])
             table.setdefault(key, []).append(row)
     out = {}
