@@ -91,7 +91,8 @@ class SavedDetections:
         return len(self.counts)
 
     def above(self, confidence: float) -> SavedDetections:
-        """The boxes at this confidence or more, as a detector set to it would give."""
+        """The boxes at this confidence or more: what a detector set to it would give, but
+        for a box exactly on it, and any cap on boxes at the lower setting."""
         keep = self.confidence >= confidence
         frames = np.repeat(np.arange(len(self.counts)), self.counts)
         counts = np.bincount(frames[keep], minlength=len(self.counts))

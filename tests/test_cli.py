@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 from test_pipeline import WalkingPerson
 
@@ -317,3 +319,26 @@ def test_the_window_is_scaled_to_fit_the_screen(monkeypatch):
     open_window("PathSense", 2160, 3840)  # 4K portrait: 900 px tall
     open_window("PathSense", 1280, 720)  # already fits: unchanged
     assert sizes == [(506, 900), (1280, 720)]
+
+
+def test_auto_with_a_scene_file_is_an_error(tmp_path):
+    scene = tmp_path / "scene.yaml"
+    scene.write_text("source: clip.mp4\n")
+    with pytest.raises(SystemExit, match="--auto"):
+        main(["run", "--scene", str(scene), "--auto", "--no-show"])
+
+
+def test_your_own_settings_win_over_auto(monkeypatch):
+    seen = {}
+
+    def stop(config, overrides, scene):
+        seen["overrides"] = overrides
+        raise OSError("stop here")
+
+    analysis = SimpleNamespace(overrides=("detector.conf=0.3",), report=lambda: "report")
+    monkeypatch.setattr("pathsense.tune.analyze.analyze", lambda *a: analysis)
+    monkeypatch.setattr("pathsense.tune.analyze.load_rules", lambda: None)
+    monkeypatch.setattr("pathsense.config.load_config", stop)
+    with pytest.raises(SystemExit):
+        main(["run", "--source", "clip.mp4", "--auto", "--no-show", "--set", "detector.conf=0.5"])
+    assert seen["overrides"] == ["detector.conf=0.3", "detector.conf=0.5"]

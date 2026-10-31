@@ -2,8 +2,9 @@
 
     uv run python scripts/detector_study/gate.py
 
-Writes runs/detector-study/gate.md. Scene files keep their lines, zones and tracker; only
-the detector changes. subway has no truth, so it shows counts and nothing to score them
+Writes runs/detector-study/gate.md. The chosen setup is what `pathsense run --auto` uses,
+on each scene's own line and zones: detector, confidence and tracker all change. subway has
+no truth, so it shows counts and nothing to score them
 against. FPS is the detector and everything after it, one frame at a time.
 """
 
@@ -53,6 +54,7 @@ def _row(job: tuple[str, str, Path]) -> dict:
         pipeline = Pipeline.from_config(config, saved.fps, detector=no_detector)
         result = replay(pipeline, saved)
         row |= {"ours": f"{pipeline.line_counter.entered} / {pipeline.line_counter.exited}"}
+        row["gpu_fps"] = 1000 / (saved.detect_ms + result.track_ms)
         row["ids"] = result.ids
         return row
     loaded = _load_scene(Path(scene), None, cache_path(scene_source(scene), folder))

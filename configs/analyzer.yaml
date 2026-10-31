@@ -5,8 +5,8 @@
 scan: {name: yolo26n, imgsz: 1280}
 frames: 40
 
-# On 45 labelled scenes, a rule choosing per scene gained nothing once scenes were held out
-# (F1 0.596 against 0.594 for one setup), so for now one setup fits all. Fit again after
+# On 45 labelled scenes, a rule choosing per scene lost once scenes were held out (F1 0.601
+# against 0.619 for one setup), so for now one setup fits all. Fit again after
 # Phase 4's training (docs/DETECTOR_STUDY.md).
 rules:
   - name: yolo26s at 1920, crowd settings, low bar

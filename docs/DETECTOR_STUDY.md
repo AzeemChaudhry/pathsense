@@ -21,9 +21,10 @@ through 10 detector settings and up to 11 tracker setups at up to 4 confidence l
   28% of MOT20-05's crossings. `high_conf_det_threshold` was never swept before. Lowering it
   took that scene from F1 0.42 to 0.70.
 - **No setup wins everywhere.** The chosen one improves the held out scenes and MOT20-03,
-  but loses to the scene files on MOT20-05 and on the sample clips. So **no default changed**.
-- **Choosing per scene from a scan gained nothing.** Tried with one split on any measure,
-  scored on held out folds: 0.596 against 0.594 for one setup.
+  but loses to the scene files on MOT20-05 and the sample clips, and its count error is worse
+  on four of seven MOT scenes. So **no default changed**.
+- **Choosing per scene from a scan lost to one setup.** One split on any measure, scored on
+  held out folds: 0.601 against 0.619.
 - **Larger is not always better.** Above 1920, `yolo26n` on MOT20-02 finds few more people
   and counts more wrong crossings (64 at 1920, 95 at 3200), at 3.5 times the time.
 - **This is too slow for the browser as it stands.** `yolo26s` at 1920 is about 10 FPS on
@@ -62,7 +63,10 @@ MOT), so this does not compare the models at equal size. Bars were also set for 
 
 Best overall: `yolo26s` at 1920, confidence 0.3, `crowd, low bar`, 0.630 (MOT 0.791,
 PersonPath22 0.600). Best possible with a perfect choice per scene: 0.746, though much
-of that gap is chance from picking the best of 110 setups for each scene.
+of that gap is chance from picking the best of 146 setups for each scene.
+
+The sweep above 1920 quoted earlier was a one off on MOT20-02, MOT17-02 and subway with
+`yolo26n`; it is in NOTES.md, not in this study's scripts.
 
 ## The scene analyzer
 
@@ -71,12 +75,15 @@ minutes, describe the scene, and take the first rule that fits in `configs/analy
 [Chameleon](https://www.microsoft.com/en-us/research/wp-content/uploads/2018/05/Chameleon_SIGCOMM2018.pdf)
 argued that sizes and speeds of objects are what settle the best setup for a camera.
 
-We searched one split on six measures across the top 30 setups, with five folds. Fitted on
-every scene it looked like a gain (0.628), but held out it was none (0.596 against 0.594),
-and each fold picked a different rule. So today's rules are one setup for all, which beats
-the default on any unseen video. The mechanism is what Phase 4 needs: rules are data, so
-they can be fit again once the trained detectors exist, with no code change. It never sets
-a line or a zone, and `pathsense tune` remains better when truth exists.
+`scripts/detector_study/rules.py` searched one split on the scan's five measures across the
+top 30 setups, with five folds. Fitted on every scene it looked like a small gain (0.635
+against 0.630). Held out it lost (0.601 against 0.619), and the folds disagreed on the rule.
+So today's rules are one setup for all, and **`--auto` currently just means "use that
+setup"**: the scan reports the scene but changes nothing. It is better than the default on
+average across unseen cameras, not on each one, and it is not the default. The mechanism is
+what Phase 4 needs: rules are data, so they can be fit again once the trained detectors
+exist, with no code change. It never sets a line or a zone, refuses a scene file, and
+`pathsense tune` remains better when truth exists.
 
 ## Gate table
 
@@ -113,8 +120,12 @@ at 1920 1.9.
 
 Against the gate:
 
-- **MOT20-03 false crossings:** 46 to 23 with the chosen setup, and 93 to 89 missed. Met.
-- **Check scenes:** 68 to 53 wrong and 73 to 53 missed. Met.
+- **MOT20-03 false crossings:** 46 to 23 with the chosen setup, and 93 to 89 missed. Met on
+  crossings. Its count error rises from 118 to 195: it counts fewer in total, and false
+  crossings had been filling that gap.
+- **Check scenes:** 68 to 53 wrong and 73 to 53 missed in total. Met on crossings, though
+  wrong rose on two (MOT17-04 0 to 1, MOT17-09 2 to 4). Count error is worse on two
+  (MOT17-04 4 to 27, MOT20-02 36 to 136), counting zones, where lower bars add tracks.
 - **MOT20-05, the other crowd:** 83 to 33 wrong but 271 to 406 missed, and HOTA 27.0 to 17.0.
   Filtering at confidence 0.3 costs it the most: at 0.1 it found 327 where this finds 234.
 - **Sample clips:** the scene files are better: people-walking 12 IN, not 11; grocery-store
@@ -133,7 +144,13 @@ Against the gate:
   decision to look for it came from the gate, not the test. Its 0.600 is a little kind.
 - **About 16 crossings a scene.** 706 true crossings in the 39 test scenes, so small
   differences between setups (0.579 against 0.577) mean nothing.
-- **55 of 236 videos are absent:** external sources Amazon may not redistribute.
+- **The line maker is rough.** It counts any track spanning the line, even someone swaying
+  on it, and does not check that the line reaches them; clipping an end to the frame can
+  tilt the line. Scenes with fewer than 4 true crossings by the scorer's own rules are
+  dropped, which removes the worst cases. Fixing it would change every scene and need a
+  rerun, so it waits for the next rerun.
+- **55 of 236 videos are absent** (external sources Amazon may not redistribute), and
+  videos over 1,800 frames were left out, so the sample leans to short clips.
 - **Not tested:** other YOLO sizes (`yolo26m`), tiling at scale, frame skipping, and each
   bar for each model. `pathsense tune`'s per scene picks were not rechecked on held out time.
 - **No trained model yet.** Everything here uses COCO weights. Phase 4 changes all of it.
@@ -148,6 +165,7 @@ uv run python scripts/detector_study stage2      # the best, with every setting
 uv run python scripts/detector_study report
 uv run python scripts/detector_study test        # held out scenes
 uv run python scripts/detector_study/gate.py     # the gate table
+uv run python scripts/detector_study/rules.py    # can a scan choose per scene?
 ```
 
 Every step skips what it has done. Defined in `configs/study/detectors.yaml`.

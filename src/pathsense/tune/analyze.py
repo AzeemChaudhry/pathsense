@@ -11,7 +11,8 @@ enough. The rules are data: fit on labelled scenes, and fit again after Phase 4'
 with no change here.
 
 `pathsense tune` scores setups against truth and is better when truth exists. This is for
-the video that has none. It never sets a line or a zone.
+the video that has neither truth nor a scene file. It never sets a line or a zone. Today
+one rule fits all, so the scan can only report; it matters once rules differ.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from typing import Any
 
 import numpy as np
 
-from pathsense.config import ConfigError, DetectorConfig, read_yaml
+from pathsense.config import ConfigError, DetectorConfig, apply_override, read_yaml
 from pathsense.detect import Detector, build_detector
 from pathsense.io import VideoSource
 from pathsense.tune.cache import SavedDetections
@@ -63,18 +64,25 @@ class Analysis:
         return self.rule.overrides
 
     def report(self) -> str:
-        lines = ["The scene:", *(f"- {line}" for line in self.profile.lines()[:4]), ""]
+        lines = ["The scene:", *(f"- {line}" for line in self.profile.lines()[1:4]), ""]
         lines += [f"Chosen: {self.rule.name}, {self.rule.why}", "", "Settings:"]
-        return "\n".join(lines + [f"  --set {o}" for o in self.overrides] or ["  as they are"])
+        settings = [f"  --set {o}" for o in self.overrides] or ["  as they are"]
+        return "\n".join(lines + settings)
 
 
 def load_rules(path: Path | str = RULES) -> Rules:
     raw = read_yaml(Path(path))
+    if "scan" not in raw or "frames" not in raw:
+        raise ConfigError(f"{path}: needs scan and frames")
     rules = []
     for item in raw.get("rules") or []:
         extra = set(item.get("below", {})) | set(item.get("at_least", {}))
         if extra - MEASURES:
             raise ConfigError(f"{path}: unknown measures {sorted(extra - MEASURES)}")
+        if not isinstance(item.get("set", []), list):
+            raise ConfigError(f"{path}: rule {item.get('name')!r}: set must be a list")
+        for override in item.get("set", []):
+            apply_override({}, override)  # a bad one fails here, not after the scan
         rules.append(
             Rule(
                 str(item["name"]),
@@ -101,7 +109,7 @@ def scan(video: Path | str, detector: Detector, frames: int) -> SavedDetections:
     with VideoSource(str(video)) as source:
         fps = source.fps
         count = min(source.frame_count, int(SCAN_SECONDS * fps))
-        wanted = {int(k) for k in np.linspace(0, max(count - 1, 0), frames)} if count else None
+        wanted = {int(k) for k in np.linspace(0, count - 1, frames)} if count > 0 else None
         last = max(wanted) if wanted else frames - 1
         for frame in source:
             if wanted is None or frame.index in wanted:

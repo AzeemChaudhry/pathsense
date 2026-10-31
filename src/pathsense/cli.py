@@ -67,6 +67,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     run = commands.add_parser("run", help="detect and track people in a video or webcam")
     calibrate = commands.add_parser("calibrate", help="measure a webcam's best mode and save it")
+    analyze = commands.add_parser(
+        "analyze", help="scan a video and say which settings suit it, with no labels"
+    )
+    analyze.add_argument("video", help="video file")
     for command in (run, calibrate):
         command.add_argument(
             "--source", default=None, help="camera index, video file or stream URL (default: 0)"
@@ -111,10 +115,6 @@ def build_parser() -> argparse.ArgumentParser:
     tune = commands.add_parser(
         "tune", help="choose a scene's tracker settings against its truth: block"
     )
-    analyze = commands.add_parser(
-        "analyze", help="scan a video and say which settings suit it, with no labels"
-    )
-    analyze.add_argument("video", help="video file")
     tune.add_argument("scene", type=Path, help="scene file with source: and truth:")
     tune.add_argument(
         "--config", type=Path, default=None, help="YAML config (default: configs/default.yaml)"
@@ -176,7 +176,7 @@ def run(args: argparse.Namespace) -> Summary:
 
     from pathsense.analytics import EventLog, Heatmap
     from pathsense.annotate import Annotator, draw_line, draw_zone
-    from pathsense.config import load_config, scene_source
+    from pathsense.config import ConfigError, load_config, scene_source
     from pathsense.io import RealTimeVideoWriter, VideoSource
     from pathsense.io.display import configure_qt, open_window
     from pathsense.pipeline import Pipeline
@@ -185,6 +185,8 @@ def run(args: argparse.Namespace) -> Summary:
     source_name = args.source or (scene_source(args.scene) if args.scene else None) or "0"
     overrides = args.overrides
     if args.auto:
+        if args.scene:
+            raise ConfigError("--auto is for a video with no scene file; use one or the other")
         from pathsense.tune.analyze import analyze, load_rules
 
         analysis = analyze(source_name, load_rules())

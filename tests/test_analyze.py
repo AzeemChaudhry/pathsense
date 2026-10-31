@@ -59,6 +59,15 @@ def test_the_report_gives_the_settings(tiny_video):
     assert isinstance(found, Analysis) and "--set detector.imgsz=1920" in found.report()
 
 
+def test_a_rule_with_no_settings_says_so(tiny_video):
+    assert "as they are" in analyze(tiny_video, RULES, lambda c: Seen()).report()
+
+
+def test_a_length_the_backend_cannot_tell_scans_the_first_frames(tiny_video, monkeypatch):
+    monkeypatch.setattr("pathsense.io.source.cv2.CAP_PROP_FRAME_COUNT", 9999)  # reads -1 or 0
+    assert len(scan(tiny_video, Seen(), 4)) == 4
+
+
 def test_the_shipped_rules_load_and_always_fit():
     rules = load_rules()
     assert rules.frames > 0 and not (rules.rules[-1].below or rules.rules[-1].at_least)
@@ -71,6 +80,9 @@ def test_the_shipped_rules_load_and_always_fit():
         "scan: {name: yolo26n}\nframes: 4\nrules:\n  - {name: a, why: b, below: {people: 3}}\n",
         "scan: {name: yolo26n}\nframes: 4\nrules:\n"
         "  - {name: a, why: b, below: {nonsense: 3}}\n  - {name: c, why: d}\n",
+        "frames: 4\nrules:\n  - {name: a, why: b}\n",
+        "scan: {name: yolo26n}\nframes: 4\nrules:\n  - {name: a, why: b, set: detector.conf=1}\n",
+        "scan: {name: yolo26n}\nframes: 4\nrules:\n  - {name: a, why: b, set: [no equals]}\n",
     ],
 )
 def test_bad_rules_are_errors(tmp_path, text):

@@ -32,8 +32,8 @@ stage2_detectors: 3
 confidence: [0.1, 0.2, 0.3, 0.4]
 
 # Scored once on the held out scenes, fixed before they were opened. The analyzer's
-# choice is the third; the rule found on the choosing scenes gained nothing when scenes were
-# held out (0.596 against 0.594), so its two setups are here for the record only.
+# choice was the third; the rule found on the choosing scenes showed no gain when scenes
+# were held out, so its two setups are here for the record only.
 final:
   - {name: yolo26n, imgsz: 640, confidence: 0.1, candidate: default}   # what ships
   - {name: yolo26n, imgsz: 1920, confidence: 0.1, candidate: default}  # what scene files use
