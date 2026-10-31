@@ -1,0 +1,11 @@
+# How `pathsense run --auto` and `pathsense analyze` choose settings for a video
+# (pathsense.tune.analyze). The first rule that fits wins, so the last must have no
+# conditions. Each `set` is `section.key=value`, as `pathsense run --set` takes.
+
+scan: {name: yolo26n, imgsz: 1280}
+frames: 40
+
+rules:
+  - name: default
+    why: what ships
+    set: []

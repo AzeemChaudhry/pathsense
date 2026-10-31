@@ -99,6 +99,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--heatmap", type=Path, default=None, help="save where people spent time to this .png"
     )
     run.add_argument("--no-show", action="store_true", help="do not open a window")
+    run.add_argument(
+        "--auto", action="store_true", help="scan the video first and use the settings it suits"
+    )
     run.add_argument("--max-frames", type=int, default=None, help="stop after this many frames")
     run.add_argument("--trail", type=int, default=30, help="trail length in frames")
     run.add_argument(
@@ -108,6 +111,10 @@ def build_parser() -> argparse.ArgumentParser:
     tune = commands.add_parser(
         "tune", help="choose a scene's tracker settings against its truth: block"
     )
+    analyze = commands.add_parser(
+        "analyze", help="scan a video and say which settings suit it, with no labels"
+    )
+    analyze.add_argument("video", help="video file")
     tune.add_argument("scene", type=Path, help="scene file with source: and truth:")
     tune.add_argument(
         "--config", type=Path, default=None, help="YAML config (default: configs/default.yaml)"
@@ -175,8 +182,15 @@ def run(args: argparse.Namespace) -> Summary:
     from pathsense.pipeline import Pipeline
     from pathsense.timing import FpsMeter
 
-    config = load_config(args.config, args.overrides, args.scene)
     source_name = args.source or (scene_source(args.scene) if args.scene else None) or "0"
+    overrides = args.overrides
+    if args.auto:
+        from pathsense.tune.analyze import analyze, load_rules
+
+        analysis = analyze(source_name, load_rules())
+        print(analysis.report())
+        overrides = [*analysis.overrides, *overrides]  # your own --set still wins
+    config = load_config(args.config, overrides, args.scene)
     Pipeline.check(config)  # before the camera turns on or weights download
     camera = camera_settings(config, source_name, args.recalibrate)
     if args.recalibrate and camera is None:
@@ -306,6 +320,11 @@ def main(argv: list[str] | None = None) -> None:
     try:
         if args.command == "tune":
             print(f"saved {tune_scene(args)}")
+            return
+        if args.command == "analyze":
+            from pathsense.tune.analyze import analyze, load_rules
+
+            print(analyze(args.video, load_rules()).report())
             return
         if args.command == "calibrate":
             config = load_config(args.config, args.overrides)

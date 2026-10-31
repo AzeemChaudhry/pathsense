@@ -1,0 +1,32 @@
+# Phase 3 detector study: which model, input size and confidence count people best, across
+# far more cameras than the tracker study. Results: docs/DETECTOR_STUDY.md. Run it with
+# scripts/detector_study.
+
+# Hand labelled, each with a line placed for the scene.
+mot: [MOT17-02, MOT17-04, MOT17-09, MOT20-01, MOT20-02, MOT20-03, MOT20-05]
+# PersonPath22 scenes per split, spread evenly from sparsest to busiest. Choices are made on
+# `train` and MOT; `test` is scored once, after every choice is fixed.
+sample: {train: 40, test: 40}
+max_frames: 1800  # a longer video costs more GPU time than one more camera tells us
+
+# Stage 1: every model at every size, confidence as low as it is saved, two tracker setups.
+# Cheapest first, so a run stopped early has the most useful results. rfdetr-small at 960
+# was dropped: 226 ms a frame on the GTX 1650, too slow to matter for this product.
+detectors:
+  - {name: yolo26n, imgsz: 640}
+  - {name: yolo26n, imgsz: 960}
+  - {name: yolo26s, imgsz: 640}
+  - {name: yolo26n, imgsz: 1280}
+  - {name: yolo26n, imgsz: 1600}
+  - {name: rfdetr-nano, imgsz: 384}
+  - {name: yolo26n, imgsz: 1920}
+  - {name: yolo26s, imgsz: 1280}
+  - {name: rfdetr-small, imgsz: 512}
+  - {name: rfdetr-nano, imgsz: 640}
+  - {name: yolo26s, imgsz: 1920}
+stage1_candidates: [default, crowd]
+
+# Stage 2: the best `stage2_detectors` of stage 1, with each confidence and every candidate
+# in configs/tune/candidates.yaml. Confidence is a filter on saved boxes: no GPU needed.
+stage2_detectors: 3
+confidence: [0.1, 0.2, 0.3, 0.4]
