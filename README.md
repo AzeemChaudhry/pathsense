@@ -319,7 +319,7 @@ PATHSENSE_SLOW=1 uv run pytest -m slow           # real YOLO26n and RF-DETR on t
 
 For a video with no scene file, `pathsense analyze clip.mp4` scans it and says which
 settings suit it, and `pathsense run --source clip.mp4 --auto` uses them. Your own `--set`
-still wins. Today one setup fits all (`yolo26s` at 1920, about 10 FPS on a GTX 1650), to be
+still wins, but the settings in a `--config` file do not. Today one setup fits all (`yolo26s` at 1920, about 10 FPS on a GTX 1650), to be
 fit again after training. It needs no labels; `pathsense tune` is better when you have them.
 
 ## Repository layout

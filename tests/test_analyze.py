@@ -83,6 +83,8 @@ def test_the_shipped_rules_load_and_always_fit():
         "frames: 4\nrules:\n  - {name: a, why: b}\n",
         "scan: {name: yolo26n}\nframes: 4\nrules:\n  - {name: a, why: b, set: detector.conf=1}\n",
         "scan: {name: yolo26n}\nframes: 4\nrules:\n  - {name: a, why: b, set: [no equals]}\n",
+        "scan: {name: yolo26n}\nframes: 4\nrules:\n"
+        "  - {name: a, why: b, set: [detector.confidnce=1]}\n",
     ],
 )
 def test_bad_rules_are_errors(tmp_path, text):

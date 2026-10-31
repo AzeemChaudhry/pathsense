@@ -23,7 +23,7 @@ from typing import Any
 
 import numpy as np
 
-from pathsense.config import ConfigError, DetectorConfig, apply_override, read_yaml
+from pathsense.config import ConfigError, DetectorConfig, load_config, read_yaml
 from pathsense.detect import Detector, build_detector
 from pathsense.io import VideoSource
 from pathsense.tune.cache import SavedDetections
@@ -81,8 +81,7 @@ def load_rules(path: Path | str = RULES) -> Rules:
             raise ConfigError(f"{path}: unknown measures {sorted(extra - MEASURES)}")
         if not isinstance(item.get("set", []), list):
             raise ConfigError(f"{path}: rule {item.get('name')!r}: set must be a list")
-        for override in item.get("set", []):
-            apply_override({}, override)  # a bad one fails here, not after the scan
+        load_config(overrides=item.get("set", []))  # a bad one fails here, not after the scan
         rules.append(
             Rule(
                 str(item["name"]),
@@ -105,6 +104,7 @@ def scan(video: Path | str, detector: Detector, frames: int) -> SavedDetections:
     """The detector's boxes on `frames` evenly spaced frames."""
     boxes: list[np.ndarray] = []
     confidences: list[np.ndarray] = []
+    times: list[float] = []
     size = (0, 0)
     with VideoSource(str(video)) as source:
         fps = source.fps
@@ -116,6 +116,7 @@ def scan(video: Path | str, detector: Detector, frames: int) -> SavedDetections:
                 found = detector(frame.image)
                 boxes.append(found.xyxy.astype(np.float32))
                 confidences.append(found.confidence.astype(np.float32))
+                times.append(frame.timestamp)
                 size = (frame.image.shape[1], frame.image.shape[0])
             if frame.index >= last:  # a stream has no length: its first frames
                 break
@@ -127,7 +128,7 @@ def scan(video: Path | str, detector: Detector, frames: int) -> SavedDetections:
         confidence=np.concatenate(confidences),
         counts=np.array([len(b) for b in boxes], int),
         index=np.arange(n),
-        timestamp=np.arange(n) / fps,
+        timestamp=np.array(times),
         fps=fps,
         size=size,
     )

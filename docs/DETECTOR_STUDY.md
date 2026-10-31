@@ -22,7 +22,7 @@ through 10 detector settings and up to 11 tracker setups at up to 4 confidence l
   took that scene from F1 0.42 to 0.70.
 - **No setup wins everywhere.** The chosen one improves the held out scenes and MOT20-03,
   but loses to the scene files on MOT20-05 and the sample clips, and its count error is worse
-  on four of seven MOT scenes. So **no default changed**.
+  on five of seven MOT scenes. So **no default changed**.
 - **Choosing per scene from a scan lost to one setup.** One split on any measure, scored on
   held out folds: 0.601 against 0.619.
 - **Larger is not always better.** Above 1920, `yolo26n` on MOT20-02 finds few more people
@@ -124,9 +124,11 @@ Against the gate:
   crossings. Its count error rises from 118 to 195: it counts fewer in total, and false
   crossings had been filling that gap.
 - **Check scenes:** 68 to 53 wrong and 73 to 53 missed in total. Met on crossings, though
-  wrong rose on two (MOT17-04 0 to 1, MOT17-09 2 to 4). Count error is worse on two
-  (MOT17-04 4 to 27, MOT20-02 36 to 136), counting zones, where lower bars add tracks.
-- **MOT20-05, the other crowd:** 83 to 33 wrong but 271 to 406 missed, and HOTA 27.0 to 17.0.
+  wrong rose on two (MOT17-04 0 to 1, MOT17-09 2 to 4). Count error is worse on three
+  (MOT17-04 4 to 27, MOT17-09 7 to 8, MOT20-02 36 to 136), counting zones, where lower bars
+  add tracks.
+- **MOT20-05, the other crowd:** 83 to 33 wrong but 271 to 406 missed, count error 231 to
+  482, and HOTA 27.0 to 17.0.
   Filtering at confidence 0.3 costs it the most: at 0.1 it found 327 where this finds 234.
 - **Sample clips:** the scene files are better: people-walking 12 IN, not 11; grocery-store
   2 IN and 7 IDs, not 1 and 1; market-square 20 OUT, not 16. Lower bars split tracks.
