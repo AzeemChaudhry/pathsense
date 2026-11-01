@@ -434,7 +434,8 @@ Full tables in docs/DETECTOR_STUDY.md.
   little worse, IoU 0.9 is worse in all 9 cases, and bigger models do not reliably win.
 - **Sweep, crossings, 45 choosing scenes:** pooled, all five setups tied (0.602 to 0.630). That
   hid the crowds. Split by people per frame, with the setting chosen with its scene left out,
-  `yolo26s` is tied for best in every band, and it finds crowds at 0.1, not its pooled 0.3.
+  `yolo26s` is the only setup never clearly behind a band's best, which is not proof it is
+  best, and it finds crowds at 0.1, not its pooled 0.3.
 - **Tried:** confidence 0.1 for crowds, from the scan. It helps the MOT20 crowds, not crowds
   in general (+0.022 in the band), and the scan misreads density.
 - **Decision:** carry `yolo26s` at 0.3, crowd settings, low bar. No default changes, no

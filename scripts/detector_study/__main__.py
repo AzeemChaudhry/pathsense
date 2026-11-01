@@ -256,7 +256,7 @@ def paired(a: np.ndarray, b: np.ndarray) -> str:
     """How `a` differs from `b`, scene by scene, with a bootstrap 95 % interval. Scenes hold
     about 16 crossings each, so a gap under TIE, or an interval over 0, decides nothing. Read
     "tie" as no difference found, not as equal, and "differs" as soft: `a` or `b` is often the
-    best of several, which favours a gap."""
+    best of several, which favours a gap. Under about five scenes the interval means little."""
     gaps = a - b
     picks = np.random.default_rng(0).integers(len(gaps), size=(BOOTSTRAP, len(gaps)))
     low, high = np.percentile(gaps[picks].mean(1), [2.5, 97.5])

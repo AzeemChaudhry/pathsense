@@ -158,15 +158,16 @@ scored box by box against the labels, not on crossings, so it is weak evidence
 | NMS free head against NMS, five sizes | worse in 11 of 15, better in 3, tied in 1, by small gaps |
 | IoU 0.9 against 0.7, three sizes | worse in all 9 |
 | IoU 0.5 against 0.7, two sizes | no real change |
-| `max_det` 2000 against 300 | no change, on six frames from three scenes |
+| `max_det` 2000 against 300, NMS free head | no change, on six frames from three scenes |
 | largest model | best on two scenes, by under 0.03, at 663 ms a frame against 46 |
 
 The best confidence differs by scene: 0.1 in the dense crowd, 0.2 to 0.4 elsewhere. Models
 are compared on crossings with `scripts/detector_study models`, on the scenes every model
-finished, by paired gaps per scene. A gap under 0.03, or an interval over 0, is a tie.
+finished, by paired gaps per scene. A gap under 0.03, or a 95 % interval that includes 0, is a tie.
 
-Speeds are all from the GTX 1650. The largest number of boxes in any saved frame of the study
-is 207, so raising the library's cap of
+Speeds are all from the same GTX 1650, saved boxes from the first study included. The NMS
+head's cap was not tested on its own: the largest number of boxes in any saved frame of the
+study is 207, so raising the library's cap of
 300 to 1000 changes none of the saved boxes above.
 
 ## Models by density
@@ -179,12 +180,14 @@ is chosen with the scored scene left out, among 4 confidences and 4 tracker setu
 | band | scenes | best models, left out mean scene F1 | setting of the best |
 | --- | --- | --- | --- |
 | sparse, under 25 | 19 | `yolo26s` NMS free 0.633; `yolo26n`, `yolo11s` and `yolo26s` tied with it | 0.4, crowd, low bar |
-| busy, 25 to 60 | 19 | `yolo26s` 0.567; `yolo26n` 0.533 tied with it, the gap's interval just over 0 | 0.3, crowd, low bar |
+| busy, 25 to 60 | 19 | `yolo26s` 0.567; `yolo26n` 0.533 tied with it: a gap of -0.034, interval -0.075 to +0.006 | 0.3, crowd, low bar |
 | crowd, 60 or more | 7 | `yolo11s` 0.776; `yolo26s` 0.774 tied with it | 0.2 and 0.1, crowd, low bar |
 
 `yolo26s` is the only model never clearly behind a band's best: every other one is behind in
 at least one band. On 7 to 19 scenes a tie means no difference was found, not that there is
-none, so this is a reason to carry it forward, not proof that it is best. The NMS free head is not free
+none, so this is a reason to carry it forward, not proof that it is best. Each model is
+compared with the band's leader only, so ties do not chain, and a leader that is the best of
+several is favoured a little. The NMS free head is not free
 of cost: `yolo26s` loses 0.072 on busy scenes and `yolo26n` loses 0.053 on sparse ones. These
 are choosing scenes, and the crowd band is seven scenes, five of them from MOT. A summed count
 error is ruled by a few crowds, so bands report the median per scene, for line counts only:
