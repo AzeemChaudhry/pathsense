@@ -365,3 +365,18 @@ def test_an_interrupted_save_leaves_the_old_file(tmp_path, monkeypatch):
         saved.save(path)
     assert SavedDetections.load(path).detector == "old"
     assert sorted(p.name for p in tmp_path.iterdir()) == ["d.npz"]  # no temporary left
+
+
+def test_saved_boxes_above_a_confidence_keep_their_frames():
+    saved = SavedDetections(
+        xyxy=np.arange(16, dtype=np.float32).reshape(4, 4),
+        confidence=np.array([0.2, 0.5, 0.4, 0.9], np.float32),
+        counts=np.array([2, 0, 2]),
+        index=np.arange(3),
+        timestamp=np.arange(3) / 10,
+        fps=10.0,
+    )
+    kept = saved.above(0.4)
+    assert kept.counts.tolist() == [1, 0, 2]
+    assert kept.confidence.tolist() == pytest.approx([0.5, 0.4, 0.9])
+    assert kept.xyxy[0].tolist() == [4, 5, 6, 7]
