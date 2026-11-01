@@ -13,15 +13,18 @@ Run `uv sync --extra data` once first.
 
 ### Open Images (commercial use allowed)
 
-Downloads Open Images V7 images that contain people via FiftyOne, maps `Person`, `Man`,
+Downloads Open Images V7 images that contain people from Google's published files, maps
+`Person`, `Man`,
 `Woman`, `Boy` and `Girl` to one `person` class, drops group boxes (one box around a crowd)
 and depictions (posters, statues, drawings), and writes YOLO labels plus
 `data/openimages.yaml`. Annotations are CC BY 4.0 and images are listed as CC BY 2.0, so a
 model trained on it can be deployed publicly or commercially with attribution:
 "Trained on Open Images V7 (Google), CC BY 4.0".
 
-Raw files go to `~/fiftyone`; to use another disk, run
-`export FIFTYONE_DATASET_ZOO_DIR=/path/on/that/disk/fiftyone` first.
+Box tables go to `data/openimages/raw` (2.3 GB for train). A stopped run carries on where it
+left off, and an image that keeps failing is reported and left out. Group boxes and
+depictions include boxes whose flag is unknown (-1). `--max-train` and `--max-val` count
+images with at least one usable box, and a seed always picks the same ones.
 
 ### CrowdHuman (non commercial)
 
