@@ -74,6 +74,12 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 - Sample clip truth corrected from plain frames: people-walking is 12 IN, not 11;
   market-square is 1 IN and 18 OUT, not 0 and 16; grocery-store is 0 OUT, not unknown.
+- `train/get_data.py openimages` downloads from Google's published files with the standard
+  library, not FiftyOne, which is gone from the `data` extra. The open pymongo and
+  strawberry-graphql alerts of 0.3.0 should close with it. Labels match FiftyOne's parsing
+  on a sample of 500 images, though its full run could not finish here. A rerun deletes an
+  earlier selection once all its downloads work. `--max-train` and `--max-val` now count
+  usable images, and raw files move from `~/fiftyone` to `data/openimages/raw`.
 - YOLO detectors keep up to 1000 boxes a frame, not 300. Saved boxes stay valid: the most in any
   frame saved by the study is 207.
 - `ultralytics` is pinned to 8.4.190 or later in 8.4, since an unset `detector.nms` relies on its default head.
