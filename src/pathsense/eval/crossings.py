@@ -6,12 +6,17 @@ right only when that person crossed the same way within `window` seconds. A cros
 ID the tracker moved onto someone else lands on the wrong person and counts as false; if
 the person who really crossed has no right crossing of their own, it is also missed, so
 one swap can count twice.
+
+A clip with no labelled boxes can list its crossings by hand (`Marked`): `match_marked`
+then ties ours to them by time and place, since there is no labelled person to compare.
 """
 
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import NamedTuple
 
 import supervision as sv
 from scipy.optimize import linear_sum_assignment
@@ -19,6 +24,14 @@ from scipy.optimize import linear_sum_assignment
 from pathsense.analytics import Event
 
 DIRECTIONS = ("enter", "exit")
+
+
+class Marked(NamedTuple):
+    """A crossing listed by hand."""
+
+    t: float  # seconds
+    type: str  # "enter" or "exit"
+    x: float  # pixels across the frame
 
 
 class Identity:
@@ -112,18 +125,58 @@ def match_crossings(
                 gap = abs(event.frame - real.frame) / fps
                 if real.track_id == label and gap <= window:
                     pairs.append((gap, i, j))
-        used_mine, used_true = set(), set()
-        for _, i, j in sorted(pairs):
-            if i not in used_mine and j not in used_true:
-                used_mine.add(i)
-                used_true.add(j)
-        score.tp[direction] = len(used_mine)
-        score.fp[direction] = len(mine) - len(used_mine)
-        score.fn[direction] = len(true) - len(used_true)
-        score.right += [e for i, e in enumerate(mine) if i in used_mine]
-        score.wrong += [e for i, e in enumerate(mine) if i not in used_mine]
-        score.missed += [e for j, e in enumerate(true) if j not in used_true]
+        _pair(score, direction, mine, true, pairs)
     return score
 
 
-__all__ = ["DIRECTIONS", "CrossingScore", "Identity", "match_crossings"]
+def match_marked(
+    ours: list[Event],
+    places: Sequence[float | None],
+    truth: Sequence[Marked],
+    fps: float,
+    window: float = 2.0,
+    reach: float = 200.0,
+) -> CrossingScore:
+    """Pair our crossings with listed ones of the same direction, closest in time first.
+
+    `places[i]` is where `ours[i]` happened, x in pixels; None pairs with nothing, so it
+    counts as wrong. A pair is at most `window` seconds and `reach` pixels apart. Time and
+    place cannot tell people apart: a double next to a missed person earns credit.
+    """
+    score = CrossingScore()
+    for direction in DIRECTIONS:
+        mine = [(e, x) for e, x in zip(ours, places, strict=True) if e.type == direction]
+        true = [m for m in truth if m.type == direction]
+        pairs = [
+            (abs(event.t - real.t), i, j)
+            for i, (event, x) in enumerate(mine)
+            for j, real in enumerate(true)
+            if x is not None and abs(event.t - real.t) <= window and abs(x - real.x) <= reach
+        ]
+        listed = [Event(m.t, round(m.t * fps), -1, m.type) for m in true]
+        _pair(score, direction, [e for e, _ in mine], listed, pairs)
+    return score
+
+
+def _pair(
+    score: CrossingScore,
+    direction: str,
+    mine: list[Event],
+    true: list[Event],
+    pairs: list[tuple[float, int, int]],
+) -> None:
+    """One to one, closest first; adds the result to `score`."""
+    used_mine, used_true = set(), set()
+    for _, i, j in sorted(pairs):
+        if i not in used_mine and j not in used_true:
+            used_mine.add(i)
+            used_true.add(j)
+    score.tp[direction] = len(used_mine)
+    score.fp[direction] = len(mine) - len(used_mine)
+    score.fn[direction] = len(true) - len(used_true)
+    score.right += [e for i, e in enumerate(mine) if i in used_mine]
+    score.wrong += [e for i, e in enumerate(mine) if i not in used_mine]
+    score.missed += [e for j, e in enumerate(true) if j not in used_true]
+
+
+__all__ = ["DIRECTIONS", "CrossingScore", "Identity", "Marked", "match_crossings", "match_marked"]

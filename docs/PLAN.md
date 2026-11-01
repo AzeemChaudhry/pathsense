@@ -147,5 +147,7 @@ after numbers on CCTV style video.
   first pass bar beats the default on held out scenes (scene F1 0.600 against 0.411). The
   gate table is in the README. Crossings improve on MOT20-03 and the check scenes, though all
   of them helped choose the setup, and it changes the detector as well as the tracker.
-  MOT20-05 and the sample clips, the only independent check, do not improve, and subway has
-  no truth. **Awaiting a decision on the gate.**
+  MOT20-05 gets worse. On the sample clips, now listed crossing by crossing, it is better on
+  people-walking, about level on market-square and worse on grocery-store, on few
+  crossings. Subway has no truth.
+  **Awaiting a decision on the gate.**

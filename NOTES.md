@@ -508,6 +508,35 @@ Reports in `runs/tune/<scene>/report.md`.
   at several doors and the far ones are too small to count from frames. Far more than the
   pipeline's 7 board, so its subway counts are well short. It needs box by box labels.
 
+## 2026-11-02: every crossing on the sample clips, listed by hand
+
+- **Why:** the gate said the sample clips get worse, but their truth was a total, and the
+  scene files were tuned on the same clips. Rendering each extra crossing showed real people.
+- **Tried:** one setting at a time from saved boxes; then every crossing labelled from plain
+  frames, 0.4 to 0.5 s apart, with zooms on the frame edges. Times and x come from the chosen
+  run's events once a crossing was confirmed in the frames, so they are not independent to
+  the frame, only to the decision whether it happened.
+- **Result:**
+
+  | clip | truth was | truth is | shipped | chosen |
+  | --- | --- | --- | --- | --- |
+  | people-walking | 11 IN, 7 OUT | 12, 7 | 0 wrong, 1 missed | 0 wrong, 0 missed |
+  | market-square | 0 IN, 16 OUT | 1, 18 | 0 wrong, 2 missed | 2 wrong, 0 missed |
+  | grocery-store | 1 IN, ? OUT | 1, 0 | 0 wrong, 0 missed | 1 wrong, 0 missed |
+
+- **Limits:** labels by eye, one person checking. Azeem agreed people-walking is 12, give or
+  take 1. Market-square's woman behind the hooded man at 3.4 s is a judgement. People who walk
+  in at the left edge with their feet already below the line are not crossings. Matching by
+  time and place cannot tell people apart: a double next to a missed person earns credit. By
+  eye, shipped misses 4 on market-square and doubles 2. The people-walking zone stays
+  unlabelled. Market-square's chosen run is 960 tiles upscaled to 1920, not plain 1920.
+- **Sensitivity** (`scripts/detector_study/tolerance.py`): market-square F1, shipped against chosen: 0.944 and 0.950 at 2 s and
+  200 px, 0.889 and 0.950 at 1 s and 100 px, 0.778 and 0.900 at 0.5 s and 100 px. Times come
+  from the chosen run, so tighter matching favours it. The other two clips do not move.
+- **Decision:** the sample clips stop being evidence against the chosen setup as a whole.
+  The grocery-store double count is a real fault to fix: `yolo26s` alone is fine, the 0.3
+  filter alone causes it. The gate is still Azeem's call, and MOT20-05 still gets worse.
+
 ## 2026-11-01: FiftyOne replaced before Phase 4
 
 - **Why:** it pinned vulnerable pymongo and strawberry-graphql, seven open alerts, and on this
