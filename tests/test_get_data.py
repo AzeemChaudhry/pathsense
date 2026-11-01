@@ -1,3 +1,4 @@
+import argparse
 import http.client
 import importlib.util
 import io
@@ -173,6 +174,38 @@ def test_an_earlier_selection_is_removed(tmp_path):
     (tmp_path / "old.jpg").write_bytes(b"")
     assert get_data.remove_others(tmp_path, {"keep": ["0 0 0 0 0"]}) == 1
     assert [f.name for f in tmp_path.iterdir()] == ["keep.jpg"]
+
+
+def _run_openimages(tmp_path, monkeypatch, works):
+    def fake_fetch(url, dst, tries=get_data.TRIES):
+        if url.endswith(".csv"):
+            return True
+        if works:
+            dst.write_bytes(b"jpg")
+        return works
+
+    monkeypatch.setattr(get_data, "DATA", tmp_path)
+    monkeypatch.setattr(get_data, "fetch", fake_fetch)
+    monkeypatch.setattr(get_data, "person_classes", lambda path: {"/m/p": "Person"})
+    monkeypatch.setattr(get_data, "read_boxes", lambda path, classes: {"new": []})
+    monkeypatch.setattr(get_data, "choose_images", lambda b, limit, seed: {"new": ["0 0 0 0 0"]})
+    get_data.cmd_openimages(argparse.Namespace(max_train=1, max_val=1, seed=0))
+
+
+@pytest.mark.parametrize("works", [False, True])
+def test_earlier_files_go_only_when_every_download_worked(tmp_path, monkeypatch, works):
+    images = tmp_path / "openimages" / "images" / "train"
+    labels = tmp_path / "openimages" / "labels" / "train"
+    images.mkdir(parents=True)
+    labels.mkdir(parents=True)
+    (images / "old.jpg").write_bytes(b"jpg")
+    (labels / "old.txt").write_text("0 0 0 0 0\n")
+
+    _run_openimages(tmp_path, monkeypatch, works)
+
+    assert (images / "old.jpg").exists() is not works
+    assert (labels / "old.txt").exists() is not works
+    assert (images / "new.jpg").exists() is works
 
 
 def test_fetch_gives_up_on_a_missing_file_at_once(tmp_path, monkeypatch):

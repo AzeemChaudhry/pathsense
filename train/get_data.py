@@ -308,8 +308,11 @@ def cmd_openimages(args: argparse.Namespace) -> None:
                 kept += 1
                 people += len(lines)
         print(f"[{split}] {kept} images, {people} people, {len(chosen) - kept} failed")
+        if kept < len(chosen):  # an outage must not cost the images a split already has
+            print(f"[{split}] kept earlier files: run again to finish, then they are removed")
+            continue
         removed = remove_others(img_out, chosen) + remove_others(lbl_out, chosen)
-        if removed:  # last, so a failed download never leaves a split smaller than it was
+        if removed:
             print(f"[{split}] removed {removed} files of an earlier selection")
 
     print(f"[done] dataset config written to {write_yaml('openimages', out)}")
