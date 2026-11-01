@@ -76,10 +76,22 @@ def test_yolo_adapter_asks_for_people_only_and_returns_detections(monkeypatch):
     assert model.kwargs["classes"] == [0] and model.kwargs["imgsz"] == 320
     assert model.kwargs["conf"] == 0.3 and model.kwargs["device"] == "cpu"
     assert len(out) == 1 and out.class_id.tolist() == [PERSON_CLASS_ID]
+    assert "nms" not in model.kwargs and "iou" not in model.kwargs  # the library's defaults
+
+
+def test_yolo_adapter_passes_the_head_and_overlap_settings(monkeypatch):
+    import supervision as sv
+
+    monkeypatch.setattr(
+        sv.Detections, "from_ultralytics", staticmethod(lambda r: sv.Detections.empty())
+    )
+    model = FakeYolo()
+    YoloDetector(model, nms=False, iou=0.9)(np.zeros((48, 64, 3), np.uint8))
+    assert model.kwargs["nms"] is False and model.kwargs["iou"] == 0.9
 
 
 def test_registry_has_both_families():
-    assert {"yolo26n", "rfdetr-nano"} <= set(DETECTORS)
+    assert {"yolo26n", "yolo26x", "yolo11m", "rfdetr-nano"} <= set(DETECTORS)
 
 
 def test_build_detector_dispatches_by_name(monkeypatch):

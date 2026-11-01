@@ -423,6 +423,23 @@ Full tables in docs/DETECTOR_STUDY.md.
 - **Process:** the laptop suspended 04:23 to 12:05 and lost 8 hours. Long runs now go under
   `systemd-inhibit --what=sleep:idle`. RF-DETR's two largest sizes were dropped for time.
 
+## 2026-10-31: YOLO26 was running NMS; head, overlap and model check
+
+- **Found:** the prediction head was printed, not assumed. Ultralytics 8.4.190 deletes the
+  one-to-one head unless `nms=False`, so every YOLO26 result up to now is one-to-many with NMS
+  at 0.7, and neither head nor IoU had been tested. ONNX export defaults the same way, so the
+  browser would need its own NMS unless exported with `nms=False`.
+- **Tried:** 17 setups at 1920, 40 frames each from three MOT scenes, boxes against labels.
+- **Numbers:** in docs/DETECTOR_STUDY.md, Head and overlap. The NMS free head is mostly a
+  little worse, IoU 0.9 is worse in all 9 cases, and bigger models do not reliably win.
+- **Sweep, crossings, 45 choosing scenes:** pooled, all five setups tied (0.602 to 0.630). That
+  hid the crowds. Split by people per frame, with the setting chosen with its scene left out,
+  `yolo26s` is tied for best in every band, and it finds crowds at 0.1, not its pooled 0.3.
+- **Tried:** confidence 0.1 for crowds, from the scan. It helps the MOT20 crowds, not crowds
+  in general (+0.022 in the band), and the scan misreads density.
+- **Decision:** carry `yolo26s` at 0.3, crowd settings, low bar. No default changes, no
+  analyzer rule. `yolo26x` stopped by choice. Numbers: docs/DETECTOR_STUDY.md, Models by density.
+
 ## 2026-10-31: appearance embeddings (Phase 3, step 5)
 
 Full tables in docs/TRACKER_STUDY.md, Appearance. Toggle: `appearance.enabled`, off.

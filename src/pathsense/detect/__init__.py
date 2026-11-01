@@ -21,7 +21,9 @@ def _yolo(default_weights: str) -> Callable[[DetectorConfig], Detector]:
         from pathsense.detect.yolo import YoloDetector
 
         weights = cfg.weights or default_weights
-        return YoloDetector.load(weights, imgsz=cfg.imgsz, conf=cfg.conf, device=cfg.device)
+        return YoloDetector.load(
+            weights, imgsz=cfg.imgsz, conf=cfg.conf, device=cfg.device, nms=cfg.nms, iou=cfg.iou
+        )
 
     return build
 
@@ -41,6 +43,11 @@ def _rfdetr(size: str) -> Callable[[DetectorConfig], Detector]:
 DETECTORS: dict[str, Callable[[DetectorConfig], Detector]] = {
     "yolo26n": _yolo("yolo26n.pt"),
     "yolo26s": _yolo("yolo26s.pt"),
+    "yolo26m": _yolo("yolo26m.pt"),
+    "yolo26l": _yolo("yolo26l.pt"),
+    "yolo26x": _yolo("yolo26x.pt"),
+    "yolo11s": _yolo("yolo11s.pt"),
+    "yolo11m": _yolo("yolo11m.pt"),
     "rfdetr-nano": _rfdetr("nano"),
     "rfdetr-small": _rfdetr("small"),
 }

@@ -10,6 +10,11 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Added
 
+- `detector.nms` and `detector.iou`. YOLO26 runs on its one-to-many head with NMS at 0.7
+  unless `detector.nms=false` is set, so every YOLO26 result so far used NMS. Settings that
+  would do nothing are refused. Registry adds `yolo26m`, `l`, `x`, `yolo11s` and `yolo11m`,
+  and `scripts/detector_study models` compares models by paired gaps per scene;
+  `density` splits those results by people per frame, and `frames.py` is a quick box check.
 - `pathsense analyze <video>` and `pathsense run --auto`: scan a video and use the settings
   that suit it, with no labels. Rules are in `configs/analyzer.yaml`, to fit again after
   training. For now one setup fits all, so `--auto` means `yolo26s` at 1920 with a low bar:
@@ -63,6 +68,9 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Changed
 
+- YOLO detectors keep up to 1000 boxes a frame, not 300. Saved boxes stay valid: the most in any
+  saved 1920 frame is 207.
+- `ultralytics` is pinned to 8.4, since an unset `detector.nms` relies on its default head.
 - The MOT20-03 and MOT20-05 scene files set the crowd tracker settings the study chose
   (stricter box matching, 1 s stitch). The defaults stay: the stricter matching splits the
   grocery shopper's track.

@@ -63,13 +63,11 @@ def _row(job: tuple[str, str, Path]) -> dict:
     score, result = loaded.run(CROWD_LOW_BAR if chosen else CURRENT)
     enter, exit_ = (score.counts.get(k, 0) for k in ("enter", "exit"))
     true = f"{score.truth.get('enter', '?')} / {score.truth.get('exit', '?')}"
-    keys = [k for k in ("enter", "exit") if k in score.truth]
-    line = sum(abs(score.counts.get(k, 0) - score.truth[k]) for k in keys)
     row |= {
         "ours": f"{enter} / {exit_}",
         "true": true,
-        "line": line,
-        "zones": score.count_error - line,
+        "line": score.line_error,
+        "zones": score.count_error - score.line_error,
         "ids": score.ids,
     }
     row["gpu_fps"] = 1000 / (saved.detect_ms + result.track_ms)

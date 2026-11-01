@@ -52,6 +52,9 @@ def detector_key(config: DetectorConfig, video: Path | str | None = None) -> str
     that change them, the weights file if it is a local one, and the video."""
     settings: dict = dataclasses.asdict(config)
     settings.pop("device")
+    for name in ("nms", "iou"):
+        if settings[name] is None:  # left unset, as in boxes saved before these settings
+            del settings[name]
     if config.weights and Path(config.weights).is_file():
         settings["weights_file"] = _stamp(config.weights)  # retrained in place: new boxes
     if video is not None:
