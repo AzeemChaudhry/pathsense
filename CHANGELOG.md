@@ -12,7 +12,7 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 - `truth.crossings` in a scene file lists each crossing by hand (seconds, direction, x), so
   `pathsense tune` and the gate table score a clip with no box labels crossing by crossing.
-  It must add up to `enter` and `exit`. All of people-walking, grocery-store and
+  It must add up to `enter` and `exit`, both given, with finite values and seconds of 0 or more. All of people-walking, grocery-store and
   market-square are listed, and tune now ranks setups on them by crossing F1.
 - `detector.nms` and `detector.iou`. YOLO26 runs on its one-to-many head with NMS at 0.7
   unless `detector.nms=false` is set, so every YOLO26 result so far used NMS. Settings that

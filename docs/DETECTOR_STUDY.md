@@ -153,8 +153,9 @@ file, so a gain cannot be credited to the tracker alone.
     who cross, and its doubles earn credit, as matching by time and place cannot tell people
     apart. One of the 18 stays unsure, feet hidden at the right edge.
     F1 is 0.944 against 0.950 at 2 s and 200 px, 0.889 against 0.950 at 1 s and 100 px, and
-    0.778 against 0.900 at 0.5 s. The tighter gaps partly reflect where the times came from,
-    so this leans to chosen but does not settle it.
+    0.778 against 0.900 at 0.5 s and 100 px (`scripts/detector_study/tolerance.py`). "About
+    level" holds at the loosest setting only. The tighter gaps partly reflect where the times
+    came from, so this leans to chosen but does not settle it.
   - grocery-store: a real fault. One shopper is counted twice: the track breaks while they
     browse, and the new box then jumps from upper body to whole body across the line. The
     0.3 confidence filter alone causes it on `yolo26s`.

@@ -160,7 +160,7 @@ def test_listed_crossings_are_scored_one_by_one():
 def test_a_crossing_is_placed_at_its_track_in_the_nearest_frame():
     far = sv.Detections(xyxy=np.array([[0, 0, 20, 20]], np.float32), tracker_id=np.array([7]))
     near = sv.Detections(xyxy=np.array([[90, 0, 110, 20]], np.float32), tracker_id=np.array([7]))
-    tracks = {0: far, 4: near}
+    tracks = {0: far, 4: near, 5: sv.Detections.empty()}
     assert _place(Event(0.5, 5, 7, "enter"), tracks) == 100.0
     assert _place(Event(0.5, 5, 8, "enter"), tracks) is None
 

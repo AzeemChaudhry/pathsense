@@ -191,7 +191,11 @@ class _Scene:
 
 def _place(event: Event, tracks: dict[int, sv.Detections]) -> float | None:
     """The middle of the crossing track's box, in the frame nearest the crossing."""
-    seen = {f: p for f, p in tracks.items() if event.track_id in p.tracker_id}
+    seen = {
+        frame: people
+        for frame, people in tracks.items()
+        if people.tracker_id is not None and event.track_id in people.tracker_id
+    }
     if not seen:
         return None
     people = seen[min(seen, key=lambda index: abs(index - event.frame))]

@@ -303,8 +303,13 @@ truth:
   enter: 11                          # hand counts: crossings each way,
   exit: 7
   zones: {aisle: 1}                  # and people entering each zone
-  crossings:                         # optional: each crossing, adding up to enter and exit
+# or the same with each crossing, which must add up to enter and exit
+truth:
+  enter: 1
+  exit: 1
+  crossings:
     - [0.5, enter, 1522]             # seconds, direction, x in pixels
+    - [1.5, exit, 713]
 ```
 
 Labels and listed crossings score every crossing one by one; hand counts alone only score
@@ -365,8 +370,10 @@ head is `detector.nms=false` ([details](docs/DETECTOR_STUDY.md#head-and-overlap)
 
 Each scene's own file against the best single setup for an unseen video (`yolo26s` at 1920,
 `pathsense run --auto`; not the default, and worse here on some scenes). P / R is crossing precision and recall by direction; FPS is on a
-GTX 1650. Sample clips have every crossing listed by hand but no box metrics, and subway has no truth. Their crossings are few (19, 19 and 1) and matched by time and place, so a double
-beside a miss earns credit: by eye, as shipped misses 4 on market-square, not 2. Details and limits:
+GTX 1650. Sample clips have every crossing listed by hand but no box metrics, and subway has
+no truth. Their crossings are few (19, 19 and 1) and matched by time and place, so a double
+beside a miss earns credit: by eye, as shipped misses 4 on market-square, not 2. Details and
+limits:
 [docs/DETECTOR_STUDY.md](docs/DETECTOR_STUDY.md).
 
 | scene | setup | wrong | missed | IN P / R | OUT P / R | line error | zone error | HOTA | IDF1 | MOTA | ID switches | fragments | FPS |
