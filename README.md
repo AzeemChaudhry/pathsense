@@ -363,7 +363,7 @@ head is `detector.nms=false` ([details](docs/DETECTOR_STUDY.md#head-and-overlap)
 
 Each scene's own file against the best single setup for an unseen video (`yolo26s` at 1920,
 `pathsense run --auto`; not the default, and worse here on some scenes). P / R is crossing precision and recall by direction; FPS is on a
-GTX 1650. Sample clips have counts only, and subway has no truth. Details and limits:
+GTX 1650. Sample clips have every crossing listed by hand but no box metrics, and subway has no truth. Details and limits:
 [docs/DETECTOR_STUDY.md](docs/DETECTOR_STUDY.md).
 
 | scene | setup | wrong | missed | IN P / R | OUT P / R | line error | zone error | HOTA | IDF1 | MOTA | ID switches | fragments | FPS |
@@ -382,12 +382,12 @@ GTX 1650. Sample clips have counts only, and subway has no truth. Details and li
 | MOT20-03 | chosen | 23 | 89 | 0.38 / 0.75 | 0.94 / 0.77 | 74 | 121 | 39.4 | 58.9 | 52.5 | 1053 | 8815 | 7.3 |
 | MOT20-05 | as shipped | 83 | 271 | 0.41 / 0.37 | 0.86 / 0.59 | 188 | 43 | 27.0 | 36.6 | 36.9 | 2402 | 9582 | 17.9 |
 | MOT20-05 | chosen | 33 | 406 | 0.50 / 0.17 | 0.90 / 0.38 | 373 | 109 | 17.0 | 22.0 | 17.9 | 1187 | 10769 | 8.6 |
-| people-walking | as shipped | n/a | n/a | n/a | n/a | 0 | 0 | n/a | n/a | n/a | n/a | n/a | 124.0 |
-| people-walking | chosen | n/a | n/a | n/a | n/a | 1 | 0 | n/a | n/a | n/a | n/a | n/a | 10.3 |
-| grocery-store | as shipped | n/a | n/a | n/a | n/a | 0 | 0 | n/a | n/a | n/a | n/a | n/a | 25.1 |
-| grocery-store | chosen | n/a | n/a | n/a | n/a | 1 | 5 | n/a | n/a | n/a | n/a | n/a | 10.2 |
-| market-square | as shipped | n/a | n/a | n/a | n/a | 1 | 1 | n/a | n/a | n/a | n/a | n/a | 3.6 |
-| market-square | chosen | n/a | n/a | n/a | n/a | 5 | 0 | n/a | n/a | n/a | n/a | n/a | 0.3 |
+| people-walking | as shipped | 0 | 1 | 1.00 / 0.92 | 1.00 / 1.00 | 1 | 0 | n/a | n/a | n/a | n/a | n/a | 124.0 |
+| people-walking | chosen | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | 0 | 0 | n/a | n/a | n/a | n/a | n/a | 10.3 |
+| grocery-store | as shipped | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | 0 | 0 | n/a | n/a | n/a | n/a | n/a | 25.1 |
+| grocery-store | chosen | 1 | 0 | 0.50 / 1.00 | 1.00 / 1.00 | 1 | 5 | n/a | n/a | n/a | n/a | n/a | 10.2 |
+| market-square | as shipped | 0 | 2 | 1.00 / 1.00 | 1.00 / 0.89 | 2 | 1 | n/a | n/a | n/a | n/a | n/a | 3.6 |
+| market-square | chosen | 2 | 0 | 1.00 / 1.00 | 0.90 / 1.00 | 2 | 0 | n/a | n/a | n/a | n/a | n/a | 0.3 |
 | subway | as shipped | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 23.5 |
 | subway | chosen | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 10.1 |
 

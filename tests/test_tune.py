@@ -5,14 +5,16 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import supervision as sv
 import yaml
 from conftest import detections
 from test_pipeline import WalkingPerson
 
+from pathsense.analytics import Event
 from pathsense.cli import main
 from pathsense.config import ConfigError, DetectorConfig, load_config
 from pathsense.detect import DETECTORS
-from pathsense.eval import CrossingScore
+from pathsense.eval import CrossingScore, Marked, match_marked
 from pathsense.io import VideoSource
 from pathsense.pipeline import Pipeline
 from pathsense.tune import (
@@ -28,7 +30,7 @@ from pathsense.tune import (
     tune,
 )
 from pathsense.tune.cache import cache_path, detector_key
-from pathsense.tune.run import CANDIDATES, Score, Trial, TuneReport
+from pathsense.tune.run import CANDIDATES, Score, Trial, TuneReport, _place
 
 # WalkingPerson moves right 4 px a frame across the 64x48 tiny video; a line down the
 # middle at x = 20, drawn top to bottom, makes that one exit (pathsense.analytics.line).
@@ -120,6 +122,43 @@ def test_truth_is_labels_or_counts(tmp_path):
         scene.write_text(f"truth: {bad}\n")
         with pytest.raises(ConfigError):
             scene_truth(scene)
+
+
+def test_listed_crossings_must_add_up_to_the_counts(tmp_path):
+    scene = tmp_path / "s.yaml"
+    scene.write_text("truth: {enter: 1, exit: 0, crossings: [[1.5, enter, 100]]}\n")
+    assert scene_truth(scene).crossings == (Marked(1.5, "enter", 100.0),)
+    for bad in (
+        "{enter: 2, exit: 0, crossings: [[1.5, enter, 100]]}",
+        "{enter: 1, crossings: [[1.5, enter, 100]]}",
+        "{enter: 1, exit: 0, crossings: [[1.5, in, 100]]}",
+        "{enter: 1, exit: 0, crossings: [[1.5, enter]]}",
+        "{enter: 1, exit: 0, crossings: []}",
+        "{labels: gt.txt, crossings: [[1.5, enter, 100]]}",
+    ):
+        scene.write_text(f"truth: {bad}\n")
+        with pytest.raises(ConfigError):
+            scene_truth(scene)
+
+
+def test_listed_crossings_are_scored_one_by_one():
+    truth = [Marked(1.0, "enter", 100), Marked(5.0, "exit", 500)]
+    near = Event(1.5, 15, 1, "enter")
+    elsewhere = Event(1.0, 10, 2, "enter")  # right time, wrong place
+    late = Event(8.0, 80, 3, "exit")  # right place, wrong time
+    score = match_marked([near, elsewhere, late], [150.0, 900.0, 500.0], truth, 10.0)
+    assert (score.tp["enter"], score.fp["enter"], score.fn["enter"]) == (1, 1, 0)
+    assert (score.tp["exit"], score.fp["exit"], score.fn["exit"]) == (0, 1, 1)
+    assert score.right == [near]
+    assert [(e.type, e.frame, e.track_id) for e in score.missed] == [("exit", 50, -1)]
+
+
+def test_a_crossing_is_placed_at_its_track_in_the_nearest_frame():
+    far = sv.Detections(xyxy=np.array([[0, 0, 20, 20]], np.float32), tracker_id=np.array([7]))
+    near = sv.Detections(xyxy=np.array([[90, 0, 110, 20]], np.float32), tracker_id=np.array([7]))
+    tracks = {0: far, 4: near}
+    assert _place(Event(0.5, 5, 7, "enter"), tracks) == 100.0
+    assert _place(Event(0.5, 5, 8, "enter"), tracks) is None
 
 
 def test_the_pipeline_config_ignores_the_truth_block(tmp_path):

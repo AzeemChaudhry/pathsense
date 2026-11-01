@@ -10,6 +10,10 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Added
 
+- `truth.crossings` in a scene file lists each crossing by hand (seconds, direction, x), so
+  `pathsense tune` and the gate table score a clip with no box labels crossing by crossing.
+  It must add up to `enter` and `exit`. All of people-walking, grocery-store and
+  market-square are listed, and tune now ranks setups on them by crossing F1.
 - `detector.nms` and `detector.iou`. YOLO26 runs on its one-to-many head with NMS at 0.7
   unless `detector.nms=false` is set, so every YOLO26 result so far used NMS. Settings that
   would do nothing are refused. Registry adds `yolo26m`, `l`, `x`, `yolo11s` and `yolo11m`,
@@ -68,6 +72,8 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Changed
 
+- Sample clip truth corrected from plain frames: people-walking is 12 IN, not 11;
+  market-square is 1 IN and 18 OUT, not 0 and 16; grocery-store is 0 OUT, not unknown.
 - YOLO detectors keep up to 1000 boxes a frame, not 300. Saved boxes stay valid: the most in any
   frame saved by the study is 207.
 - `ultralytics` is pinned to 8.4.190 or later in 8.4, since an unset `detector.nms` relies on its default head.

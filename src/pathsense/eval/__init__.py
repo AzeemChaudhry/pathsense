@@ -11,7 +11,13 @@
 The data is CC BY-NC-SA: evaluation only, never redistributed, no frames in public docs.
 """
 
-from pathsense.eval.crossings import CrossingScore, Identity, match_crossings
+from pathsense.eval.crossings import (
+    CrossingScore,
+    Identity,
+    Marked,
+    match_crossings,
+    match_marked,
+)
 from pathsense.eval.misses import explain_misses, misses_table
 from pathsense.eval.mot import PEOPLE, ground_truth, tracking_metrics, write_mot
 from pathsense.eval.truth import label_events
@@ -20,9 +26,11 @@ __all__ = [
     "PEOPLE",
     "CrossingScore",
     "Identity",
+    "Marked",
     "explain_misses",
     "ground_truth",
     "label_events",
+    "match_marked",
     "match_crossings",
     "misses_table",
     "tracking_metrics",

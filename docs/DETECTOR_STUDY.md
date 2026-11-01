@@ -23,7 +23,7 @@ through 10 detector settings and up to 11 tracker setups at up to 4 confidence l
   took that scene from F1 0.42 to 0.70 at confidence 0.1. The chosen setup, at 0.3, gets
   0.52 there, against 0.68 for its scene file.
 - **No setup wins everywhere.** The chosen one improves the held out scenes and MOT20-03,
-  but loses to the scene files on MOT20-05 and the sample clips. On the seven MOT scenes its
+  but loses to the scene files on MOT20-05 and grocery-store. On the seven MOT scenes its
   line count error is worse on three, equal on one and better on three; zone count error is
   worse on six. So **no default changed**.
 - **The held out scenes say nothing about crowds.** All 39 are PersonPath22 and mostly
@@ -92,8 +92,9 @@ exist, with no code change. It never sets a line or a zone, refuses a scene file
 
 ## Gate table
 
-Scene files with their own settings, against the chosen setup. Precision and recall need
-labels, so sample clips have counts only; `subway` has no truth. FPS is detector plus
+Scene files with their own settings, against the chosen setup. The sample clips have every
+crossing listed by hand from plain frames, so they score crossings but have no box metrics;
+`subway` has no truth. FPS is detector plus
 tracking on the GTX 1650. Market-square uses tiling, hence its speed. Line error is the IN
 and OUT counts against the truth, zone error the zone counts, each summed. CPU FPS, detector only: `yolo26n` at 640 39.9, at 1280 11.5, at 1920 5.4; `yolo26s`
 at 1920 1.9.
@@ -114,18 +115,20 @@ at 1920 1.9.
 | MOT20-03 | chosen | 8 / 306 | 4 / 376 | 74 | 121 | 23 | 89 | 0.38 / 0.75 | 0.94 / 0.77 | 39.4 | 58.9 | 52.5 | 1053 | 8815 | 1009 | 7.3 |
 | MOT20-05 | as shipped | 41 / 411 | 46 / 594 | 188 | 43 | 83 | 271 | 0.41 / 0.37 | 0.86 / 0.59 | 27.0 | 36.6 | 36.9 | 2402 | 9582 | 1284 | 17.9 |
 | MOT20-05 | chosen | 16 / 251 | 46 / 594 | 373 | 109 | 33 | 406 | 0.50 / 0.17 | 0.90 / 0.38 | 17.0 | 22.0 | 17.9 | 1187 | 10769 | 1171 | 8.6 |
-| people-walking | as shipped | 11 / 7 | 11 / 7 | 0 | 0 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 39 | 124.0 |
-| people-walking | chosen | 12 / 7 | 11 / 7 | 1 | 0 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 97 | 10.3 |
-| grocery-store | as shipped | 1 / 0 | 1 / ? | 0 | 0 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 1 | 25.1 |
-| grocery-store | chosen | 2 / 0 | 1 / ? | 1 | 5 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 7 | 10.2 |
-| market-square | as shipped | 1 / 16 | 0 / 16 | 1 | 1 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 115 | 3.6 |
-| market-square | chosen | 1 / 20 | 0 / 16 | 5 | 0 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 188 | 0.3 |
+| people-walking | as shipped | 11 / 7 | 12 / 7 | 1 | 0 | 0 | 1 | 1.00 / 0.92 | 1.00 / 1.00 | n/a | n/a | n/a | n/a | n/a | 39 | 124.0 |
+| people-walking | chosen | 12 / 7 | 12 / 7 | 0 | 0 | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | n/a | n/a | n/a | n/a | n/a | 97 | 10.3 |
+| grocery-store | as shipped | 1 / 0 | 1 / 0 | 0 | 0 | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | n/a | n/a | n/a | n/a | n/a | 1 | 25.1 |
+| grocery-store | chosen | 2 / 0 | 1 / 0 | 1 | 5 | 1 | 0 | 0.50 / 1.00 | 1.00 / 1.00 | n/a | n/a | n/a | n/a | n/a | 7 | 10.2 |
+| market-square | as shipped | 1 / 16 | 1 / 18 | 2 | 1 | 0 | 2 | 1.00 / 1.00 | 1.00 / 0.89 | n/a | n/a | n/a | n/a | n/a | 115 | 3.6 |
+| market-square | chosen | 1 / 20 | 1 / 18 | 2 | 0 | 2 | 0 | 1.00 / 1.00 | 0.90 / 1.00 | n/a | n/a | n/a | n/a | n/a | 188 | 0.3 |
 | subway | as shipped | 6 / 10 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 65 | 23.5 |
 | subway | chosen | 15 / 14 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 221 | 10.1 |
 
 Against the gate. PLAN.md tunes on MOT20-03 and MOT20-05 and validates on the other MOT
 scenes and the sample clips. All seven MOT scenes also helped choose this setup, so the only
-independent check here is the sample clips, and they get worse. The gate names a tracker
+check it never saw is the sample clips, and their scene files were tuned on those same clips,
+which favours "as shipped". On them the chosen setup is better on one, level on one and worse
+on one. The gate names a tracker
 against ByteTrack; this table changes the detector and tracker together against each scene
 file, so a gain cannot be credited to the tracker alone.
 
@@ -140,8 +143,16 @@ file, so a gain cannot be credited to the tracker alone.
 - **MOT20-05, the other crowd:** 83 to 33 wrong but 271 to 406 missed, line error 188 to
   373, zone error 43 to 109, and HOTA 27.0 to 17.0.
   Filtering at confidence 0.3 costs it the most: at 0.1 it found 327 where this finds 234.
-- **Sample clips:** the scene files are better: people-walking 12 IN, not 11; grocery-store
-  2 IN and 7 IDs, not 1 and 1; market-square 20 OUT, not 16. Lower bars split tracks.
+- **Sample clips, listed crossing by crossing:**
+  - people-walking: 0 wrong and 0 missed against 0 and 1. The missed one is a man at the left
+    edge. The first hand count, 11 IN, missed him too; the clip is 12 IN.
+  - market-square: the count was wrong, 18 OUT and 1 IN, not 16 and 0. Line error is 2 each
+    way: 2 wrong against 2 missed. From the frames, shipped's total flatters it: it misses 4
+    who cross, and its doubles earn credit, as matching by time and place cannot tell people
+    apart. One of the 18 stays unsure, feet hidden at the right edge.
+  - grocery-store: a real fault. One shopper is counted twice: the track breaks while they
+    browse, and the new box then jumps from upper body to whole body across the line. The
+    0.3 confidence filter alone causes it on `yolo26s`.
 - **Subway:** cannot be scored. The chosen setup counts 15 and 14 against 6 and 10, with 221
   IDs against 65, so more detections, and likely more splits. It needs box labels.
 

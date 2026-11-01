@@ -76,6 +76,7 @@ def _row(job: tuple[str, str, Path]) -> dict:
         row |= {"wrong": sum(c.fp.values()), "missed": sum(c.fn.values())}
         for direction in ("enter", "exit"):
             row[direction] = f"{c.precision(direction):.2f} / {c.recall(direction):.2f}"
+    if loaded.labels is not None:
         with tempfile.TemporaryDirectory() as folder_:
             tracks = Path(folder_) / "tracks.txt"
             write_mot(tracks, sorted(result.tracks.items()))

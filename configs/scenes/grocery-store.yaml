@@ -32,4 +32,7 @@ analytics:
 # Hand counts, for `pathsense tune`: the one shopper comes down the aisle once.
 truth:
   enter: 1
+  exit: 0
   zones: {aisle: 1}
+  crossings:
+    - [13.4, enter, 2508]

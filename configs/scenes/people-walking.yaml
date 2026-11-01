@@ -3,7 +3,7 @@
 #   uv run pathsense run --scene configs/scenes/people-walking.yaml
 #
 # Line: across the full width at y = 675, drawn left to right, so walking down the image
-# (towards the camera) is IN and walking up is OUT. Hand count: 11 IN, 7 OUT (NOTES.md).
+# (towards the camera) is IN and walking up is OUT. Hand labels: 12 IN, 7 OUT (below).
 # Zone "lower half": the floor below the line; people who walk in from the sides or the
 # bottom edge enter it without crossing the line.
 source: data/samples/people-walking.mp4
@@ -14,7 +14,30 @@ analytics:
     - name: lower half
       polygon: [[0, 675], [1920, 675], [1920, 1080], [0, 1080]]
 
-# Hand counts, for `pathsense tune` (NOTES.md).
+# Every crossing listed from plain frames, for `pathsense tune` (NOTES.md). The first hand
+# count, 11 IN, missed the man who comes in at the left edge at 3 s, feet above the line.
+# Two people walk in at the left edge at 6.4 s and 11.2 s with their feet already below it:
+# no crossing is seen, so they are not listed. The zone is not labelled.
 truth:
-  enter: 11
+  enter: 12
   exit: 7
+  crossings:
+    - [0.5, enter, 1522]
+    - [0.8, enter, 273]
+    - [1.5, exit, 713]
+    - [2.1, enter, 1579]
+    - [2.2, exit, 1764]
+    - [3.0, enter, 32]
+    - [3.9, exit, 1092]
+    - [4.5, enter, 584]
+    - [5.9, exit, 1057]
+    - [6.1, enter, 953]
+    - [6.3, exit, 1284]
+    - [6.6, enter, 555]
+    - [7.2, enter, 1868]
+    - [7.4, exit, 733]
+    - [7.6, enter, 993]
+    - [8.9, enter, 1229]
+    - [11.3, enter, 1825]
+    - [11.9, enter, 965]
+    - [12.2, exit, 786]

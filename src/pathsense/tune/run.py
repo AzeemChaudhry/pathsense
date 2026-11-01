@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
+import supervision as sv
 import yaml
 
 from pathsense.analytics import Event
@@ -45,10 +46,12 @@ from pathsense.config import (
 from pathsense.eval import (
     CrossingScore,
     Identity,
+    Marked,
     explain_misses,
     ground_truth,
     label_events,
     match_crossings,
+    match_marked,
     misses_table,
 )
 from pathsense.eval.crossings import DIRECTIONS
@@ -108,7 +111,7 @@ def load_candidates(path: Path | str = CANDIDATES) -> list[Candidate]:
 class Score:
     counts: dict[str, int]  # ours, by Truth.counts key
     truth: dict[str, int]  # the true counts, from the labels or by hand; others unscored
-    crossings: CrossingScore | None  # with labels: every crossing matched one by one
+    crossings: CrossingScore | None  # labels or listed: every crossing matched one by one
     ids: int
     track_ms: float
 
@@ -124,8 +127,9 @@ class Score:
 
     @property
     def objective(self) -> tuple[float, ...]:
-        """Higher is better: crossing F1 then count error with labels, count error alone
-        with hand counts. Count error is a weak tie break: wrong and missed cancel in it."""
+        """Higher is better: crossing F1 then count error when crossings are known, count
+        error alone with bare hand counts. Count error is a weak tie break: wrong and missed
+        cancel in it."""
         if self.crossings is not None:
             return (round(self.crossings.f1(), 6), -self.count_error)
         return (-self.count_error,)
@@ -154,6 +158,7 @@ class _Scene:
     true_events: list[Event] | None
     true_counts: dict[str, int]  # by Truth.counts key
     countable: tuple[str, ...]  # every count the scene's line and zones make
+    marked: tuple[Marked, ...] = ()  # crossings listed by hand
 
     def candidate_config(self, candidate: Candidate) -> Config:
         return load_config(self.config, list(candidate.overrides), self.path)
@@ -174,10 +179,24 @@ class _Scene:
             ours = [e for e in result.events if e.type in DIRECTIONS]
             truth = [e for e in self.true_events if e.type in DIRECTIONS]
             crossings = match_crossings(ours, truth, identity, self.saved.fps)
+        elif self.marked:
+            ours = [e for e in result.events if e.type in DIRECTIONS]
+            places = [_place(e, result.tracks) for e in ours]
+            crossings = match_marked(ours, places, self.marked, self.saved.fps)
         score = Score(
             counts_of(result.events), self.true_counts, crossings, result.ids, result.track_ms
         )
         return score, result
+
+
+def _place(event: Event, tracks: dict[int, sv.Detections]) -> float | None:
+    """The middle of the crossing track's box, in the frame nearest the crossing."""
+    for frame in sorted(tracks, key=lambda index: abs(index - event.frame)):
+        people = tracks[frame]
+        hit = people.xyxy[people.tracker_id == event.track_id]
+        if len(hit):
+            return float(hit[0, [0, 2]].mean())
+    return None
 
 
 def _truth(scene: Path) -> Truth:
@@ -205,7 +224,9 @@ def _load_scene(scene: Path, config: Path | None, saved: Path) -> _Scene:
         true_events = label_events(analytics, labels, frames, detections.fps)
         found = counts_of(true_events)
         counts = {key: found.get(key, 0) for key in countable}
-    return _Scene(scene, config, saved, detections, labels, true_events, counts, countable)
+    return _Scene(
+        scene, config, saved, detections, labels, true_events, counts, countable, truth.crossings
+    )
 
 
 _worker_scene = cache(_load_scene)  # in a worker process: load once for all its trials
@@ -311,6 +332,12 @@ class TuneReport:
     def _left(self) -> list[str]:
         s = self.chosen.score
         if self.diagnosis is None:
+            c = s.crossings
+            if c is not None:
+                return [
+                    f"{sum(c.fp.values())} wrong crossings and {sum(c.fn.values())} missed, "
+                    f"out of {sum(s.truth.get(k, 0) for k in DIRECTIONS)} listed by hand."
+                ]
             off = [
                 f"{key} {s.counts.get(key, 0)} against {n}"
                 for key, n in s.truth.items()
