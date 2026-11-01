@@ -203,7 +203,7 @@ def fetch(url: str, dst: Path, tries: int = TRIES) -> bool:
             with urllib.request.urlopen(url, timeout=60) as response, part.open("wb") as out:
                 shutil.copyfileobj(response, out, 1024 * 1024)
                 size = response.headers.get("Content-Length")
-            if size is not None and part.stat().st_size != int(size):
+            if size is None or part.stat().st_size != int(size):  # a kept file is trusted
                 raise OSError(f"short read from {url}")
             part.replace(dst)
             return True
@@ -233,6 +233,8 @@ def read_boxes(path: Path, classes: dict[str, str]) -> dict[str, list[dict]]:
             raise SystemExit(f"{path}: no column {sorted(missing)}; has the file changed?")
         for row in rows:
             if row["LabelName"] in classes:
+                if None in row.values():
+                    raise SystemExit(f"{path}:{rows.line_num}: short row")
                 try:
                     x, y = float(row["XMin"]), float(row["YMin"])
                     w, h = float(row["XMax"]) - x, float(row["YMax"]) - y
@@ -292,9 +294,6 @@ def cmd_openimages(args: argparse.Namespace) -> None:
         img_out, lbl_out = out / "images" / split, out / "labels" / split
         img_out.mkdir(parents=True, exist_ok=True)
         lbl_out.mkdir(parents=True, exist_ok=True)
-        removed = remove_others(img_out, chosen) + remove_others(lbl_out, chosen)
-        if removed:
-            print(f"[{split}] removed {removed} files of an earlier selection")
 
         def get(image: str, oi_split: str = oi_split, img_out: Path = img_out) -> bool:
             url = OPENIMAGES_IMAGE.format(split=oi_split, image=image)
@@ -309,6 +308,9 @@ def cmd_openimages(args: argparse.Namespace) -> None:
                 kept += 1
                 people += len(lines)
         print(f"[{split}] {kept} images, {people} people, {len(chosen) - kept} failed")
+        removed = remove_others(img_out, chosen) + remove_others(lbl_out, chosen)
+        if removed:  # last, so a failed download never leaves a split smaller than it was
+            print(f"[{split}] removed {removed} files of an earlier selection")
 
     print(f"[done] dataset config written to {write_yaml('openimages', out)}")
     print(

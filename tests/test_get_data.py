@@ -149,6 +149,25 @@ def test_a_bad_box_names_its_line(tmp_path):
         get_data.read_boxes(path, CLASSES)
 
 
+def test_a_short_row_names_its_line(tmp_path):
+    path = tmp_path / "boxes.csv"
+    path.write_text(HEADER + "\na,xclick,/m/01g317,1,0.1,0.5,0.2,0.8,0,0\n")
+    with pytest.raises(SystemExit, match=":2: short row"):
+        get_data.read_boxes(path, CLASSES)
+
+
+def test_a_reply_of_unknown_length_is_not_kept(tmp_path, monkeypatch):
+    def urlopen(url, timeout):
+        reply = Reply(b"maybe cut")
+        reply.headers = {}
+        return reply
+
+    monkeypatch.setattr(get_data.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(get_data.time, "sleep", lambda _: None)
+    assert not get_data.fetch("u", tmp_path / "x.csv")
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_an_earlier_selection_is_removed(tmp_path):
     (tmp_path / "keep.jpg").write_bytes(b"")
     (tmp_path / "old.jpg").write_bytes(b"")
