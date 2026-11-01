@@ -239,16 +239,21 @@ near where it should be and a similar width. Results for the chosen setup, from 
 | PersonPath22 chosen on, 38 | 194 / 312 | 196 / 310 |
 | PersonPath22 held out, 39 | 129 / 344 | 120 / 350 |
 
-- Mean scene F1 is a tie outside grocery-store: 0.600 against 0.598 held out.
-- Any value from 0.1 to 0.35 fixes grocery-store. 0.1 is the most cautious, so it was taken
-  without choosing by score. An earlier, wider version that also fired on boxes of the same
-  height linked different people more often and, from 0.15, added a wrong crossing on
-  market-square.
+- Outside grocery-store this is a trade, not a gain: fewer wrong crossings, some more missed.
+  Mean scene F1 goes 0.791 to 0.795 on MOT, stays 0.600 on the scenes chosen on, and goes 0.600
+  to 0.598 held out. MOT is the only clear gain, and MOT was used to shape the rule.
+- The case for it is one wrong crossing in one scene, on a clip the rule was designed around.
+- Any value from 0.1 to 0.35 fixes grocery-store. 0.1 is the most cautious, though the rule's
+  shape was refined after seeing these results. An earlier, wider version also fired on boxes
+  of the same height and, from 0.15, added a wrong crossing on market-square.
 - **Links checked against the MOT labels**, counting a link when both boxes overlap a labelled
-  person at IoU 0.3: at 0.1 this rule joins the same person 205 times and different people
-  84 times, with 75 unclear. The existing rule at the chosen setup does 576 and 1,643, with
-  150 unclear. The check is rough, as a partial box can overlap a neighbour, but the existing
-  stitcher links the wrong person far more often than the right one in crowds.
+  person at IoU 0.3. At 0.1, 289 of 364 links could be judged: 205 joined the same person and
+  84 different people, so about 3 in 10 are wrong. Narrowing cut the number of links, not
+  much the wrong share (32% before). The check is weakest for these boxes: a partial box is
+  exactly what can overlap a neighbour.
+- The same check on the existing rule gives 576 same and 1,643 different, 150 unclear. That is
+  a rough count of a different set of links, so not a like for like comparison, but it may
+  mean the stitcher links the wrong person often in crowds. It needs its own look.
 - No default changed, and it is not in `--auto` yet.
 
 ## Limits

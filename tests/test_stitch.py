@@ -108,3 +108,21 @@ def test_the_top_of_the_box_refuses_a_box_of_another_width():
     wide = detections([[0, 400, 200, 600]])
     wide.tracker_id = np.array([2])
     assert ids(stitch(wide, t=0.5)) == [2]  # 200 px wide against 40
+
+
+def test_a_top_of_0_changes_nothing():
+    def run(**settings):
+        stitch = Stitcher(seconds=2.0, **settings)
+        seen = [ids(stitch(boxes((1, 100 + 10 * f, 800, 400)), t=f / 10)) for f in range(5)]
+        seen.append(ids(stitch(boxes(), t=0.5)))
+        seen.append(ids(stitch(boxes((2, 190, 600, 200)), t=0.9)))
+        seen.append(ids(stitch(boxes((3, 150, 800, 400)), t=1.0)))
+        return seen
+
+    assert run(top=0.0) == run()
+
+
+def test_the_top_of_the_box_links_a_box_growing_back_to_a_whole_body():
+    stitch = Stitcher(seconds=2.0, top=0.25)
+    stitch(boxes((1, 100, 600, 200)), t=0.0)
+    assert ids(stitch(boxes((2, 100, 800, 400)), t=0.5)) == [1]
