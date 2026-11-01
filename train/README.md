@@ -23,7 +23,8 @@ model trained on it can be deployed publicly or commercially with attribution:
 Box tables go to `data/openimages/raw` (2.3 GB for train). A stopped run skips finished files
 and starts any partial one again, and an image that keeps failing is reported and left out.
 Once every download has worked, files from an earlier selection are deleted, so a split holds
-exactly this run's images: a smaller `--max-train` removes the rest. Group boxes and
+exactly this run's images: a smaller `--max-train` removes the rest. If any failed they are
+kept and the run ends with an error. Group boxes and
 depictions include boxes whose flag is unknown (-1). `--max-train` and `--max-val` count
 images with at least one usable box, and a seed always picks the same ones.
 

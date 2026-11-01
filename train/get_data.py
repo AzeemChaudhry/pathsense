@@ -284,6 +284,7 @@ def cmd_openimages(args: argparse.Namespace) -> None:
     if not fetch(OPENIMAGES_CLASSES, names):
         raise SystemExit(f"could not download {OPENIMAGES_CLASSES}")
     classes = person_classes(names)
+    short: list[str] = []
     for split, limit in (("train", args.max_train), ("val", args.max_val)):
         oi_split, url = OPENIMAGES_BOXES[split]
         table = raw / Path(url).name
@@ -309,7 +310,8 @@ def cmd_openimages(args: argparse.Namespace) -> None:
                 people += len(lines)
         print(f"[{split}] {kept} images, {people} people, {len(chosen) - kept} failed")
         if kept < len(chosen):  # an outage must not cost the images a split already has
-            print(f"[{split}] kept earlier files: run again to finish, then they are removed")
+            print(f"[{split}] earlier files kept, as {len(chosen) - kept} downloads failed")
+            short.append(split)
             continue
         removed = remove_others(img_out, chosen) + remove_others(lbl_out, chosen)
         if removed:
@@ -320,6 +322,8 @@ def cmd_openimages(args: argparse.Namespace) -> None:
         "[note] attribution: Open Images V7 by Google, annotations CC BY 4.0, "
         "images CC BY 2.0 (verify per image before redistributing images)"
     )
+    if short:
+        raise SystemExit(f"incomplete: {', '.join(short)} may hold files of an earlier selection")
 
 
 # ----------------------------------------------------------------------------- roboflow
