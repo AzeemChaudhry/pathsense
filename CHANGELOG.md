@@ -10,6 +10,9 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Added
 
+- `tracker.stitch_top`, off by default: links a person whose box height jumps, by the top of
+  the box and its width, for legs hidden by a cart. It stops the chosen setup counting the
+  grocery-store shopper twice. `scripts/detector_study/stitch_top.py` scores it on every scene.
 - `truth.crossings` in a scene file lists each crossing by hand (seconds, direction, x), so
   `pathsense tune` and the gate table score a clip with no box labels crossing by crossing.
   It must add up to `enter` and `exit`, both given, with finite values and seconds of 0 or more. All of people-walking, grocery-store and

@@ -70,3 +70,64 @@ def test_an_old_id_coming_back_first_in_the_frame_keeps_its_person():
     stitch(boxes((5, 100, 500, 200)), t=0.5)  # stitched to 1
     both = stitch(boxes((5, 100, 500, 200), (1, 100, 500, 200)), t=0.6)
     assert ids(both) == [5, 1]
+
+
+def _upper_body_after_a_gap(top):
+    """A 400 px person walks at 100 px/s; 0.5 s later their box is 200 px, same head."""
+    stitch = Stitcher(seconds=2.0, top=top)
+    for frame in range(5):
+        stitch(boxes((1, 100 + 10 * frame, 800, 400)), t=frame / 10)
+    stitch(boxes(), t=0.5)
+    return stitch, stitch(boxes((2, 190, 600, 200)), t=0.9)
+
+
+def test_off_a_box_cut_in_half_is_a_new_person():
+    assert ids(_upper_body_after_a_gap(top=0.0)[1]) == [2]
+
+
+def test_the_top_of_the_box_links_a_person_whose_legs_got_hidden():
+    stitch, back = _upper_body_after_a_gap(top=0.25)
+    assert ids(back) == [1] and stitch.stitched == 1
+
+
+def test_the_top_of_the_box_does_not_link_someone_elsewhere():
+    stitch = Stitcher(seconds=2.0, top=0.25)
+    stitch(boxes((1, 100, 800, 400)), t=0.0)
+    assert ids(stitch(boxes((2, 400, 600, 200)), t=0.5)) == [2]  # the head is 300 px off
+
+
+def test_the_top_of_the_box_is_only_for_a_box_that_changed_height():
+    stitch = Stitcher(seconds=2.0, top=0.25)
+    stitch(boxes((1, 100, 800, 400)), t=0.0)
+    assert ids(stitch(boxes((2, 100, 1400, 400)), t=0.5)) == [2]  # same height, feet far off
+
+
+def test_the_top_of_the_box_refuses_a_box_of_another_width():
+    stitch = Stitcher(seconds=2.0, top=0.25)
+    stitch(boxes((1, 100, 800, 400)), t=0.0)
+    wide = detections([[0, 400, 200, 600]])
+    wide.tracker_id = np.array([2])
+    assert ids(stitch(wide, t=0.5)) == [2]  # 200 px wide against 40
+
+
+def test_a_top_of_0_gives_what_the_stitcher_gave_before_it_existed():
+    stitch = Stitcher(seconds=2.0, top=0.0)
+    seen = [ids(stitch(boxes((1, 100 + 10 * f, 800, 400)), t=f / 10)) for f in range(5)]
+    stitch(boxes(), t=0.5)
+    seen.append(ids(stitch(boxes((2, 190, 600, 200)), t=0.9)))
+    seen.append(ids(stitch(boxes((3, 150, 800, 400)), t=1.0)))
+    assert seen == [[1], [1], [1], [1], [1], [2], [1]]  # from the code before `top`
+
+
+def test_the_top_of_the_box_links_a_box_growing_back_to_a_whole_body():
+    stitch = Stitcher(seconds=2.0, top=0.25)
+    stitch(boxes((1, 100, 600, 200)), t=0.0)
+    assert ids(stitch(boxes((2, 100, 800, 400)), t=0.5)) == [1]
+
+
+def test_the_top_of_the_box_ignores_a_box_change_inside_the_speed_window():
+    stitch = Stitcher(seconds=2.0, top=0.1)
+    stitch(boxes((1, 100, 800, 400)), t=0.0)  # head at y 400, standing still
+    stitch(boxes((1, 100, 600, 200)), t=0.2)  # the feet jump 200 px, the head does not
+    stitch(boxes(), t=0.3)
+    assert ids(stitch(boxes((2, 100, 800, 400)), t=0.5)) == [1]

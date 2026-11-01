@@ -114,6 +114,7 @@ swapping a model is one line, never a code change. Typos are errors, not silent 
 | `tracker.stitch_seconds` | `2` | a person the tracker lost for up to this long gets their old ID back when they reappear where they were heading; `0`: off |
 | `tracker.stitch_distance` | `1` | how far from where they were heading, in box heights |
 | `tracker.stitch_size` | `0.5` | how different their box height may be (from 1/1.5 to 1.5 times) |
+| `tracker.stitch_top` | `0` | a box outside that height range can still be linked if its top is this near, in box heights, and its width is close; for legs hidden by a cart; `0`: off |
 | `analytics.line` | `null` | counting line `[[x1, y1], [x2, y2], ...]` in pixels, two or more points (more follow a curved edge); crossing from left to right of start to end is IN |
 | `analytics.line_margin` | `5` | feet closer than this many pixels to the line do not change side |
 | `analytics.line_margin_height` | `0` | if above 0, the margin is at least this share of the person's height (0.15: 100 px for someone 680 px tall) |
