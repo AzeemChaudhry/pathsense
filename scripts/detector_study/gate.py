@@ -63,10 +63,13 @@ def _row(job: tuple[str, str, Path]) -> dict:
     score, result = loaded.run(CROWD_LOW_BAR if chosen else CURRENT)
     enter, exit_ = (score.counts.get(k, 0) for k in ("enter", "exit"))
     true = f"{score.truth.get('enter', '?')} / {score.truth.get('exit', '?')}"
+    keys = [k for k in ("enter", "exit") if k in score.truth]
+    line = sum(abs(score.counts.get(k, 0) - score.truth[k]) for k in keys)
     row |= {
         "ours": f"{enter} / {exit_}",
         "true": true,
-        "error": score.count_error,
+        "line": line,
+        "zones": score.count_error - line,
         "ids": score.ids,
     }
     row["gpu_fps"] = 1000 / (saved.detect_ms + result.track_ms)
@@ -111,7 +114,7 @@ def main() -> None:
         _saved(scene, CHOSEN, Path("data/cache/study/yolo26s-1920"))
     with ProcessPoolExecutor(5) as pool:
         rows = list(pool.map(_row, jobs))
-    keys = "scene setup ours true error wrong missed enter exit".split()
+    keys = "scene setup ours true line zones wrong missed enter exit".split()
     keys += "HOTA IDF1 MOTA IDSW Frag ids gpu_fps".split()
     lines = ["| " + " | ".join(keys) + " |", "|" + " --- |" * len(keys)]
     for row in rows:

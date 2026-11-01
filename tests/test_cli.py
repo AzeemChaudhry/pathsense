@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 from test_pipeline import WalkingPerson
 
+import pathsense.config
 from pathsense import __version__
 from pathsense.cli import Summary, build_parser, main
 from pathsense.detect import DETECTORS
@@ -328,10 +329,27 @@ def test_auto_with_a_scene_file_is_an_error(tmp_path):
         main(["run", "--scene", str(scene), "--auto", "--no-show"])
 
 
+def test_auto_needs_a_video():
+    with pytest.raises(SystemExit, match="--auto needs --source"):
+        main(["run", "--auto", "--no-show"])
+
+
+def test_auto_checks_your_settings_before_the_scan(monkeypatch):
+    def scanned(*_):
+        raise AssertionError("scanned first")
+
+    monkeypatch.setattr("pathsense.tune.analyze.analyze", scanned)
+    with pytest.raises(SystemExit, match="detector"):
+        main(["run", "--source", "clip.mp4", "--auto", "--no-show", "--set", "detector.name=nope"])
+
+
 def test_your_own_settings_win_over_auto(monkeypatch):
     seen = {}
+    real = pathsense.config.load_config
 
-    def stop(config, overrides, scene):
+    def stop(config, overrides, scene=None):
+        if len(overrides) == 1:  # your settings alone, checked before the scan
+            return real(config, overrides)
         seen["overrides"] = overrides
         raise OSError("stop here")
 

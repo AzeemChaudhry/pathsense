@@ -7,22 +7,27 @@ through 10 detector settings and up to 11 tracker setups at up to 4 confidence l
 
 ## In short
 
-| scene F1, held out scenes (39 cameras never used to choose) | |
+| scene F1, held out scenes (39 PersonPath22 cameras never used to choose) | |
 | --- | --- |
 | `yolo26n` at 640, the default | 0.411 |
 | `yolo26n` at 1920, what scene files use | 0.528 |
 | `yolo26s` at 1920 | 0.567 |
 | **`yolo26s` at 1920, confidence 0.3, crowd settings, low bar** | **0.600** |
 
-- **Input size matters most, then the model.** Going from 640 to 1920 is worth more than
-  every tracker setting together. The best setups across trackers differ by about 0.02.
+- **Input size matters most, then the model,** of what was varied. Going from 640 to 1920 is
+  worth more than every tracker setting together. The best setups across trackers differ by
+  about 0.02. The detector's head and NMS overlap were left at the library's defaults.
 - **A bigger model helps, but needs its own settings.** `yolo26s` is less sure of itself
   than `yolo26n` in dense night crowds. With ByteTrack's first pass bar at 0.6, it recalled
   28% of MOT20-05's crossings. `high_conf_det_threshold` was never swept before. Lowering it
-  took that scene from F1 0.42 to 0.70.
+  took that scene from F1 0.42 to 0.70 at confidence 0.1. The chosen setup, at 0.3, gets
+  0.52 there, against 0.68 for its scene file.
 - **No setup wins everywhere.** The chosen one improves the held out scenes and MOT20-03,
-  but loses to the scene files on MOT20-05 and the sample clips, and its count error is worse
-  on five of seven MOT scenes. So **no default changed**.
+  but loses to the scene files on MOT20-05 and the sample clips. On the seven MOT scenes its
+  line count error is worse on three, equal on one and better on three; zone count error is
+  worse on six. So **no default changed**.
+- **The held out scenes say nothing about crowds.** All 39 are PersonPath22 and mostly
+  sparse. Every MOT scene helped choose the setup, so no crowd was held out.
 - **Choosing per scene from a scan lost to one setup.** One split on any measure, scored on
   held out folds: 0.601 against 0.619.
 - **Larger is not always better.** Above 1920, `yolo26n` on MOT20-02 finds few more people
@@ -89,46 +94,51 @@ exist, with no code change. It never sets a line or a zone, refuses a scene file
 
 Scene files with their own settings, against the chosen setup. Precision and recall need
 labels, so sample clips have counts only; `subway` has no truth. FPS is detector plus
-tracking on the GTX 1650. Market-square uses tiling, hence its speed. Count error includes
-zones. CPU FPS, detector only: `yolo26n` at 640 39.9, at 1280 11.5, at 1920 5.4; `yolo26s`
+tracking on the GTX 1650. Market-square uses tiling, hence its speed. Line error is the IN
+and OUT counts against the truth, zone error the zone counts, each summed. CPU FPS, detector only: `yolo26n` at 640 39.9, at 1280 11.5, at 1920 5.4; `yolo26s`
 at 1920 1.9.
 
-| scene | setup | IN / OUT ours | IN / OUT true | count error | wrong | missed | IN precision / recall | OUT precision / recall | HOTA | IDF1 | MOTA | ID switches | fragments | IDs | FPS |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| MOT17-02 | as shipped | 0 / 9 | 1 / 10 | 9 | 0 | 2 | 1.00 / 0.00 | 1.00 / 0.90 | 31.4 | 39.3 | 33.1 | 122 | 264 | 78 | 26.1 |
-| MOT17-02 | chosen | 0 / 8 | 1 / 10 | 8 | 0 | 3 | 1.00 / 0.00 | 1.00 / 0.80 | 31.5 | 38.0 | 34.4 | 131 | 426 | 131 | 10.8 |
-| MOT17-04 | as shipped | 8 / 4 | 8 / 5 | 4 | 0 | 1 | 1.00 / 1.00 | 1.00 / 0.80 | 47.9 | 55.5 | 49.5 | 128 | 368 | 83 | 24.8 |
-| MOT17-04 | chosen | 8 / 6 | 8 / 5 | 27 | 1 | 0 | 1.00 / 1.00 | 0.83 / 1.00 | 53.6 | 61.9 | 52.5 | 133 | 540 | 170 | 10.7 |
-| MOT17-09 | as shipped | 3 / 7 | 1 / 10 | 7 | 2 | 3 | 0.33 / 1.00 | 1.00 / 0.70 | 40.5 | 49.8 | 53.3 | 55 | 85 | 28 | 113.2 |
-| MOT17-09 | chosen | 4 / 11 | 1 / 10 | 8 | 4 | 0 | 0.25 / 1.00 | 0.91 / 1.00 | 46.2 | 55.6 | 61.0 | 57 | 83 | 64 | 10.8 |
-| MOT20-01 | as shipped | 10 / 11 | 14 / 21 | 16 | 2 | 16 | 1.00 / 0.71 | 0.82 / 0.43 | 38.5 | 47.4 | 43.8 | 267 | 533 | 85 | 23.4 |
-| MOT20-01 | chosen | 10 / 14 | 14 / 21 | 16 | 2 | 13 | 1.00 / 0.71 | 0.86 / 0.57 | 42.9 | 53.4 | 50.4 | 209 | 566 | 139 | 10.7 |
-| MOT20-02 | as shipped | 150 / 53 | 157 / 33 | 36 | 64 | 51 | 0.78 / 0.75 | 0.42 / 0.67 | 34.7 | 43.4 | 44.2 | 1285 | 3285 | 359 | 23.8 |
-| MOT20-02 | chosen | 154 / 45 | 157 / 33 | 136 | 46 | 37 | 0.84 / 0.83 | 0.51 / 0.70 | 36.5 | 45.4 | 48.5 | 1321 | 3578 | 678 | 10.6 |
-| MOT20-03 | as shipped | 11 / 322 | 4 / 376 | 118 | 46 | 93 | 0.27 / 0.75 | 0.88 / 0.76 | 38.2 | 55.1 | 51.1 | 1626 | 8026 | 931 | 16.3 |
-| MOT20-03 | chosen | 8 / 306 | 4 / 376 | 195 | 23 | 89 | 0.38 / 0.75 | 0.94 / 0.77 | 39.4 | 58.9 | 52.5 | 1053 | 8815 | 1009 | 7.3 |
-| MOT20-05 | as shipped | 41 / 411 | 46 / 594 | 231 | 83 | 271 | 0.41 / 0.37 | 0.86 / 0.59 | 27.0 | 36.6 | 36.9 | 2402 | 9582 | 1284 | 17.9 |
-| MOT20-05 | chosen | 16 / 251 | 46 / 594 | 482 | 33 | 406 | 0.50 / 0.17 | 0.90 / 0.38 | 17.0 | 22.0 | 17.9 | 1187 | 10769 | 1171 | 8.6 |
-| people-walking | as shipped | 11 / 7 | 11 / 7 | 0 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 39 | 124.0 |
-| people-walking | chosen | 12 / 7 | 11 / 7 | 1 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 97 | 10.3 |
-| grocery-store | as shipped | 1 / 0 | 1 / ? | 0 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 1 | 25.1 |
-| grocery-store | chosen | 2 / 0 | 1 / ? | 6 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 7 | 10.2 |
-| market-square | as shipped | 1 / 16 | 0 / 16 | 2 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 115 | 3.6 |
-| market-square | chosen | 1 / 20 | 0 / 16 | 5 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 188 | 0.3 |
-| subway | as shipped | 6 / 10 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 65 | 23.5 |
-| subway | chosen | 15 / 14 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 221 | 10.1 |
+| scene | setup | IN / OUT ours | IN / OUT true | line error | zone error | wrong | missed | IN precision / recall | OUT precision / recall | HOTA | IDF1 | MOTA | ID switches | fragments | IDs | FPS |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| MOT17-02 | as shipped | 0 / 9 | 1 / 10 | 2 | 7 | 0 | 2 | 1.00 / 0.00 | 1.00 / 0.90 | 31.4 | 39.3 | 33.1 | 122 | 264 | 78 | 26.1 |
+| MOT17-02 | chosen | 0 / 8 | 1 / 10 | 3 | 5 | 0 | 3 | 1.00 / 0.00 | 1.00 / 0.80 | 31.5 | 38.0 | 34.4 | 131 | 426 | 131 | 10.8 |
+| MOT17-04 | as shipped | 8 / 4 | 8 / 5 | 1 | 3 | 0 | 1 | 1.00 / 1.00 | 1.00 / 0.80 | 47.9 | 55.5 | 49.5 | 128 | 368 | 83 | 24.8 |
+| MOT17-04 | chosen | 8 / 6 | 8 / 5 | 1 | 26 | 1 | 0 | 1.00 / 1.00 | 0.83 / 1.00 | 53.6 | 61.9 | 52.5 | 133 | 540 | 170 | 10.7 |
+| MOT17-09 | as shipped | 3 / 7 | 1 / 10 | 5 | 2 | 2 | 3 | 0.33 / 1.00 | 1.00 / 0.70 | 40.5 | 49.8 | 53.3 | 55 | 85 | 28 | 113.2 |
+| MOT17-09 | chosen | 4 / 11 | 1 / 10 | 4 | 4 | 4 | 0 | 0.25 / 1.00 | 0.91 / 1.00 | 46.2 | 55.6 | 61.0 | 57 | 83 | 64 | 10.8 |
+| MOT20-01 | as shipped | 10 / 11 | 14 / 21 | 14 | 2 | 2 | 16 | 1.00 / 0.71 | 0.82 / 0.43 | 38.5 | 47.4 | 43.8 | 267 | 533 | 85 | 23.4 |
+| MOT20-01 | chosen | 10 / 14 | 14 / 21 | 11 | 5 | 2 | 13 | 1.00 / 0.71 | 0.86 / 0.57 | 42.9 | 53.4 | 50.4 | 209 | 566 | 139 | 10.7 |
+| MOT20-02 | as shipped | 150 / 53 | 157 / 33 | 27 | 9 | 64 | 51 | 0.78 / 0.75 | 0.42 / 0.67 | 34.7 | 43.4 | 44.2 | 1285 | 3285 | 359 | 23.8 |
+| MOT20-02 | chosen | 154 / 45 | 157 / 33 | 15 | 121 | 46 | 37 | 0.84 / 0.83 | 0.51 / 0.70 | 36.5 | 45.4 | 48.5 | 1321 | 3578 | 678 | 10.6 |
+| MOT20-03 | as shipped | 11 / 322 | 4 / 376 | 61 | 57 | 46 | 93 | 0.27 / 0.75 | 0.88 / 0.76 | 38.2 | 55.1 | 51.1 | 1626 | 8026 | 931 | 16.3 |
+| MOT20-03 | chosen | 8 / 306 | 4 / 376 | 74 | 121 | 23 | 89 | 0.38 / 0.75 | 0.94 / 0.77 | 39.4 | 58.9 | 52.5 | 1053 | 8815 | 1009 | 7.3 |
+| MOT20-05 | as shipped | 41 / 411 | 46 / 594 | 188 | 43 | 83 | 271 | 0.41 / 0.37 | 0.86 / 0.59 | 27.0 | 36.6 | 36.9 | 2402 | 9582 | 1284 | 17.9 |
+| MOT20-05 | chosen | 16 / 251 | 46 / 594 | 373 | 109 | 33 | 406 | 0.50 / 0.17 | 0.90 / 0.38 | 17.0 | 22.0 | 17.9 | 1187 | 10769 | 1171 | 8.6 |
+| people-walking | as shipped | 11 / 7 | 11 / 7 | 0 | 0 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 39 | 124.0 |
+| people-walking | chosen | 12 / 7 | 11 / 7 | 1 | 0 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 97 | 10.3 |
+| grocery-store | as shipped | 1 / 0 | 1 / ? | 0 | 0 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 1 | 25.1 |
+| grocery-store | chosen | 2 / 0 | 1 / ? | 1 | 5 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 7 | 10.2 |
+| market-square | as shipped | 1 / 16 | 0 / 16 | 1 | 1 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 115 | 3.6 |
+| market-square | chosen | 1 / 20 | 0 / 16 | 5 | 0 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 188 | 0.3 |
+| subway | as shipped | 6 / 10 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 65 | 23.5 |
+| subway | chosen | 15 / 14 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 221 | 10.1 |
 
-Against the gate:
+Against the gate. PLAN.md tunes on MOT20-03 and MOT20-05 and validates on the other MOT
+scenes and the sample clips. All seven MOT scenes also helped choose this setup, so the only
+independent check here is the sample clips, and they get worse. The gate names a tracker
+against ByteTrack; this table changes the detector and tracker together against each scene
+file, so a gain cannot be credited to the tracker alone.
 
-- **MOT20-03 false crossings:** 46 to 23 with the chosen setup, and 93 to 89 missed. Met on
-  crossings. Its count error rises from 118 to 195: it counts fewer in total, and false
-  crossings had been filling that gap.
-- **Check scenes:** 68 to 53 wrong and 73 to 53 missed in total. Met on crossings, though
-  wrong rose on two (MOT17-04 0 to 1, MOT17-09 2 to 4). Count error is worse on three
-  (MOT17-04 4 to 27, MOT17-09 7 to 8, MOT20-02 36 to 136), counting zones, where lower bars
-  add tracks.
-- **MOT20-05, the other crowd:** 83 to 33 wrong but 271 to 406 missed, count error 231 to
-  482, and HOTA 27.0 to 17.0.
+- **MOT20-03 false crossings:** 46 to 23 with the chosen setup, and 93 to 89 missed, on a
+  scene used to choose. Line error rises from 61 to 74, as it counts fewer in total and
+  false crossings had been filling that gap. Zone error rises from 57 to 121.
+- **Check scenes:** 68 to 53 wrong and 73 to 53 missed in total, on scenes used to choose.
+  Wrong rose on two (MOT17-04 0 to 1, MOT17-09 2 to 4), and MOT17-02 lost a real crossing
+  (OUT recall 0.90 to 0.80). Line error is better on three, equal on MOT17-04 and worse on
+  MOT17-02. Zone error is worse on four (MOT17-04 3 to 26, MOT17-09 2 to 4, MOT20-01 2 to 5,
+  MOT20-02 9 to 121), perhaps because lower bars add tracks, which was not tested.
+- **MOT20-05, the other crowd:** 83 to 33 wrong but 271 to 406 missed, line error 188 to
+  373, zone error 43 to 109, and HOTA 27.0 to 17.0.
   Filtering at confidence 0.3 costs it the most: at 0.1 it found 327 where this finds 234.
 - **Sample clips:** the scene files are better: people-walking 12 IN, not 11; grocery-store
   2 IN and 7 IDs, not 1 and 1; market-square 20 OUT, not 16. Lower bars split tracks.
@@ -153,8 +163,11 @@ Against the gate:
   rerun, so it waits for the next rerun.
 - **55 of 236 videos are absent** (external sources Amazon may not redistribute), and
   videos over 1,800 frames were left out, so the sample leans to short clips.
-- **Not tested:** other YOLO sizes (`yolo26m`), tiling at scale, frame skipping, and each
-  bar for each model. `pathsense tune`'s per scene picks were not rechecked on held out time.
+- **No crowd was held out.** The held out scenes are all PersonPath22, so a setup's result
+  on crowds comes only from scenes that chose it.
+- **Not tested:** other YOLO sizes (`yolo26m`), the detector's head, NMS overlap and box
+  cap, tiling at scale, frame skipping, and each bar for each model. Ultralytics runs YOLO26
+  on its one-to-many head with NMS at 0.7 unless told otherwise, so these are NMS results. `pathsense tune`'s per scene picks were not rechecked on held out time.
 - **No trained model yet.** Everything here uses COCO weights. Phase 4 changes all of it.
 
 ## Reproduce

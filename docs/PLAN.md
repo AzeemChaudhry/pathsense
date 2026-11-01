@@ -145,5 +145,7 @@ after numbers on CCTV style video.
   Detector study and scene analyzer done (2026-10-31, [DETECTOR_STUDY.md](DETECTOR_STUDY.md)):
   across 84 scored cameras, input size matters most, and `yolo26s` at 1920 with a lower
   first pass bar beats the default on held out scenes (scene F1 0.600 against 0.411). The
-  gate table is in the README. MOT20-03 and the check scenes meet the gate; MOT20-05 and the
-  sample clips do not improve, and subway has no truth. **Awaiting a decision on the gate.**
+  gate table is in the README. Crossings improve on MOT20-03 and the check scenes, though all
+  of them helped choose the setup, and it changes the detector as well as the tracker.
+  MOT20-05 and the sample clips, the only independent check, do not improve, and subway has
+  no truth. **Awaiting a decision on the gate.**

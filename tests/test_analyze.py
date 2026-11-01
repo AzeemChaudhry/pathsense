@@ -1,10 +1,12 @@
 """The scene analyzer: a scan, a description, and the first rule that fits."""
 
+import runpy
+
 import numpy as np
 import pytest
 from conftest import detections
 
-from pathsense.config import ConfigError, DetectorConfig
+from pathsense.config import ConfigError, DetectorConfig, load_config
 from pathsense.tune.analyze import Analysis, Rule, Rules, analyze, choose, load_rules, scan
 
 
@@ -97,3 +99,34 @@ def test_bad_rules_are_errors(tmp_path, text):
 def test_scan_handles_an_empty_detector_result_shape(tiny_video):
     saved = scan(tiny_video, Seen(people=0), 3)
     assert np.array_equal(saved.counts, [0, 0, 0])
+
+
+def test_the_rule_is_the_setup_the_gate_table_scores():
+    gate = runpy.run_path("scripts/detector_study/gate.py", run_name="gate")
+    scored = load_config(
+        overrides=[
+            *gate["CHOSEN"],
+            *gate["CROWD_LOW_BAR"].overrides,
+            f"detector.conf={gate['CONFIDENCE']}",
+        ]
+    )
+    rule = load_config(overrides=load_rules().rules[-1].overrides)
+    assert (rule.detector, rule.tracker) == (scored.detector, scored.tracker)
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ("scan: {name: yolo26n}\nframes: 4\nrules:\n  - {why: x}\n", "name and a why"),
+        (
+            "scan: {name: yolo26n}\nframes: 4\nrules:\n  - {name: a, why: b, below: 3}\n",
+            "must be maps",
+        ),
+        ("scan: {typo: 1}\nframes: 4\nrules:\n  - {name: a, why: b}\n", "scan:"),
+    ],
+)
+def test_bad_rules_are_a_config_error(tmp_path, text, message):
+    path = tmp_path / "rules.yaml"
+    path.write_text(text)
+    with pytest.raises(ConfigError, match=message):
+        load_rules(path)

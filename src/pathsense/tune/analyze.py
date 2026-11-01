@@ -76,7 +76,12 @@ def load_rules(path: Path | str = RULES) -> Rules:
         raise ConfigError(f"{path}: needs scan and frames")
     rules = []
     for item in raw.get("rules") or []:
-        extra = set(item.get("below", {})) | set(item.get("at_least", {}))
+        if "name" not in item or "why" not in item:
+            raise ConfigError(f"{path}: every rule needs a name and a why")
+        limits = item.get("below", {}), item.get("at_least", {})
+        if not all(isinstance(limit, dict) for limit in limits):
+            raise ConfigError(f"{path}: rule {item['name']!r}: below and at_least must be maps")
+        extra = set(limits[0]) | set(limits[1])
         if extra - MEASURES:
             raise ConfigError(f"{path}: unknown measures {sorted(extra - MEASURES)}")
         if not isinstance(item.get("set", []), list):
@@ -93,7 +98,11 @@ def load_rules(path: Path | str = RULES) -> Rules:
         )
     if not rules or rules[-1].below or rules[-1].at_least:
         raise ConfigError(f"{path}: the last rule must have no conditions, so one always fits")
-    return Rules(DetectorConfig(**raw["scan"]), int(raw["frames"]), tuple(rules))
+    try:
+        scan = DetectorConfig(**raw["scan"])
+    except TypeError as error:
+        raise ConfigError(f"{path}: scan: {error}") from None
+    return Rules(scan, int(raw["frames"]), tuple(rules))
 
 
 def choose(profile: SceneProfile, rules: Rules) -> Rule:

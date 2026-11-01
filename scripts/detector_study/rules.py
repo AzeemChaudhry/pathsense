@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from pathsense.config import scene_source
-from pathsense.tune.analyze import MEASURES, SCAN_SECONDS, load_rules
+from pathsense.tune.analyze import MEASURES, SCAN_SECONDS, Rules, load_rules
 from pathsense.tune.cache import SavedDetections, cache_path
 from pathsense.tune.profile import scene_profile
 
@@ -29,9 +29,11 @@ GAIN = 0.005  # a rule must add this to the mean F1 to count
 NAMES = sorted(MEASURES)
 
 
-def measures(scene: str, frames: int) -> list[float]:
+def measures(scene: str, rules: Rules) -> list[float]:
     video = scene_source(scene)
-    saved = SavedDetections.load(cache_path(video, "data/cache/study/yolo26n-1280"))
+    folder = f"data/cache/study/{rules.scan.name}-{rules.scan.imgsz}"
+    saved = SavedDetections.load(cache_path(video, folder))
+    frames = rules.frames
     count = min(len(saved), int(SCAN_SECONDS * saved.fps))
     keep = np.unique(np.linspace(0, count - 1, frames).astype(int))
     s = saved.starts
@@ -84,8 +86,8 @@ def main() -> None:
     setups = sorted({k[:4] for k in found})
     setups = [c for c in setups if all((*c, s) in found for s in scenes)]
     scores = np.array([[f1(found[(*c, s)]) for s in scenes] for c in setups])
-    frames = load_rules().frames
-    x = np.array([measures(groups[s], frames) for s in scenes])
+    rules = load_rules()
+    x = np.array([measures(groups[s], rules) for s in scenes])
     single = scores.mean(1).argmax()
     print(f"{len(setups)} setups, {len(scenes)} scenes")
     print(f"best one setup {setups[single]}: {scores[single].mean():.3f}")

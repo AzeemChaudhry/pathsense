@@ -363,30 +363,30 @@ Each scene's own file against the best single setup for an unseen video (`yolo26
 GTX 1650. Sample clips have counts only, and subway has no truth. Details and limits:
 [docs/DETECTOR_STUDY.md](docs/DETECTOR_STUDY.md).
 
-| scene | setup | wrong | missed | IN P / R | OUT P / R | count error | HOTA | IDF1 | MOTA | ID switches | fragments | FPS |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| MOT17-02 | as shipped | 0 | 2 | 1.00 / 0.00 | 1.00 / 0.90 | 9 | 31.4 | 39.3 | 33.1 | 122 | 264 | 26.1 |
-| MOT17-02 | chosen | 0 | 3 | 1.00 / 0.00 | 1.00 / 0.80 | 8 | 31.5 | 38.0 | 34.4 | 131 | 426 | 10.8 |
-| MOT17-04 | as shipped | 0 | 1 | 1.00 / 1.00 | 1.00 / 0.80 | 4 | 47.9 | 55.5 | 49.5 | 128 | 368 | 24.8 |
-| MOT17-04 | chosen | 1 | 0 | 1.00 / 1.00 | 0.83 / 1.00 | 27 | 53.6 | 61.9 | 52.5 | 133 | 540 | 10.7 |
-| MOT17-09 | as shipped | 2 | 3 | 0.33 / 1.00 | 1.00 / 0.70 | 7 | 40.5 | 49.8 | 53.3 | 55 | 85 | 113.2 |
-| MOT17-09 | chosen | 4 | 0 | 0.25 / 1.00 | 0.91 / 1.00 | 8 | 46.2 | 55.6 | 61.0 | 57 | 83 | 10.8 |
-| MOT20-01 | as shipped | 2 | 16 | 1.00 / 0.71 | 0.82 / 0.43 | 16 | 38.5 | 47.4 | 43.8 | 267 | 533 | 23.4 |
-| MOT20-01 | chosen | 2 | 13 | 1.00 / 0.71 | 0.86 / 0.57 | 16 | 42.9 | 53.4 | 50.4 | 209 | 566 | 10.7 |
-| MOT20-02 | as shipped | 64 | 51 | 0.78 / 0.75 | 0.42 / 0.67 | 36 | 34.7 | 43.4 | 44.2 | 1285 | 3285 | 23.8 |
-| MOT20-02 | chosen | 46 | 37 | 0.84 / 0.83 | 0.51 / 0.70 | 136 | 36.5 | 45.4 | 48.5 | 1321 | 3578 | 10.6 |
-| MOT20-03 | as shipped | 46 | 93 | 0.27 / 0.75 | 0.88 / 0.76 | 118 | 38.2 | 55.1 | 51.1 | 1626 | 8026 | 16.3 |
-| MOT20-03 | chosen | 23 | 89 | 0.38 / 0.75 | 0.94 / 0.77 | 195 | 39.4 | 58.9 | 52.5 | 1053 | 8815 | 7.3 |
-| MOT20-05 | as shipped | 83 | 271 | 0.41 / 0.37 | 0.86 / 0.59 | 231 | 27.0 | 36.6 | 36.9 | 2402 | 9582 | 17.9 |
-| MOT20-05 | chosen | 33 | 406 | 0.50 / 0.17 | 0.90 / 0.38 | 482 | 17.0 | 22.0 | 17.9 | 1187 | 10769 | 8.6 |
-| people-walking | as shipped | n/a | n/a | n/a | n/a | 0 | n/a | n/a | n/a | n/a | n/a | 124.0 |
-| people-walking | chosen | n/a | n/a | n/a | n/a | 1 | n/a | n/a | n/a | n/a | n/a | 10.3 |
-| grocery-store | as shipped | n/a | n/a | n/a | n/a | 0 | n/a | n/a | n/a | n/a | n/a | 25.1 |
-| grocery-store | chosen | n/a | n/a | n/a | n/a | 6 | n/a | n/a | n/a | n/a | n/a | 10.2 |
-| market-square | as shipped | n/a | n/a | n/a | n/a | 2 | n/a | n/a | n/a | n/a | n/a | 3.6 |
-| market-square | chosen | n/a | n/a | n/a | n/a | 5 | n/a | n/a | n/a | n/a | n/a | 0.3 |
-| subway | as shipped | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 23.5 |
-| subway | chosen | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 10.1 |
+| scene | setup | wrong | missed | IN P / R | OUT P / R | line error | zone error | HOTA | IDF1 | MOTA | ID switches | fragments | FPS |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| MOT17-02 | as shipped | 0 | 2 | 1.00 / 0.00 | 1.00 / 0.90 | 2 | 7 | 31.4 | 39.3 | 33.1 | 122 | 264 | 26.1 |
+| MOT17-02 | chosen | 0 | 3 | 1.00 / 0.00 | 1.00 / 0.80 | 3 | 5 | 31.5 | 38.0 | 34.4 | 131 | 426 | 10.8 |
+| MOT17-04 | as shipped | 0 | 1 | 1.00 / 1.00 | 1.00 / 0.80 | 1 | 3 | 47.9 | 55.5 | 49.5 | 128 | 368 | 24.8 |
+| MOT17-04 | chosen | 1 | 0 | 1.00 / 1.00 | 0.83 / 1.00 | 1 | 26 | 53.6 | 61.9 | 52.5 | 133 | 540 | 10.7 |
+| MOT17-09 | as shipped | 2 | 3 | 0.33 / 1.00 | 1.00 / 0.70 | 5 | 2 | 40.5 | 49.8 | 53.3 | 55 | 85 | 113.2 |
+| MOT17-09 | chosen | 4 | 0 | 0.25 / 1.00 | 0.91 / 1.00 | 4 | 4 | 46.2 | 55.6 | 61.0 | 57 | 83 | 10.8 |
+| MOT20-01 | as shipped | 2 | 16 | 1.00 / 0.71 | 0.82 / 0.43 | 14 | 2 | 38.5 | 47.4 | 43.8 | 267 | 533 | 23.4 |
+| MOT20-01 | chosen | 2 | 13 | 1.00 / 0.71 | 0.86 / 0.57 | 11 | 5 | 42.9 | 53.4 | 50.4 | 209 | 566 | 10.7 |
+| MOT20-02 | as shipped | 64 | 51 | 0.78 / 0.75 | 0.42 / 0.67 | 27 | 9 | 34.7 | 43.4 | 44.2 | 1285 | 3285 | 23.8 |
+| MOT20-02 | chosen | 46 | 37 | 0.84 / 0.83 | 0.51 / 0.70 | 15 | 121 | 36.5 | 45.4 | 48.5 | 1321 | 3578 | 10.6 |
+| MOT20-03 | as shipped | 46 | 93 | 0.27 / 0.75 | 0.88 / 0.76 | 61 | 57 | 38.2 | 55.1 | 51.1 | 1626 | 8026 | 16.3 |
+| MOT20-03 | chosen | 23 | 89 | 0.38 / 0.75 | 0.94 / 0.77 | 74 | 121 | 39.4 | 58.9 | 52.5 | 1053 | 8815 | 7.3 |
+| MOT20-05 | as shipped | 83 | 271 | 0.41 / 0.37 | 0.86 / 0.59 | 188 | 43 | 27.0 | 36.6 | 36.9 | 2402 | 9582 | 17.9 |
+| MOT20-05 | chosen | 33 | 406 | 0.50 / 0.17 | 0.90 / 0.38 | 373 | 109 | 17.0 | 22.0 | 17.9 | 1187 | 10769 | 8.6 |
+| people-walking | as shipped | n/a | n/a | n/a | n/a | 0 | 0 | n/a | n/a | n/a | n/a | n/a | 124.0 |
+| people-walking | chosen | n/a | n/a | n/a | n/a | 1 | 0 | n/a | n/a | n/a | n/a | n/a | 10.3 |
+| grocery-store | as shipped | n/a | n/a | n/a | n/a | 0 | 0 | n/a | n/a | n/a | n/a | n/a | 25.1 |
+| grocery-store | chosen | n/a | n/a | n/a | n/a | 1 | 5 | n/a | n/a | n/a | n/a | n/a | 10.2 |
+| market-square | as shipped | n/a | n/a | n/a | n/a | 1 | 1 | n/a | n/a | n/a | n/a | n/a | 3.6 |
+| market-square | chosen | n/a | n/a | n/a | n/a | 5 | 0 | n/a | n/a | n/a | n/a | n/a | 0.3 |
+| subway | as shipped | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 23.5 |
+| subway | chosen | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 10.1 |
 
 ## Roadmap
 

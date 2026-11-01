@@ -187,8 +187,11 @@ def run(args: argparse.Namespace) -> Summary:
     if args.auto:
         if args.scene:
             raise ConfigError("--auto is for a video with no scene file; use one or the other")
+        if not args.source:
+            raise ConfigError("--auto needs --source: it scans a video before running it")
         from pathsense.tune.analyze import analyze, load_rules
 
+        Pipeline.check(load_config(args.config, overrides))  # before the scan loads a model
         analysis = analyze(source_name, load_rules())
         print(analysis.report())
         overrides = [*analysis.overrides, *overrides]  # your own --set still wins
