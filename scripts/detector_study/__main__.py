@@ -254,7 +254,9 @@ def _scene_f1(row: dict) -> float:
 
 def paired(a: np.ndarray, b: np.ndarray) -> str:
     """How `a` differs from `b`, scene by scene, with a bootstrap 95 % interval. Scenes hold
-    about 16 crossings each, so a gap under TIE, or an interval over 0, decides nothing."""
+    about 16 crossings each, so a gap under TIE, or an interval over 0, decides nothing. Read
+    "tie" as no difference found, not as equal, and "differs" as soft: `a` or `b` is often the
+    best of several, which favours a gap."""
     gaps = a - b
     picks = np.random.default_rng(0).integers(len(gaps), size=(BOOTSTRAP, len(gaps)))
     low, high = np.percentile(gaps[picks].mean(1), [2.5, 97.5])
@@ -267,6 +269,7 @@ def compare(path: Path, pairs: list[list[str]], listed: list[str]) -> None:
     failed part way must not be scored on an easier set. Best of many settings on these
     scenes, so read the gaps, and confirm any winner on held out scenes."""
     found = [r for r in rows(path) if int(r["tp"]) + int(r["missed"]) >= MIN_TRUE]
+    found = [r for r in found if r["detector"] in listed]  # a dropped model may have rows
     done: dict[str, set[str]] = {name: set() for name in listed}
     for row in found:
         done[row["detector"]].add(row["scene"])
@@ -278,6 +281,9 @@ def compare(path: Path, pairs: list[list[str]], listed: list[str]) -> None:
     short = [f"{n} ({len(s)} of {len(every)})" for n, s in done.items() if len(s) < len(every)]
     common = set.intersection(*started.values())
     print(f"{len(common)} scenes; short: {', '.join(short) or 'none'}", flush=True)
+    if len(common) < 2:
+        print("too few shared scenes to compare", flush=True)
+        return
     found = [r for r in found if r["scene"] in common]
     best: dict[str, tuple] = {}
     for key, total in totals(found, {"mot", "train"}).items():
@@ -297,13 +303,17 @@ def compare(path: Path, pairs: list[list[str]], listed: list[str]) -> None:
     each = {name: np.array([_scene_f1(r) for r in part]) for name, part in chosen.items()}
     leader = max(best, key=lambda name: best[name][0])
     wins = Counter(np.argmax(np.stack([each[n] for n in best]), axis=0).tolist())
-    print(f"{'model':16} scene_F1 wins line_err  ms  against {leader}, best setting", flush=True)
+    print(
+        f"{'model':16} scene_F1 wins line_err zone_err  ms  against {leader}, best setting",
+        flush=True,
+    )
     for k, name in enumerate(best):
         gap = "" if name == leader else paired(each[name], each[leader])
         key = best[name][1]
-        err = np.median([int(r["line_error"]) for r in chosen[name]])
+        line = np.median([int(r["line_error"]) for r in chosen[name]])
+        zone = np.median([int(r["zone_error"]) for r in chosen[name]])
         ms = np.mean([float(r["ms"]) for r in chosen[name]])
-        row = f"{name:16} {best[name][0]:.3f} {wins[k]:6} {err:7.0f} {ms:5.0f}"
+        row = f"{name:16} {best[name][0]:.3f} {wins[k]:6} {line:7.0f} {zone:8.0f} {ms:5.0f}"
         print(f"{row}  {gap}  {key[2]} {key[3]}", flush=True)
     for a, b in pairs:
         if a in each and b in each:
@@ -338,14 +348,25 @@ def band_report(found: list[dict], bands: dict[str, set[str]]) -> None:
             held[name] = np.array(kept)
             fit = max(settings, key=lambda k: mean(settings[k], scenes))
             pooled = max(settings, key=lambda k: mean(settings[k], sorted(settings[k])))
-            errors = [int(settings[fit][s]["line_error"]) for s in scenes]
+            lines_ = [int(settings[fit][s]["line_error"]) for s in scenes]
+            zones = [int(settings[fit][s]["zone_error"]) for s in scenes]
             ids = np.mean([int(settings[fit][s]["ids"]) for s in scenes])
-            lines[name] = (mean(settings[pooled], scenes), np.median(errors), ids, fit)
+            lines[name] = (
+                mean(settings[pooled], scenes),
+                np.median(lines_),
+                np.median(zones),
+                ids,
+                fit,
+            )
         leader = max(held, key=lambda name: held[name].mean())
-        print(f"{'model':14} left_out pooled line_err IDs  against {leader}, setting", flush=True)
-        for name, (pooled, error, ids, fit) in lines.items():
+        print(
+            f"{'model':14} left_out pooled line_err zone_err IDs  against {leader}, setting",
+            flush=True,
+        )
+        for name, (pooled, line, zone, ids, fit) in lines.items():
             gap = "" if name == leader else paired(held[name], held[leader])
-            row = f"{name:14} {held[name].mean():.3f}    {pooled:.3f}  {error:6.0f} {ids:5.0f}"
+            row = f"{name:14} {held[name].mean():.3f}    {pooled:.3f}  {line:6.0f} {zone:8.0f}"
+            row = f"{row} {ids:5.0f}"
             print(f"{row}  {gap}  {fit[0]} {fit[1]}", flush=True)
 
 

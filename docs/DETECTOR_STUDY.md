@@ -163,10 +163,10 @@ scored box by box against the labels, not on crossings, so it is weak evidence
 
 The best confidence differs by scene: 0.1 in the dense crowd, 0.2 to 0.4 elsewhere. Models
 are compared on crossings with `scripts/detector_study models`, on the scenes every model
-finished, by paired gaps per scene. A gap under 0.03, or an interval over 0, is a tie. That
-run has not been made.
+finished, by paired gaps per scene. A gap under 0.03, or an interval over 0, is a tie.
 
-The largest number of boxes in a saved 1920 frame is 207, so raising the library's cap of
+Speeds are all from the GTX 1650. The largest number of boxes in any saved frame of the study
+is 207, so raising the library's cap of
 300 to 1000 changes none of the saved boxes above.
 
 ## Models by density
@@ -178,15 +178,17 @@ is chosen with the scored scene left out, among 4 confidences and 4 tracker setu
 
 | band | scenes | best models, left out mean scene F1 | setting of the best |
 | --- | --- | --- | --- |
-| sparse, under 25 | 19 | `yolo26s` NMS free 0.633, `yolo26n` 0.630, tied with all but `yolo26n` NMS free | 0.4, crowd, low bar |
-| busy, 25 to 60 | 19 | `yolo26s` 0.567, `yolo26n` 0.533, tied | 0.3, crowd, low bar |
-| crowd, 60 or more | 7 | `yolo11s` 0.776, `yolo26s` 0.774, tied | 0.2 and 0.1, crowd, low bar |
+| sparse, under 25 | 19 | `yolo26s` NMS free 0.633; `yolo26n`, `yolo11s` and `yolo26s` tied with it | 0.4, crowd, low bar |
+| busy, 25 to 60 | 19 | `yolo26s` 0.567; `yolo26n` 0.533 tied with it, the gap's interval just over 0 | 0.3, crowd, low bar |
+| crowd, 60 or more | 7 | `yolo11s` 0.776; `yolo26s` 0.774 tied with it | 0.2 and 0.1, crowd, low bar |
 
-`yolo26s` is the only model tied for best in all three bands. The NMS free head is not free
+`yolo26s` is the only model never clearly behind a band's best: every other one is behind in
+at least one band. On 7 to 19 scenes a tie means no difference was found, not that there is
+none, so this is a reason to carry it forward, not proof that it is best. The NMS free head is not free
 of cost: `yolo26s` loses 0.072 on busy scenes and `yolo26n` loses 0.053 on sparse ones. These
 are choosing scenes, and the crowd band is seven scenes, five of them from MOT. A summed count
 error is ruled by a few crowds, so bands report the median per scene, for line counts only:
-across all 45 scenes it is 5 or 6 for every model, and in the crowd band 7 for `yolo26s`, 11
+across all 45 scenes it is 5 or 6 for every model (zone error is reported beside it), and in the crowd band 7 for `yolo26s`, 11
 for `yolo11s` and 16 for `yolo26n`. `yolo26x` was stopped
 on its first video, and RF-DETR was not in this run.
 

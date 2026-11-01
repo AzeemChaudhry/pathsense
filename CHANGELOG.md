@@ -69,8 +69,8 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 ### Changed
 
 - YOLO detectors keep up to 1000 boxes a frame, not 300. Saved boxes stay valid: the most in any
-  saved 1920 frame is 207.
-- `ultralytics` is pinned to 8.4, since an unset `detector.nms` relies on its default head.
+  frame saved by the study is 207.
+- `ultralytics` is pinned to 8.4.190 or later in 8.4, since an unset `detector.nms` relies on its default head.
 - The MOT20-03 and MOT20-05 scene files set the crowd tracker settings the study chose
   (stricter box matching, 1 s stitch). The defaults stay: the stricter matching splits the
   grocery shopper's track.

@@ -30,6 +30,20 @@ def test_a_model_that_failed_part_way_is_named_and_cuts_the_scenes(tmp_path, cap
     assert "tie" in out  # both score the same on the shared scenes
 
 
+def test_rows_of_a_dropped_model_are_left_out(tmp_path, capsys):
+    path = tmp_path / "models.csv"
+    write(path, [("kept", "s1", 5), ("kept", "s2", 6), ("dropped", "s1", 5)])
+    study["compare"](path, [], ["kept"])
+    assert "2 scenes; short: none" in capsys.readouterr().out
+
+
+def test_models_with_no_shared_scenes_are_not_compared(tmp_path, capsys):
+    path = tmp_path / "models.csv"
+    write(path, [("a", "s1", 5), ("b", "s2", 5)])
+    study["compare"](path, [], ["a", "b"])
+    assert "too few shared scenes" in capsys.readouterr().out
+
+
 def test_comparing_nothing_says_so(tmp_path, capsys):
     path = tmp_path / "models.csv"
     write(path, [])
@@ -47,7 +61,7 @@ def test_only_a_clear_paired_gap_counts_as_a_difference():
 
 def test_a_band_keeps_its_own_setting_and_each_scene_is_left_out(capsys):
     found = []
-    base = dict(candidate="default", wrong=0, ids=1, line_error=0)
+    base = dict(candidate="default", wrong=0, ids=1, line_error=0, zone_error=0)
     for name in ("a", "b"):
         for confidence, crowd, sparse in ((0.1, 8, 1), (0.3, 2, 9)):
             hits = {"c1": crowd, "c2": crowd, "s1": sparse, "s2": sparse}
