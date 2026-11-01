@@ -251,13 +251,17 @@ near where it should be and a similar width. Results for the chosen setup, from 
   84 different people, so about 3 in 10 are wrong. Narrowing cut the number of links, not
   much the wrong share (32% before). The check is weakest for these boxes: a partial box is
   exactly what can overlap a neighbour.
-- The same check on the existing rule gives 576 same and 1,643 different, 150 unclear. That is
-  a rough count of a different set of links, so not a like for like comparison, but it may
-  mean the stitcher links the wrong person often in crowds. It needs its own look.
+- The same check on the existing rule judges 2,219 of 2,369 links: 576 same and 1,643
+  different, about 74%. That is a rough count of a different set of links, so not a like for
+  like comparison, but it may mean the stitcher links the wrong person often in crowds. It
+  needs its own look.
 - No default changed, and it is not in `--auto` yet.
 
 ## Limits
 
+- **`tracker.stitch_top` rests on little:** one crossing on one clip it was designed around.
+  Its link check uses MOT, which also shaped the rule, so it is not independent, and 75 of
+  364 links could not be judged, which could move the wrong share.
 - **PersonPath22's lines are automatic:** square to the main flow, placed where most tracks
   cross. They score counting wherever people flow, not at a doorway anyone cares about.
 - **PersonPath22's labels are at 5 FPS** and interpolated between, so its fast or turning

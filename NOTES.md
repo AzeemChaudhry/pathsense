@@ -559,11 +559,12 @@ Reports in `runs/tune/<scene>/report.md`.
   107 of 338 clear links joined different people, many with no height change at all.
 - **Result:** limited to boxes outside the height range and of similar width, 205 same and
   84 different, 75 unclear, so still about 3 in 10 wrong: narrowing cut links, not much the
-  wrong share. The check is weakest for partial boxes. grocery-store goes to 0 wrong, 0 missed. No events change on
-  people-walking or market-square. MOT wrong 109 to 100; held out wrong 129 to 120, missed 344
-  to 350, F1 0.600 to 0.598: a trade, not a gain. One wrong crossing in one scene is the case
-  for it, on a clip the rule was designed around.
-- **Also found:** the existing stitcher at the chosen setup links 576 same and 1,643 different
-  on MOT (94 and 725 on MOT20-05). A rough check, but it fits "stitching links the wrong
-  person in crowds" from the tracker study. Not yet acted on.
+  wrong share. The check is weakest for partial boxes. grocery-store goes to 0 wrong, 0
+  missed. No events change on people-walking or market-square. MOT wrong 109 to 100, F1 0.791
+  to 0.795; chosen on F1 stays 0.600; held out wrong 129 to 120, missed 344 to 350, F1 0.600
+  to 0.598. A trade, not a gain: one wrong crossing in one scene is the case for it, on a clip
+  the rule was designed around.
+- **Also found:** the existing stitcher at the chosen setup judges 576 same and 1,643
+  different on MOT, about 74% (94 and 725 on MOT20-05). A rough count of a different set of
+  links, but it may mean it links the wrong person often in crowds. Needs its own look.
 - **Decision:** keep it at 0.1 as a setting, off by default. Azeem decides on `--auto`.
