@@ -19,7 +19,7 @@ pathsense = "pathsense.cli:main"
 
 [project.optional-dependencies]
 rfdetr = ["rfdetr"]
-data = ["huggingface_hub", "pillow", "roboflow", "fiftyone"]
+data = ["huggingface_hub", "pillow", "roboflow"]
 dev = ["pytest", "ruff", "pre-commit"]
 
 [build-system]
