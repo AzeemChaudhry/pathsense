@@ -219,6 +219,38 @@ cannot see the bands either: its `people` correlates 0.64 with labelled people p
 reads 18.5 on MOT20-05, which has 226. No threshold on it moved the mean scene F1 by more
 than 0.003. So `yolo26s` keeps one setting, and MOT20-05 stays a known failure.
 
+## Linking by the top of the box
+
+`tracker.stitch_top`, off by default. On grocery-store the chosen setup counts one shopper
+twice. As the cart hides their legs, the whole body box falls under the 0.3 filter and an
+upper body box takes over: the height halves and the feet jump about 470 px, so the stitcher
+refuses the link, but the top of the box moves 7 px. The new ID has no remembered height and
+crosses the line when the whole body box returns.
+
+The rule applies only to a box outside the stitcher's height range, and needs the top centre
+near where it should be and a similar width. Results for the chosen setup, from saved boxes
+(`scripts/detector_study/stitch_top.py`), wrong and missed crossings, off against 0.1:
+
+| scenes | off | 0.1 |
+| --- | --- | --- |
+| grocery-store | 1 / 0, zone error 5 | 0 / 0, zone error 2 |
+| people-walking, market-square | no event changes | no event changes |
+| MOT, 7 | 109 / 548 | 100 / 548 |
+| PersonPath22 chosen on, 38 | 194 / 312 | 196 / 310 |
+| PersonPath22 held out, 39 | 129 / 344 | 120 / 350 |
+
+- Mean scene F1 is a tie outside grocery-store: 0.600 against 0.598 held out.
+- Any value from 0.1 to 0.35 fixes grocery-store. 0.1 is the most cautious, so it was taken
+  without choosing by score. An earlier, wider version that also fired on boxes of the same
+  height linked different people more often and, from 0.15, added a wrong crossing on
+  market-square.
+- **Links checked against the MOT labels**, counting a link when both boxes overlap a labelled
+  person at IoU 0.3: at 0.1 this rule joins the same person 205 times and different people
+  84 times, with 75 unclear. The existing rule at the chosen setup does 576 and 1,643, with
+  150 unclear. The check is rough, as a partial box can overlap a neighbour, but the existing
+  stitcher links the wrong person far more often than the right one in crowds.
+- No default changed, and it is not in `--auto` yet.
+
 ## Limits
 
 - **PersonPath22's lines are automatic:** square to the main flow, placed where most tracks

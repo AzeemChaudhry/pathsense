@@ -110,17 +110,19 @@ class Pipeline:
         )
         analytics = config.analytics
         stitch = config.tracker.stitch_seconds
-        settings = (stitch, config.tracker.stitch_distance, config.tracker.stitch_size)
+        settings = {
+            "seconds": stitch,
+            "distance": config.tracker.stitch_distance,
+            "size": config.tracker.stitch_size,
+            "top": config.tracker.stitch_top,
+        }
         stitcher = None
         if stitch > 0 and look.enabled and look.stitch_gate > 0:
             from pathsense.appearance.stitch import AppearanceStitcher
 
-            seconds, distance, size = settings
-            stitcher = AppearanceStitcher(
-                look.stitch_gate, look.memory, seconds=seconds, distance=distance, size=size
-            )
+            stitcher = AppearanceStitcher(look.stitch_gate, look.memory, **settings)
         elif stitch > 0:
-            stitcher = Stitcher(*settings)
+            stitcher = Stitcher(**settings)
         # Forget a person one frame after their ID can no longer return, from the tracker or
         # the stitcher.
         lost = max(tracker.lost_seconds, stitch) + 1 / frame_rate

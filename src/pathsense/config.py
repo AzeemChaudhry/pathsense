@@ -77,9 +77,10 @@ class TrackerConfig:
     stitch_seconds: float = 2.0
     stitch_distance: float = 1.0  # how far from the expected spot, in box heights
     stitch_size: float = 0.5  # box height within 1/(1 + this) to 1 + this times theirs
+    stitch_top: float = 0.0  # or the top of the box this near, in box heights; 0: off
 
     def __post_init__(self) -> None:
-        for key in ("stitch_seconds", "stitch_distance", "stitch_size"):
+        for key in ("stitch_seconds", "stitch_distance", "stitch_size", "stitch_top"):
             object.__setattr__(self, key, non_negative(f"tracker.{key}", getattr(self, key)))
 
 

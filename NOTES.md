@@ -548,3 +548,20 @@ Reports in `runs/tune/<scene>/report.md`.
 - **Found:** FiftyOne reads an unknown flag (-1) as true, so those 754 person boxes are dropped.
   Kept that way: a box that may be a crowd should not teach one person.
 - **Decision:** `--max-train` now counts usable images. FiftyOne's 500 gave only 461.
+
+## 2026-11-02: the grocery double count, linked by the top of the box
+
+- **Why:** the chosen setup counted one shopper twice. Frames 486 to 507: the whole body box
+  (820 px) falls under 0.3 and an upper body box (430 px) takes over. Height ratio 0.5 and a
+  470 px feet jump refuse the stitch; the top moves 7 px.
+- **Tried:** `tracker.stitch_top` from saved boxes on 87 scenes, then each link against the
+  MOT labels. The first version fired whenever the feet test failed. Score looked good, but
+  107 of 338 clear links joined different people, many with no height change at all.
+- **Result:** limited to boxes outside the height range and of similar width, 205 same and
+  84 different, 75 unclear. grocery-store goes to 0 wrong, 0 missed. No events change on
+  people-walking or market-square. MOT wrong 109 to 100; held out wrong 129 to 120, missed 344
+  to 350, F1 0.600 to 0.598, a tie.
+- **Also found:** the existing stitcher at the chosen setup links 576 same and 1,643 different
+  on MOT (94 and 725 on MOT20-05). A rough check, but it fits "stitching links the wrong
+  person in crowds" from the tracker study. Not yet acted on.
+- **Decision:** keep it at 0.1 as a setting, off by default. Azeem decides on `--auto`.
