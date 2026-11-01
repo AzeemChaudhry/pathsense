@@ -134,6 +134,9 @@ def test_listed_crossings_must_add_up_to_the_counts(tmp_path):
         "{enter: 1, exit: 0, crossings: [[1.5, in, 100]]}",
         "{enter: 1, exit: 0, crossings: [[1.5, enter]]}",
         "{enter: 1, exit: 0, crossings: []}",
+        "{enter: 1, exit: 0, crossings: [[.nan, enter, 100]]}",
+        "{enter: 1, exit: 0, crossings: [[1.5, enter, .inf]]}",
+        "{enter: 1, exit: 0, crossings: [[-1.0, enter, 100]]}",
         "{labels: gt.txt, crossings: [[1.5, enter, 100]]}",
     ):
         scene.write_text(f"truth: {bad}\n")
@@ -151,6 +154,7 @@ def test_listed_crossings_are_scored_one_by_one():
     assert (score.tp["exit"], score.fp["exit"], score.fn["exit"]) == (0, 1, 1)
     assert score.right == [near]
     assert [(e.type, e.frame, e.track_id) for e in score.missed] == [("exit", 50, -1)]
+    assert match_marked([near], [None], truth, 10.0).wrong == [near]
 
 
 def test_a_crossing_is_placed_at_its_track_in_the_nearest_frame():

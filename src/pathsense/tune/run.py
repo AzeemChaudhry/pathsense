@@ -191,12 +191,11 @@ class _Scene:
 
 def _place(event: Event, tracks: dict[int, sv.Detections]) -> float | None:
     """The middle of the crossing track's box, in the frame nearest the crossing."""
-    for frame in sorted(tracks, key=lambda index: abs(index - event.frame)):
-        people = tracks[frame]
-        hit = people.xyxy[people.tracker_id == event.track_id]
-        if len(hit):
-            return float(hit[0, [0, 2]].mean())
-    return None
+    seen = {f: p for f, p in tracks.items() if event.track_id in p.tracker_id}
+    if not seen:
+        return None
+    people = seen[min(seen, key=lambda index: abs(index - event.frame))]
+    return float(people.xyxy[people.tracker_id == event.track_id][0, [0, 2]].mean())
 
 
 def _truth(scene: Path) -> Truth:

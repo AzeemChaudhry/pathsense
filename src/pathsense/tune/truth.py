@@ -25,6 +25,7 @@ only score the totals, so a false crossing and a missed one can cancel out there
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -95,15 +96,18 @@ def _crossings(scene: Path | str, raw: Any, counts: dict[str, int]) -> tuple[Mar
             or isinstance(item[2], bool)
             or not isinstance(item[0], int | float)
             or not isinstance(item[2], int | float)
+            or not (math.isfinite(item[0]) and math.isfinite(item[2]) and item[0] >= 0)
         ):
             raise ConfigError(f"{scene}: truth.crossings needs [seconds, direction, x], got {item}")
         marked.append(Marked(float(item[0]), item[1], float(item[2])))
     for direction in DIRECTIONS:
         listed = sum(m.type == direction for m in marked)
-        if listed != counts.get(direction):
+        if direction not in counts:
+            raise ConfigError(f"{scene}: truth.crossings needs truth.{direction}, even if 0")
+        if listed != counts[direction]:
             raise ConfigError(
                 f"{scene}: truth.crossings lists {listed} {direction}, "
-                f"truth.{direction} says {counts.get(direction)}"
+                f"truth.{direction} says {counts[direction]}"
             )
     return tuple(marked)
 

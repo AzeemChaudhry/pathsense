@@ -139,8 +139,9 @@ def match_marked(
 ) -> CrossingScore:
     """Pair our crossings with listed ones of the same direction, closest in time first.
 
-    `places[i]` is where `ours[i]` happened, x in pixels. A pair is at most `window` seconds
-    and `reach` pixels apart.
+    `places[i]` is where `ours[i]` happened, x in pixels; None pairs with nothing, so it
+    counts as wrong. A pair is at most `window` seconds and `reach` pixels apart. Time and
+    place cannot tell people apart: a double next to a missed person earns credit.
     """
     score = CrossingScore()
     for direction in DIRECTIONS:

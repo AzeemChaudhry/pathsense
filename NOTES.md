@@ -530,6 +530,9 @@ Reports in `runs/tune/<scene>/report.md`.
   time and place cannot tell people apart: a double next to a missed person earns credit. By
   eye, shipped misses 4 on market-square and doubles 2. The people-walking zone stays
   unlabelled. Market-square's chosen run is 960 tiles upscaled to 1920, not plain 1920.
+- **Sensitivity:** market-square F1, shipped against chosen: 0.944 and 0.950 at 2 s and
+  200 px, 0.889 and 0.950 at 1 s and 100 px, 0.778 and 0.900 at 0.5 s and 100 px. Times come
+  from the chosen run, so tighter matching favours it. The other two clips do not move.
 - **Decision:** the sample clips stop being evidence against the chosen setup as a whole.
   The grocery-store double count is a real fault to fix: `yolo26s` alone is fine, the 0.3
   filter alone causes it. The gate is still Azeem's call, and MOT20-05 still gets worse.

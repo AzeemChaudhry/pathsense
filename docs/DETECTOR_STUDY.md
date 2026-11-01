@@ -127,8 +127,10 @@ at 1920 1.9.
 Against the gate. PLAN.md tunes on MOT20-03 and MOT20-05 and validates on the other MOT
 scenes and the sample clips. All seven MOT scenes also helped choose this setup, so the only
 check it never saw is the sample clips, and their scene files were tuned on those same clips,
-which favours "as shipped". On them the chosen setup is better on one, level on one and worse
-on one. The gate names a tracker
+which favours "as shipped". The listed crossings take their time and x from the chosen run
+once confirmed in plain frames, which favours "chosen". On them the chosen setup is better on
+one, about level on one and worse on one, each on few crossings (19, 19 and 1). The gate names
+a tracker
 against ByteTrack; this table changes the detector and tracker together against each scene
 file, so a gain cannot be credited to the tracker alone.
 
@@ -150,6 +152,9 @@ file, so a gain cannot be credited to the tracker alone.
     way: 2 wrong against 2 missed. From the frames, shipped's total flatters it: it misses 4
     who cross, and its doubles earn credit, as matching by time and place cannot tell people
     apart. One of the 18 stays unsure, feet hidden at the right edge.
+    F1 is 0.944 against 0.950 at 2 s and 200 px, 0.889 against 0.950 at 1 s and 100 px, and
+    0.778 against 0.900 at 0.5 s. The tighter gaps partly reflect where the times came from,
+    so this leans to chosen but does not settle it.
   - grocery-store: a real fault. One shopper is counted twice: the track breaks while they
     browse, and the new box then jumps from upper body to whole body across the line. The
     0.3 confidence filter alone causes it on `yolo26s`.
