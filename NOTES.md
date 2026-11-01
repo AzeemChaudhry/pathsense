@@ -496,7 +496,7 @@ Reports in `runs/tune/<scene>/report.md`.
   laptop it could not install its MongoDB, so its conversion never ran here.
 - **Check:** on the 500 train images FiftyOne had chosen, the new code's labels equal FiftyOne's
   parsing as its source reads, on every image: 1,831 people both ways. This is its logic
-  reproduced, not its full run. A fresh download gave 500 train and 100 val images, all
+  reproduced on its sample, not its full run, and it does not test the new selection. A fresh download gave 500 train and 100 val images, all
   labelled, and all 100 val images open.
 - **Found:** FiftyOne reads an unknown flag (-1) as true, so those 754 person boxes are dropped.
   Kept that way: a box that may be a crowd should not teach one person.

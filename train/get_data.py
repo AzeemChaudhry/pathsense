@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import http.client
 import json
 import os
 import random
@@ -63,6 +64,7 @@ OPENIMAGES_BOXES = {  # our split -> Open Images' name for it, its box file
 OPENIMAGES_IMAGE = "https://open-images-dataset.s3.amazonaws.com/{split}/{image}.jpg"
 WORKERS = 16  # few enough that the bucket does not slow us down
 TRIES = 5
+BOX_COLUMNS = {"ImageID", "LabelName", "XMin", "XMax", "YMin", "YMax", "IsGroupOf", "IsDepiction"}
 
 
 # ----------------------------------------------------------------------------- conversion
@@ -190,11 +192,13 @@ def cmd_crowdhuman(args: argparse.Namespace) -> None:
 # ----------------------------------------------------------------------------- open images
 def fetch(url: str, dst: Path, tries: int = TRIES) -> bool:
     """Download `url` to `dst`, whole or not at all. False if it does not exist or keeps
-    failing; a file already there is kept, so a stopped run carries on."""
+    failing. A finished file is kept, so a stopped run skips it; a partial one starts over."""
     if dst.exists():
         return True
-    part = dst.with_suffix(f"{dst.suffix}.part.{os.getpid()}.{time.monotonic_ns()}")
+    part = dst.with_suffix(f"{dst.suffix}.part")  # one per file: the last run's is overwritten
     for attempt in range(tries):
+        if attempt:
+            time.sleep(2**attempt)
         try:
             with urllib.request.urlopen(url, timeout=60) as response, part.open("wb") as out:
                 shutil.copyfileobj(response, out, 1024 * 1024)
@@ -204,11 +208,10 @@ def fetch(url: str, dst: Path, tries: int = TRIES) -> bool:
             part.replace(dst)
             return True
         except urllib.error.HTTPError as error:
-            if error.code < 500 and error.code != 429:
+            if error.code < 500 and error.code not in (408, 429):
                 break  # it is not there, and asking again will not help
-        except OSError:
-            pass  # a dropped connection, a timeout
-        time.sleep(2**attempt)
+        except (OSError, http.client.HTTPException):
+            pass  # a dropped connection, a timeout, a body cut short
     part.unlink(missing_ok=True)
     return False
 
@@ -224,10 +227,17 @@ def read_boxes(path: Path, classes: dict[str, str]) -> dict[str, list[dict]]:
     """Image id -> its person boxes, in the form `openimages_to_yolo` takes."""
     boxes: dict[str, list[dict]] = {}
     with path.open(newline="") as f:
-        for row in csv.DictReader(f):
+        rows = csv.DictReader(f)
+        missing = BOX_COLUMNS - set(rows.fieldnames or ())
+        if missing:
+            raise SystemExit(f"{path}: no column {sorted(missing)}; has the file changed?")
+        for row in rows:
             if row["LabelName"] in classes:
-                x, y = float(row["XMin"]), float(row["YMin"])
-                w, h = float(row["XMax"]) - x, float(row["YMax"]) - y
+                try:
+                    x, y = float(row["XMin"]), float(row["YMin"])
+                    w, h = float(row["XMax"]) - x, float(row["YMax"]) - y
+                except ValueError:
+                    raise SystemExit(f"{path}:{rows.line_num}: bad box") from None
                 boxes.setdefault(row["ImageID"], []).append(
                     {
                         "label": classes[row["LabelName"]],
@@ -256,6 +266,14 @@ def write_yaml(name: str, out: Path) -> Path:
     return yaml_path
 
 
+def remove_others(folder: Path, keep: dict[str, list[str]]) -> int:
+    """Delete what an earlier run chose, so a split holds this run's images and no more."""
+    others = [path for path in folder.iterdir() if path.stem not in keep]
+    for path in others:
+        path.unlink()
+    return len(others)
+
+
 def cmd_openimages(args: argparse.Namespace) -> None:
     out = DATA / "openimages"
     raw = out / "raw"
@@ -274,6 +292,9 @@ def cmd_openimages(args: argparse.Namespace) -> None:
         img_out, lbl_out = out / "images" / split, out / "labels" / split
         img_out.mkdir(parents=True, exist_ok=True)
         lbl_out.mkdir(parents=True, exist_ok=True)
+        removed = remove_others(img_out, chosen) + remove_others(lbl_out, chosen)
+        if removed:
+            print(f"[{split}] removed {removed} files of an earlier selection")
 
         def get(image: str, oi_split: str = oi_split, img_out: Path = img_out) -> bool:
             url = OPENIMAGES_IMAGE.format(split=oi_split, image=image)
@@ -290,6 +311,10 @@ def cmd_openimages(args: argparse.Namespace) -> None:
         print(f"[{split}] {kept} images, {people} people, {len(chosen) - kept} failed")
 
     print(f"[done] dataset config written to {write_yaml('openimages', out)}")
+    print(
+        "[note] attribution: Open Images V7 by Google, annotations CC BY 4.0, "
+        "images CC BY 2.0 (verify per image before redistributing images)"
+    )
 
 
 # ----------------------------------------------------------------------------- roboflow

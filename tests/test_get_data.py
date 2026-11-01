@@ -1,3 +1,4 @@
+import http.client
 import importlib.util
 import io
 import urllib.error
@@ -119,6 +120,40 @@ def test_fetch_retries_then_writes_the_whole_file(tmp_path, monkeypatch):
     assert get_data.fetch("u", dst) and dst.read_bytes() == b"whole" and len(calls) == 3
     assert get_data.fetch("u", dst) and len(calls) == 3  # already there
     assert [f.name for f in tmp_path.iterdir()] == ["x.jpg"]
+
+
+def test_fetch_survives_a_body_cut_short_and_a_part_left_by_a_killed_run(tmp_path, monkeypatch):
+    class Cut(Reply):
+        def read(self, *_):
+            raise http.client.IncompleteRead(b"")
+
+    replies = iter([Cut(b""), Reply(b"whole")])
+    monkeypatch.setattr(get_data.urllib.request, "urlopen", lambda url, timeout: next(replies))
+    monkeypatch.setattr(get_data.time, "sleep", lambda _: None)
+    (tmp_path / "x.jpg.part").write_bytes(b"old")
+    assert get_data.fetch("u", tmp_path / "x.jpg")
+    assert [f.name for f in tmp_path.iterdir()] == ["x.jpg"]
+
+
+def test_a_box_table_with_other_columns_is_refused(tmp_path):
+    path = tmp_path / "boxes.csv"
+    path.write_text("ImageID,LabelName\na,/m/01g317\n")
+    with pytest.raises(SystemExit, match="no column"):
+        get_data.read_boxes(path, CLASSES)
+
+
+def test_a_bad_box_names_its_line(tmp_path):
+    path = tmp_path / "boxes.csv"
+    path.write_text(HEADER + "\na,xclick,/m/01g317,1,,0.5,0.2,0.8,0,0,0,0,0\n")
+    with pytest.raises(SystemExit, match=":2: bad box"):
+        get_data.read_boxes(path, CLASSES)
+
+
+def test_an_earlier_selection_is_removed(tmp_path):
+    (tmp_path / "keep.jpg").write_bytes(b"")
+    (tmp_path / "old.jpg").write_bytes(b"")
+    assert get_data.remove_others(tmp_path, {"keep": ["0 0 0 0 0"]}) == 1
+    assert [f.name for f in tmp_path.iterdir()] == ["keep.jpg"]
 
 
 def test_fetch_gives_up_on_a_missing_file_at_once(tmp_path, monkeypatch):

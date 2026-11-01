@@ -64,8 +64,9 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 ### Changed
 
 - `train/get_data.py openimages` downloads from Google's published files with the standard
-  library, not FiftyOne, which also ends the open pymongo and strawberry-graphql alerts. Labels
-  match the old conversion. `--max-train` and `--max-val` now count usable images, and raw
+  library, not FiftyOne, which also ends the open pymongo and strawberry-graphql alerts of
+  0.3.0 once merged. Labels match FiftyOne's parsing on a sample of 500 images, though its full
+  run could not finish here. A rerun deletes an earlier selection. `--max-train` and `--max-val` now count usable images, and raw
   files move from `~/fiftyone` to `data/openimages/raw`.
 - The MOT20-03 and MOT20-05 scene files set the crowd tracker settings the study chose
   (stricter box matching, 1 s stitch). The defaults stay: the stricter matching splits the
