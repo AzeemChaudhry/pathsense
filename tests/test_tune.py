@@ -344,6 +344,21 @@ def test_a_local_weights_file_is_part_of_the_key(tmp_path, tiny_video):
         detector_key(config, tmp_path / "missing.mp4")
 
 
+def test_line_error_leaves_out_zones_and_counts_with_no_truth():
+    score = Score({"enter": 3, "exit": 9, "zone:shop": 1}, {"enter": 1, "zone:shop": 5}, None, 0, 0)
+    assert score.line_error == 2 and score.count_error == 6
+
+
+def test_unset_nms_and_iou_keep_the_key_of_boxes_saved_before_them():
+    old = (
+        '{"conf": 0.1, "drop_partial": false, "imgsz": null, '
+        '"name": "fake", "slice": null, "weights": null}'
+    )
+    assert detector_key(DetectorConfig(name="fake")) == old  # hours of GPU work depend on this
+    assert detector_key(DetectorConfig(name="fake", nms=False)) != old
+    assert detector_key(DetectorConfig(name="fake", iou=0.5)) != old
+
+
 def test_an_interrupted_save_leaves_the_old_file(tmp_path, monkeypatch):
     saved = SavedDetections(
         xyxy=np.zeros((0, 4), np.float32),

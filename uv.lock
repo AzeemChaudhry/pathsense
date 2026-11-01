@@ -1892,7 +1892,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "supervision", specifier = ">=0.30" },
     { name = "trackers", specifier = ">=2.6,<2.7" },
-    { name = "ultralytics" },
+    { name = "ultralytics", specifier = "~=8.4.190" },
 ]
 provides-extras = ["data", "dev", "rfdetr"]
 

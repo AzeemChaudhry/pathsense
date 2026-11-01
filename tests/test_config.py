@@ -4,9 +4,25 @@ from pathsense.config import (
     DEFAULT_CONFIG,
     Config,
     ConfigError,
+    DetectorConfig,
     apply_override,
     load_config,
 )
+
+
+@pytest.mark.parametrize(
+    ("settings", "message"),
+    [
+        ({"nms": True}, "null or false"),
+        ({"nms": 0}, "null or false"),
+        ({"iou": 1.5}, "between 0 and 1"),
+        ({"iou": 0.5, "nms": False}, "no effect"),
+        ({"name": "rfdetr-nano", "iou": 0.5}, "YOLO models only"),
+    ],
+)
+def test_detector_settings_that_would_do_nothing_are_refused(settings, message):
+    with pytest.raises(ConfigError, match=message):
+        DetectorConfig(**settings)
 
 
 def test_default_file_loads_and_matches_code_defaults():

@@ -11,6 +11,7 @@ import supervision as sv
 from pathsense.detect.base import select_people
 
 COCO_PERSON_ID = 0  # Ultralytics COCO models: 0 is "person"
+MAX_DET = 1000  # the library's 300 is near the box count of a loose NMS on a crowd
 
 
 class YoloDetector:
@@ -22,6 +23,8 @@ class YoloDetector:
         conf: float = 0.1,
         device: str | None = None,
         person_id: int = COCO_PERSON_ID,
+        nms: bool | None = None,
+        iou: float | None = None,
     ) -> None:
         """Wrap an already loaded `ultralytics.YOLO` model. Use `load()` to build one."""
         self.model = model
@@ -30,15 +33,29 @@ class YoloDetector:
         self.conf = conf
         self.device = device
         self.person_id = person_id
+        # Only what is set goes to the library, so its own defaults apply otherwise.
+        self.options = {k: v for k, v in (("nms", nms), ("iou", iou)) if v is not None}
 
     @classmethod
     def load(
-        cls, weights: str, imgsz: int | None = None, conf: float = 0.1, device: str | None = None
+        cls,
+        weights: str,
+        imgsz: int | None = None,
+        conf: float = 0.1,
+        device: str | None = None,
+        nms: bool | None = None,
+        iou: float | None = None,
     ) -> YoloDetector:
         from ultralytics import YOLO  # heavy import, only when a YOLO detector is built
 
         detector = cls(
-            YOLO(weights), name=Path(weights).stem, imgsz=imgsz or 640, conf=conf, device=device
+            YOLO(weights),
+            name=Path(weights).stem,
+            imgsz=imgsz or 640,
+            conf=conf,
+            device=device,
+            nms=nms,
+            iou=iou,
         )
         detector.warmup()
         return detector
@@ -54,6 +71,8 @@ class YoloDetector:
             conf=self.conf,
             classes=[self.person_id],  # let YOLO drop other classes before NMS
             device=self.device,
+            max_det=MAX_DET,
             verbose=False,
+            **self.options,
         )[0]
         return select_people(sv.Detections.from_ultralytics(result), self.person_id)
