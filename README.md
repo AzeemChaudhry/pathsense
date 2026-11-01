@@ -358,6 +358,9 @@ Filled in during Phase 3 and Phase 4.
 
 ### All eleven scenes
 
+YOLO26 results here use its one-to-many head with NMS, the library's default; the NMS free
+head is `detector.nms=false` ([details](docs/DETECTOR_STUDY.md#head-and-overlap)).
+
 Each scene's own file against the best single setup for an unseen video (`yolo26s` at 1920,
 `pathsense run --auto`; not the default, and worse here on some scenes). P / R is crossing precision and recall by direction; FPS is on a
 GTX 1650. Sample clips have counts only, and subway has no truth. Details and limits:

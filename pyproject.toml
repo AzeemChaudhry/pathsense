@@ -10,7 +10,7 @@ dependencies = [
     "opencv-python",
     "supervision>=0.30",
     "trackers>=2.6,<2.7",  # pathsense.appearance follows private names; check before raising
-    "ultralytics",
+    "ultralytics~=8.4.190",  # `detector.nms` unset relies on this version's default head
     "pyyaml",
 ]
 

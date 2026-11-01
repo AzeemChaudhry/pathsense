@@ -145,6 +145,63 @@ file, so a gain cannot be credited to the tracker alone.
 - **Subway:** cannot be scored. The chosen setup counts 15 and 14 against 6 and 10, with 221
   IDs against 65, so more detections, and likely more splits. It needs box labels.
 
+## Head and overlap
+
+Every YOLO26 result above used the one-to-many head with NMS at IoU 0.7, not the NMS free
+head: Ultralytics 8.4.190 selects that head only with `nms=False`, which this study never
+set. A first look at 40 frames from each of MOT20-05, MOT17-04 and MOT17-09, at 1920 and
+scored box by box against the labels, not on crossings, so it is weak evidence
+(`scripts/detector_study/frames.py`):
+
+| question | result, best F1 per scene |
+| --- | --- |
+| NMS free head against NMS, five sizes | worse in 11 of 15, better in 3, tied in 1, by small gaps |
+| IoU 0.9 against 0.7, three sizes | worse in all 9 |
+| IoU 0.5 against 0.7, two sizes | no real change |
+| `max_det` 2000 against 300, NMS free head | no change, on six frames from three scenes |
+| largest model | best on two scenes, by under 0.03, at 663 ms a frame against 46 |
+
+The best confidence differs by scene: 0.1 in the dense crowd, 0.2 to 0.4 elsewhere. Models
+are compared on crossings with `scripts/detector_study models`, on the scenes every model
+finished, by paired gaps per scene. A gap under 0.03, or a 95 % interval that includes 0, is a tie.
+
+Speeds are all from the same GTX 1650, saved boxes from the first study included. The NMS
+head's cap was not tested on its own: the largest number of boxes in any saved frame of the
+study is 207, so raising the library's cap of
+300 to 1000 changes none of the saved boxes above.
+
+## Models by density
+
+A mean over all scenes hides the crowds: sparse scenes outnumber them and pick the setting.
+`yolo26s` at its pooled confidence of 0.3 scored 0.52 on MOT20-05, against 0.653 at 0.1. So
+results are split by people per frame, with bands fixed before they were split. Each setting
+is chosen with the scored scene left out, among 4 confidences and 4 tracker setups, at 1920:
+
+| band | scenes | best models, left out mean scene F1 | setting of the best |
+| --- | --- | --- | --- |
+| sparse, under 25 | 19 | `yolo26s` NMS free 0.633; `yolo26n`, `yolo11s` and `yolo26s` tied with it | 0.4, crowd, low bar |
+| busy, 25 to 60 | 19 | `yolo26s` 0.567; `yolo26n` 0.533 tied with it: a gap of -0.034, interval -0.075 to +0.006 | 0.3, crowd, low bar |
+| crowd, 60 or more | 7 | `yolo11s` 0.776; `yolo26s` 0.774 tied with it | 0.2 and 0.1, crowd, low bar |
+
+`yolo26s` is the only model never clearly behind a band's best: every other one is behind in
+at least one band. On 7 to 19 scenes a tie means no difference was found, not that there is
+none, so this is a reason to carry it forward, not proof that it is best. Each model is
+compared with the band's leader only, so ties do not chain, and a leader that is the best of
+several is favoured a little. The NMS free head is not free
+of cost: `yolo26s` loses 0.072 on busy scenes and `yolo26n` loses 0.053 on sparse ones. These
+are choosing scenes, and the crowd band is seven scenes, five of them from MOT. A summed count
+error is ruled by a few crowds, so bands report the median per scene, for line counts only:
+across all 45 scenes it is 5 or 6 for every model (zone error is reported beside it), and in the crowd band 7 for `yolo26s`, 11
+for `yolo11s` and 16 for `yolo26n`. `yolo26x` was stopped
+on its first video, and RF-DETR was not in this run.
+
+Choosing confidence by density did not earn a rule. In the crowd band, 0.1 against 0.3 at
+`yolo26s`'s best tracker setup adds 0.022, under the tie line: MOT20-05 gains 0.137, MOT20-01
+0.054 and MOT20-03 0.032, while the other four lose up to 0.036 or do not change. The scan
+cannot see the bands either: its `people` correlates 0.64 with labelled people per frame and
+reads 18.5 on MOT20-05, which has 226. No threshold on it moved the mean scene F1 by more
+than 0.003. So `yolo26s` keeps one setting, and MOT20-05 stays a known failure.
+
 ## Limits
 
 - **PersonPath22's lines are automatic:** square to the main flow, placed where most tracks
@@ -165,9 +222,10 @@ file, so a gain cannot be credited to the tracker alone.
   videos over 1,800 frames were left out, so the sample leans to short clips.
 - **No crowd was held out.** The held out scenes are all PersonPath22, so a setup's result
   on crowds comes only from scenes that chose it.
-- **Not tested:** other YOLO sizes (`yolo26m`), the detector's head, NMS overlap and box
-  cap, tiling at scale, frame skipping, and each bar for each model. Ultralytics runs YOLO26
-  on its one-to-many head with NMS at 0.7 unless told otherwise, so these are NMS results. `pathsense tune`'s per scene picks were not rechecked on held out time.
+- **Not tested on crossings:** `yolo26m` and `yolo26l`, NMS overlap and box cap (see Head and
+  overlap), tiling at scale, frame skipping, and each bar for each model. Ultralytics runs
+  YOLO26 on its one-to-many head with NMS at 0.7 unless told otherwise, so the tables above
+  are NMS results. `pathsense tune`'s per scene picks were not rechecked on held out time.
 - **No trained model yet.** Everything here uses COCO weights. Phase 4 changes all of it.
 
 ## Reproduce
@@ -181,6 +239,10 @@ uv run python scripts/detector_study report
 uv run python scripts/detector_study test        # held out scenes
 uv run python scripts/detector_study/gate.py     # the gate table
 uv run python scripts/detector_study/rules.py    # can a scan choose per scene?
+uv run python scripts/detector_study/frames.py   # the 40 frame first look
+uv run python scripts/detector_study models      # more models, on the choosing scenes
+uv run python scripts/detector_study density     # those results by people per frame
 ```
 
-Every step skips what it has done. Defined in `configs/study/detectors.yaml`.
+Every step skips what it has done. Defined in `configs/study/detectors.yaml` and
+`configs/study/models.yaml`.

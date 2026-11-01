@@ -2,13 +2,15 @@
 # Every key is optional; see src/pathsense/config.py for the defaults and docs/PLAN.md.
 
 detector:
-  name: yolo26n        # yolo26n | yolo26s | rfdetr-nano | rfdetr-small
+  name: yolo26n        # yolo26n | s | m | l | x | yolo11s | yolo11m | rfdetr-nano | rfdetr-small
   weights: null        # null: pretrained COCO weights; later hf://MuhammadAzeem/pathsense-detector
   imgsz: null          # null: model default (YOLO 640, RF-DETR Nano 384)
   conf: 0.1            # kept low so ByteTrack can use low confidence boxes
   device: auto         # auto | cpu | cuda | 0
   slice: null          # tile size in px: detect small people in large frames (slow)
   drop_partial: false  # drop a partial box of a person also boxed whole (eye level, carts)
+  nms: null            # YOLO: null runs NMS even on YOLO26; false uses its NMS free head
+  iou: null            # YOLO: NMS overlap bar; null is the library's 0.7
 
 tracker:
   name: bytetrack      # bytetrack | botsort | ocsort | sort | cbiou

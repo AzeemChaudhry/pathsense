@@ -44,6 +44,10 @@ class DetectorConfig:
     # shopping cart; pathsense.detect.base.drop_partial_duplicates). Off by default: in a
     # crowd seen from above it also drops people standing behind others.
     drop_partial: bool = False
+    # YOLO only. None: the library's default, the one-to-many head with NMS, even for YOLO26.
+    # False: YOLO26's NMS free one-to-one head, which ignores `iou`.
+    nms: bool | None = None
+    iou: float | None = None  # NMS overlap bar. None: the library's 0.7
 
     def __post_init__(self) -> None:
         if self.slice is not None and (
@@ -52,6 +56,14 @@ class DetectorConfig:
             raise ConfigError(
                 f"detector.slice must be a tile size of 160 px or more, got {self.slice!r}"
             )
+        if self.nms is not None and self.nms is not False:
+            raise ConfigError(f"detector.nms must be null or false, got {self.nms!r}")
+        if self.iou is not None and not 0 < self.iou < 1:
+            raise ConfigError(f"detector.iou must be between 0 and 1, got {self.iou!r}")
+        if self.nms is False and self.iou is not None:
+            raise ConfigError("detector.iou has no effect with detector.nms=false")
+        if self.name.startswith("rfdetr") and (self.nms is not None or self.iou is not None):
+            raise ConfigError("detector.nms and detector.iou are for YOLO models only")
 
 
 @dataclass(frozen=True)

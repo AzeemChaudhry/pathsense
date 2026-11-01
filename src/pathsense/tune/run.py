@@ -117,6 +117,12 @@ class Score:
         return sum(abs(self.counts.get(key, 0) - n) for key, n in self.truth.items())
 
     @property
+    def line_error(self) -> int:
+        """The part of `count_error` from IN and OUT at the line; the rest is zones."""
+        keys = ("enter", "exit")
+        return sum(abs(self.counts.get(k, 0) - self.truth[k]) for k in keys if k in self.truth)
+
+    @property
     def objective(self) -> tuple[float, ...]:
         """Higher is better: crossing F1 then count error with labels, count error alone
         with hand counts. Count error is a weak tie break: wrong and missed cancel in it."""

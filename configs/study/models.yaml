@@ -1,0 +1,21 @@
+# More models at the input size that won the detector study, on the choosing scenes only.
+# `nms: false` is YOLO26's NMS free head, which would spare the browser its own NMS;
+# everything else, as in the first study, is the one-to-many head with NMS at 0.7. Dropped
+# after the 40 frame look: IoU 0.9, worse in all nine cases, and yolo26m and l, which never
+# led. yolo26x was stopped at its first video: 6 hours, for a model no browser can run.
+detectors:
+  - {name: yolo26n, imgsz: 1920}  # saved by the first study
+  - {name: yolo26s, imgsz: 1920}  # saved by the first study
+  - {name: yolo26n, label: yolo26n-free, imgsz: 1920, sets: [detector.nms=false]}
+  - {name: yolo26s, label: yolo26s-free, imgsz: 1920, sets: [detector.nms=false]}
+  - {name: yolo11s, imgsz: 1920}
+confidence: [0.1, 0.2, 0.3, 0.4]
+# People per frame at the edges of sparse, busy and crowd, from the labels: about the median
+# and the top sixth of these scenes, set before any result was split this way.
+density: [25, 60]
+candidates: [default, crowd, low bar, "crowd, low bar"]
+# Asked directly, as well as each model against the best.
+pairs:
+  - [yolo26n-free, yolo26n]
+  - [yolo26s-free, yolo26s]
+  - [yolo26s, yolo26n]
