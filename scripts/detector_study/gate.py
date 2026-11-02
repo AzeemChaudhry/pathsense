@@ -32,7 +32,7 @@ SCENES = [f"configs/scenes/mot/{name}.yaml" for name in MOT]
 SAMPLES = "people-walking grocery-store market-square subway".split()
 SCENES += [f"configs/scenes/{name}.yaml" for name in SAMPLES]
 AUTO = load_rules().rules[-1]  # the setup `--auto` falls back on, read so the two never part
-CHOSEN = [o for o in AUTO.overrides if o.startswith("detector.") and "conf=" not in o]
+CHOSEN = [o for o in AUTO.overrides if o.startswith("detector.") and "detector.conf=" not in o]
 CONFIDENCE = float(next(o for o in AUTO.overrides if o.startswith("detector.conf=")).split("=")[1])
 CROWD_LOW_BAR = Candidate(
     AUTO.name, AUTO.why, tuple(o for o in AUTO.overrides if not o.startswith("detector."))

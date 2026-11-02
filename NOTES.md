@@ -575,7 +575,9 @@ Reports in `runs/tune/<scene>/report.md`.
   about 74% of judged MOT links. If so, turning it off could be a free gain.
 - **Tried:** crops of sampled links on MOT20-05, MOT20-03 and MOT17-04, last box before the
   gap beside the first after; then the chosen setup with `stitch_seconds` 0 on every scene.
-- **Result:** the crops agree with the labels: the "different" links join different people,
+- **Result:** measured on the chosen setup before `stitch_top` joined `--auto`, so not the
+  shipped one (with it: MOT 100 / 548, F1 0.795; held out 120 / 350, F1 0.598). The crops
+  agree with the labels: the "different" links join different people,
   often a body apart, after a median gap of 7 to 10 frames. Off, wrong / missed goes 109 / 548
   to 86 / 555 on MOT (F1 0.791 to 0.803), but 129 / 344 to 81 / 382 held out (F1 0.600 to
   0.570). In crowds it mostly adds wrong crossings; on sparse scenes it recovers real ones.

@@ -82,10 +82,12 @@ Phase 3 gate passed: evaluation and scene tuning.
 - `pathsense run --auto` now also sets `tracker.stitch_top` 0.1, so it no longer counts the
   grocery-store shopper twice. `scripts/detector_study/gate.py` reads the setup from
   `configs/analyzer.yaml`, and the gate tables in the README and docs/DETECTOR_STUDY.md are
-  run again with it: MOT20-03 wrong crossings 23 to 20, the check scenes 53 to 48.
+  run again with it. Against each scene's own file, wrong crossings go 46 to 20 on MOT20-03
+  and 68 to 48 on the five check scenes; MOT20-05 misses more, 271 to 406.
 - Phase 3 closed: docs/PLAN.md status, the README roadmap and a Phase 3 before and after in
   docs/PROGRESS.md. docs/DETECTOR_STUDY.md adds a look at the existing stitcher: it links
-  the wrong person in crowds, but turning it off loses more real crossings held out.
+  the wrong person in crowds, but turning it off loses more real crossings held out
+  (measured before `stitch_top`).
 - Sample clip truth corrected from plain frames: people-walking is 12 IN, not 11;
   market-square is 1 IN and 18 OUT, not 0 and 16; grocery-store is 0 OUT, not unknown.
 - `train/get_data.py openimages` downloads from Google's published files with the standard

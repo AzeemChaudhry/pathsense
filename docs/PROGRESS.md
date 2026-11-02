@@ -191,7 +191,7 @@ keeps ID 1 and one count.*
 | Scores | Counts | Wrong and missed crossings, precision and recall per direction, line and zone error, HOTA, IDF1, MOTA, FPS |
 | Choosing settings | By hand, per scene | `pathsense tune` from saved boxes against truth; `pathsense analyze` and `--auto` with no truth |
 | Unseen video | `yolo26n` at 640 | `--auto`: `yolo26s` at 1920, a lower bar for the tracker (the default is unchanged) |
-| Scene F1 on 39 held out cameras | 0.411 | 0.600 |
+| Scene F1 on 39 held out cameras | 0.411 | 0.598 |
 | Wrong crossings, MOT20-03 crowd | 46 | 20 (missed 93 to 88) |
 | Crowd tracking | ByteTrack as shipped | A bounce rule for crossings made by an ID change, crowd settings, linking by the top of the box |
 | Speed, GTX 1650, MOT scenes | About 25 FPS | About 10 FPS under `--auto` |
@@ -202,8 +202,8 @@ keeps ID 1 and one count.*
 | Check | Result |
 | --- | --- |
 | Table for all eleven scenes | In the README. subway has no truth, so it shows counts only |
-| Fewer false crossings in a crowd, recall no worse | MOT20-03: 46 to 20 wrong, 93 to 88 missed |
-| Holds on the check scenes | Five MOT scenes: 68 to 48 wrong, 73 to 54 missed. Sample clips: people-walking 1 missed to 0; market-square and grocery-store level |
+| Fewer false crossings in a crowd, recall no worse | MOT20-03: 46 to 20 wrong, 93 to 88 missed. The other crowd, MOT20-05, gets worse: 83 to 32 wrong but 271 to 406 missed |
+| Holds on the check scenes | Five MOT scenes: 68 to 48 wrong, 73 to 54 missed in total, though MOT17-02 loses a real crossing and MOT20-01 misses one more. Sample clips: people-walking 1 missed to 0; grocery-store level; market-square 0 wrong and 2 missed against 2 and 0, where by eye the scene file misses 4 |
 
 All MOT scenes helped choose the setup, and it changes the detector with the tracker, so the
 gain cannot be credited to the tracker alone. MOT frames are not shown; their license allows
