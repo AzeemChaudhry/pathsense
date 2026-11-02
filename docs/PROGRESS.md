@@ -203,7 +203,7 @@ keeps ID 1 and one count.*
 | --- | --- |
 | Table for all eleven scenes | In the README. subway has no truth, so it shows counts only |
 | Fewer false crossings in a crowd, recall no worse | MOT20-03: 46 to 20 wrong, 93 to 88 missed. The other crowd, MOT20-05, gets worse: 83 to 32 wrong but 271 to 406 missed |
-| Holds on the check scenes | Five MOT scenes: 68 to 48 wrong, 73 to 54 missed in total, though MOT17-02 loses a real crossing and MOT20-01 misses one more. Sample clips: people-walking 1 missed to 0; grocery-store level; market-square 0 wrong and 2 missed against 2 and 0, where by eye the scene file misses 4 |
+| Holds on the check scenes | Five MOT scenes: 68 to 48 wrong, 73 to 54 missed in total, though MOT17-02 loses a real crossing and MOT20-01 misses one more. Sample clips: people-walking 1 missed to 0; grocery-store level; market-square scene file 0 wrong / 2 missed, chosen 2 wrong / 0 missed, though by eye the scene file misses 4 who cross |
 
 All MOT scenes helped choose the setup, and it changes the detector with the tracker, so the
 gain cannot be credited to the tracker alone. MOT frames are not shown; their license allows

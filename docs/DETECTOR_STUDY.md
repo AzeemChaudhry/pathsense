@@ -14,6 +14,8 @@ through 10 detector settings and up to 11 tracker setups at up to 4 confidence l
 | `yolo26s` at 1920 | 0.567 |
 | **`yolo26s` at 1920, confidence 0.3, crowd settings, low bar** | **0.600** |
 
+With `tracker.stitch_top` 0.1 added, as `pathsense run --auto` runs it, the last row is 0.598.
+
 - **Input size matters most, then the model,** of what was varied. Going from 640 to 1920 is
   worth more than every tracker setting together. The best setups across trackers differ by
   about 0.02. The detector's head and NMS overlap were left at the library's defaults.
