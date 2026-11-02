@@ -8,6 +8,10 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-02
+
+Phase 3 gate passed: evaluation and scene tuning.
+
 ### Added
 
 - `tracker.stitch_top`, off by default: links a person whose box height jumps, by the top of
@@ -75,6 +79,13 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 
 ### Changed
 
+- `pathsense run --auto` now also sets `tracker.stitch_top` 0.1, so it no longer counts the
+  grocery-store shopper twice. `scripts/detector_study/gate.py` reads the setup from
+  `configs/analyzer.yaml`, and the gate tables in the README and docs/DETECTOR_STUDY.md are
+  run again with it: MOT20-03 wrong crossings 23 to 20, the check scenes 53 to 48.
+- Phase 3 closed: docs/PLAN.md status, the README roadmap and a Phase 3 before and after in
+  docs/PROGRESS.md. docs/DETECTOR_STUDY.md adds a look at the existing stitcher: it links
+  the wrong person in crowds, but turning it off loses more real crossings held out.
 - Sample clip truth corrected from plain frames: people-walking is 12 IN, not 11;
   market-square is 1 IN and 18 OUT, not 0 and 16; grocery-store is 0 OUT, not unknown.
 - `train/get_data.py openimages` downloads from Google's published files with the standard
@@ -262,7 +273,8 @@ Phase 0: webcam baseline. Gate passed: one person kept the same ID for 76 s.
   event log, instead of a server side counting demo.
 - The package version is defined once, in `src/pathsense/__init__.py`.
 
-[Unreleased]: https://github.com/AzeemChaudhry/pathsense/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/AzeemChaudhry/pathsense/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/AzeemChaudhry/pathsense/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/AzeemChaudhry/pathsense/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AzeemChaudhry/pathsense/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/AzeemChaudhry/pathsense/releases/tag/v0.1.0

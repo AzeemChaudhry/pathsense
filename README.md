@@ -7,7 +7,7 @@ their movement into counts, occupancy, dwell time, trails, a heatmap and an even
 answers questions like *"how many people came in after 2 pm?"* or *"who waited longest at
 the counter?"*. The finished app runs entirely in your browser: **no video is uploaded**.
 
-> Status: **Phase 3, evaluation and scene tuning.** Phases 0 to 2 done. See the [roadmap](#roadmap) and [docs/PLAN.md](docs/PLAN.md).
+> Status: **Phase 4, training on Open Images.** Phases 0 to 3 done. See the [roadmap](#roadmap) and [docs/PLAN.md](docs/PLAN.md).
 
 <!-- Add once they exist:
 [![Demo](https://img.shields.io/badge/demo-Hugging%20Face%20Space-yellow)](https://huggingface.co/spaces/MuhammadAzeem/pathsense)
@@ -327,8 +327,9 @@ PATHSENSE_SLOW=1 uv run pytest -m slow           # real YOLO26n and RF-DETR on t
 
 For a video with no scene file, `pathsense analyze clip.mp4` scans it and says which
 settings suit it, and `pathsense run --source clip.mp4 --auto` uses them. Your own `--set`
-still wins, but the settings in a `--config` file do not. Today one setup fits all (`yolo26s` at 1920, about 10 FPS on a GTX 1650), to be
-fit again after training. It needs no labels; `pathsense tune` is better when you have them.
+still wins, but the settings in a `--config` file do not. Today one setup fits all
+(`yolo26s` at 1920 with `tracker.stitch_top` 0.1, about 10 FPS on a GTX 1650), to be fit
+again after training. It needs no labels; `pathsense tune` is better when you have them.
 
 ## Repository layout
 
@@ -370,7 +371,8 @@ YOLO26 results here use its one-to-many head with NMS, the library's default; th
 head is `detector.nms=false` ([details](docs/DETECTOR_STUDY.md#head-and-overlap)).
 
 Each scene's own file against the best single setup for an unseen video (`yolo26s` at 1920,
-`pathsense run --auto`; not the default, and worse here on some scenes). P / R is crossing precision and recall by direction; FPS is on a
+`pathsense run --auto`, `tracker.stitch_top` 0.1 included; not the default, and worse here
+on some scenes). P / R is crossing precision and recall by direction; FPS is on a
 GTX 1650. Sample clips have every crossing listed by hand but no box metrics, and subway has
 no truth. Their crossings are few (19, 19 and 1) and matched by time and place, so a double
 beside a miss earns credit: by eye, as shipped misses 4 on market-square, not 2. Details and
@@ -379,35 +381,35 @@ limits:
 
 | scene | setup | wrong | missed | IN P / R | OUT P / R | line error | zone error | HOTA | IDF1 | MOTA | ID switches | fragments | FPS |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| MOT17-02 | as shipped | 0 | 2 | 1.00 / 0.00 | 1.00 / 0.90 | 2 | 7 | 31.4 | 39.3 | 33.1 | 122 | 264 | 26.1 |
-| MOT17-02 | chosen | 0 | 3 | 1.00 / 0.00 | 1.00 / 0.80 | 3 | 5 | 31.5 | 38.0 | 34.4 | 131 | 426 | 10.8 |
-| MOT17-04 | as shipped | 0 | 1 | 1.00 / 1.00 | 1.00 / 0.80 | 1 | 3 | 47.9 | 55.5 | 49.5 | 128 | 368 | 24.8 |
-| MOT17-04 | chosen | 1 | 0 | 1.00 / 1.00 | 0.83 / 1.00 | 1 | 26 | 53.6 | 61.9 | 52.5 | 133 | 540 | 10.7 |
-| MOT17-09 | as shipped | 2 | 3 | 0.33 / 1.00 | 1.00 / 0.70 | 5 | 2 | 40.5 | 49.8 | 53.3 | 55 | 85 | 113.2 |
-| MOT17-09 | chosen | 4 | 0 | 0.25 / 1.00 | 0.91 / 1.00 | 4 | 4 | 46.2 | 55.6 | 61.0 | 57 | 83 | 10.8 |
-| MOT20-01 | as shipped | 2 | 16 | 1.00 / 0.71 | 0.82 / 0.43 | 14 | 2 | 38.5 | 47.4 | 43.8 | 267 | 533 | 23.4 |
-| MOT20-01 | chosen | 2 | 13 | 1.00 / 0.71 | 0.86 / 0.57 | 11 | 5 | 42.9 | 53.4 | 50.4 | 209 | 566 | 10.7 |
-| MOT20-02 | as shipped | 64 | 51 | 0.78 / 0.75 | 0.42 / 0.67 | 27 | 9 | 34.7 | 43.4 | 44.2 | 1285 | 3285 | 23.8 |
-| MOT20-02 | chosen | 46 | 37 | 0.84 / 0.83 | 0.51 / 0.70 | 15 | 121 | 36.5 | 45.4 | 48.5 | 1321 | 3578 | 10.6 |
-| MOT20-03 | as shipped | 46 | 93 | 0.27 / 0.75 | 0.88 / 0.76 | 61 | 57 | 38.2 | 55.1 | 51.1 | 1626 | 8026 | 16.3 |
-| MOT20-03 | chosen | 23 | 89 | 0.38 / 0.75 | 0.94 / 0.77 | 74 | 121 | 39.4 | 58.9 | 52.5 | 1053 | 8815 | 7.3 |
-| MOT20-05 | as shipped | 83 | 271 | 0.41 / 0.37 | 0.86 / 0.59 | 188 | 43 | 27.0 | 36.6 | 36.9 | 2402 | 9582 | 17.9 |
-| MOT20-05 | chosen | 33 | 406 | 0.50 / 0.17 | 0.90 / 0.38 | 373 | 109 | 17.0 | 22.0 | 17.9 | 1187 | 10769 | 8.6 |
-| people-walking | as shipped | 0 | 1 | 1.00 / 0.92 | 1.00 / 1.00 | 1 | 0 | n/a | n/a | n/a | n/a | n/a | 124.0 |
-| people-walking | chosen | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | 0 | 0 | n/a | n/a | n/a | n/a | n/a | 10.3 |
-| grocery-store | as shipped | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | 0 | 0 | n/a | n/a | n/a | n/a | n/a | 25.1 |
-| grocery-store | chosen | 1 | 0 | 0.50 / 1.00 | 1.00 / 1.00 | 1 | 5 | n/a | n/a | n/a | n/a | n/a | 10.2 |
+| MOT17-02 | as shipped | 0 | 2 | 1.00 / 0.00 | 1.00 / 0.90 | 2 | 7 | 31.4 | 39.3 | 33.1 | 122 | 264 | 25.9 |
+| MOT17-02 | chosen | 0 | 3 | 1.00 / 0.00 | 1.00 / 0.80 | 3 | 5 | 31.1 | 37.3 | 34.4 | 123 | 426 | 10.6 |
+| MOT17-04 | as shipped | 0 | 1 | 1.00 / 1.00 | 1.00 / 0.80 | 1 | 3 | 47.9 | 55.5 | 49.5 | 128 | 368 | 24.6 |
+| MOT17-04 | chosen | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | 0 | 23 | 54.0 | 62.1 | 52.6 | 126 | 540 | 10.6 |
+| MOT17-09 | as shipped | 2 | 3 | 0.33 / 1.00 | 1.00 / 0.70 | 5 | 2 | 40.5 | 49.8 | 53.3 | 55 | 85 | 119.5 |
+| MOT17-09 | chosen | 4 | 0 | 0.25 / 1.00 | 0.91 / 1.00 | 4 | 3 | 46.2 | 55.6 | 61.0 | 57 | 83 | 10.8 |
+| MOT20-01 | as shipped | 2 | 16 | 1.00 / 0.71 | 0.82 / 0.43 | 14 | 2 | 38.5 | 47.4 | 43.8 | 267 | 533 | 24.5 |
+| MOT20-01 | chosen | 2 | 14 | 1.00 / 0.71 | 0.85 / 0.52 | 12 | 9 | 44.3 | 56.0 | 50.5 | 187 | 567 | 10.6 |
+| MOT20-02 | as shipped | 64 | 51 | 0.78 / 0.75 | 0.42 / 0.67 | 27 | 9 | 34.7 | 43.4 | 44.2 | 1285 | 3285 | 23.5 |
+| MOT20-02 | chosen | 42 | 37 | 0.83 / 0.82 | 0.60 / 0.73 | 9 | 91 | 37.5 | 47.1 | 48.6 | 1222 | 3577 | 10.5 |
+| MOT20-03 | as shipped | 46 | 93 | 0.27 / 0.75 | 0.88 / 0.76 | 61 | 57 | 38.2 | 55.1 | 51.1 | 1626 | 8026 | 15.9 |
+| MOT20-03 | chosen | 20 | 88 | 0.43 / 0.75 | 0.95 / 0.77 | 74 | 122 | 39.9 | 59.7 | 52.5 | 982 | 8816 | 7.3 |
+| MOT20-05 | as shipped | 83 | 271 | 0.41 / 0.37 | 0.86 / 0.59 | 188 | 43 | 27.0 | 36.6 | 36.9 | 2402 | 9582 | 17.6 |
+| MOT20-05 | chosen | 32 | 406 | 0.50 / 0.17 | 0.90 / 0.38 | 374 | 110 | 17.2 | 22.2 | 17.9 | 1168 | 10769 | 8.5 |
+| people-walking | as shipped | 0 | 1 | 1.00 / 0.92 | 1.00 / 1.00 | 1 | 0 | n/a | n/a | n/a | n/a | n/a | 115.2 |
+| people-walking | chosen | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | 0 | 0 | n/a | n/a | n/a | n/a | n/a | 10.2 |
+| grocery-store | as shipped | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | 0 | 0 | n/a | n/a | n/a | n/a | n/a | 25.0 |
+| grocery-store | chosen | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | 0 | 2 | n/a | n/a | n/a | n/a | n/a | 10.2 |
 | market-square | as shipped | 0 | 2 | 1.00 / 1.00 | 1.00 / 0.89 | 2 | 1 | n/a | n/a | n/a | n/a | n/a | 3.6 |
 | market-square | chosen | 2 | 0 | 1.00 / 1.00 | 0.90 / 1.00 | 2 | 0 | n/a | n/a | n/a | n/a | n/a | 0.3 |
-| subway | as shipped | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 23.5 |
-| subway | chosen | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 10.1 |
+| subway | as shipped | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 23.4 |
+| subway | chosen | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 10.0 |
 
 ## Roadmap
 
 - [x] **Phase 0** Webcam baseline (YOLO26n + ByteTrack)
 - [x] **Phase 1** Pipeline package (detector interface, tracker wrapper, tests)
 - [x] **Phase 2** Analytics and event log
-- [ ] **Phase 3** Evaluation and scene tuning (tracker and detector studies, `pathsense tune`, scene analyzer; gate results in, decision pending)
+- [x] **Phase 3** Evaluation and scene tuning (tracker and detector studies, `pathsense tune`, scene analyzer)
 - [ ] **Phase 4** Train on Kaggle (Open Images), export ONNX, weights on the Hub
 - [ ] **Phase 5** Browser app: in browser detection, tracking and analytics
 - [ ] **Phase 6** Ask your footage: plain language Q&A over the event log

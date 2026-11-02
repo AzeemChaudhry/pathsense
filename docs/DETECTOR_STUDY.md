@@ -23,9 +23,9 @@ through 10 detector settings and up to 11 tracker setups at up to 4 confidence l
   took that scene from F1 0.42 to 0.70 at confidence 0.1. The chosen setup, at 0.3, gets
   0.52 there, against 0.68 for its scene file.
 - **No setup wins everywhere.** The chosen one improves the held out scenes and MOT20-03,
-  but loses to the scene files on MOT20-05 and grocery-store. On the seven MOT scenes its
-  line count error is worse on three, equal on one and better on three; zone count error is
-  worse on six. So **no default changed**.
+  but loses to the scene files on MOT20-05. On the seven MOT scenes its line count error is
+  worse on three and better on four; zone count error is worse on six. So **no default
+  changed**; it is what `pathsense run --auto` uses, with `tracker.stitch_top` 0.1.
 - **The held out scenes say nothing about crowds.** All 39 are PersonPath22 and mostly
   sparse. Every MOT scene helped choose the setup, so no crowd was held out.
 - **Choosing per scene from a scan lost to one setup.** One split on any measure, scored on
@@ -92,7 +92,8 @@ exist, with no code change. It never sets a line or a zone, refuses a scene file
 
 ## Gate table
 
-Scene files with their own settings, against the chosen setup. The sample clips have every
+Scene files with their own settings, against the chosen setup as `--auto` runs it, read from
+`configs/analyzer.yaml`, so with `tracker.stitch_top` 0.1. The sample clips have every
 crossing listed by hand from plain frames, so they score crossings but have no box metrics;
 `subway` has no truth. FPS is detector plus
 tracking on the GTX 1650. Market-square uses tiling, hence its speed. Line error is the IN
@@ -101,49 +102,49 @@ at 1920 1.9.
 
 | scene | setup | IN / OUT ours | IN / OUT true | line error | zone error | wrong | missed | IN precision / recall | OUT precision / recall | HOTA | IDF1 | MOTA | ID switches | fragments | IDs | FPS |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| MOT17-02 | as shipped | 0 / 9 | 1 / 10 | 2 | 7 | 0 | 2 | 1.00 / 0.00 | 1.00 / 0.90 | 31.4 | 39.3 | 33.1 | 122 | 264 | 78 | 26.1 |
-| MOT17-02 | chosen | 0 / 8 | 1 / 10 | 3 | 5 | 0 | 3 | 1.00 / 0.00 | 1.00 / 0.80 | 31.5 | 38.0 | 34.4 | 131 | 426 | 131 | 10.8 |
-| MOT17-04 | as shipped | 8 / 4 | 8 / 5 | 1 | 3 | 0 | 1 | 1.00 / 1.00 | 1.00 / 0.80 | 47.9 | 55.5 | 49.5 | 128 | 368 | 83 | 24.8 |
-| MOT17-04 | chosen | 8 / 6 | 8 / 5 | 1 | 26 | 1 | 0 | 1.00 / 1.00 | 0.83 / 1.00 | 53.6 | 61.9 | 52.5 | 133 | 540 | 170 | 10.7 |
-| MOT17-09 | as shipped | 3 / 7 | 1 / 10 | 5 | 2 | 2 | 3 | 0.33 / 1.00 | 1.00 / 0.70 | 40.5 | 49.8 | 53.3 | 55 | 85 | 28 | 113.2 |
-| MOT17-09 | chosen | 4 / 11 | 1 / 10 | 4 | 4 | 4 | 0 | 0.25 / 1.00 | 0.91 / 1.00 | 46.2 | 55.6 | 61.0 | 57 | 83 | 64 | 10.8 |
-| MOT20-01 | as shipped | 10 / 11 | 14 / 21 | 14 | 2 | 2 | 16 | 1.00 / 0.71 | 0.82 / 0.43 | 38.5 | 47.4 | 43.8 | 267 | 533 | 85 | 23.4 |
-| MOT20-01 | chosen | 10 / 14 | 14 / 21 | 11 | 5 | 2 | 13 | 1.00 / 0.71 | 0.86 / 0.57 | 42.9 | 53.4 | 50.4 | 209 | 566 | 139 | 10.7 |
-| MOT20-02 | as shipped | 150 / 53 | 157 / 33 | 27 | 9 | 64 | 51 | 0.78 / 0.75 | 0.42 / 0.67 | 34.7 | 43.4 | 44.2 | 1285 | 3285 | 359 | 23.8 |
-| MOT20-02 | chosen | 154 / 45 | 157 / 33 | 15 | 121 | 46 | 37 | 0.84 / 0.83 | 0.51 / 0.70 | 36.5 | 45.4 | 48.5 | 1321 | 3578 | 678 | 10.6 |
-| MOT20-03 | as shipped | 11 / 322 | 4 / 376 | 61 | 57 | 46 | 93 | 0.27 / 0.75 | 0.88 / 0.76 | 38.2 | 55.1 | 51.1 | 1626 | 8026 | 931 | 16.3 |
-| MOT20-03 | chosen | 8 / 306 | 4 / 376 | 74 | 121 | 23 | 89 | 0.38 / 0.75 | 0.94 / 0.77 | 39.4 | 58.9 | 52.5 | 1053 | 8815 | 1009 | 7.3 |
-| MOT20-05 | as shipped | 41 / 411 | 46 / 594 | 188 | 43 | 83 | 271 | 0.41 / 0.37 | 0.86 / 0.59 | 27.0 | 36.6 | 36.9 | 2402 | 9582 | 1284 | 17.9 |
-| MOT20-05 | chosen | 16 / 251 | 46 / 594 | 373 | 109 | 33 | 406 | 0.50 / 0.17 | 0.90 / 0.38 | 17.0 | 22.0 | 17.9 | 1187 | 10769 | 1171 | 8.6 |
-| people-walking | as shipped | 11 / 7 | 12 / 7 | 1 | 0 | 0 | 1 | 1.00 / 0.92 | 1.00 / 1.00 | n/a | n/a | n/a | n/a | n/a | 39 | 124.0 |
-| people-walking | chosen | 12 / 7 | 12 / 7 | 0 | 0 | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | n/a | n/a | n/a | n/a | n/a | 97 | 10.3 |
-| grocery-store | as shipped | 1 / 0 | 1 / 0 | 0 | 0 | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | n/a | n/a | n/a | n/a | n/a | 1 | 25.1 |
-| grocery-store | chosen | 2 / 0 | 1 / 0 | 1 | 5 | 1 | 0 | 0.50 / 1.00 | 1.00 / 1.00 | n/a | n/a | n/a | n/a | n/a | 7 | 10.2 |
+| MOT17-02 | as shipped | 0 / 9 | 1 / 10 | 2 | 7 | 0 | 2 | 1.00 / 0.00 | 1.00 / 0.90 | 31.4 | 39.3 | 33.1 | 122 | 264 | 78 | 25.9 |
+| MOT17-02 | chosen | 0 / 8 | 1 / 10 | 3 | 5 | 0 | 3 | 1.00 / 0.00 | 1.00 / 0.80 | 31.1 | 37.3 | 34.4 | 123 | 426 | 127 | 10.6 |
+| MOT17-04 | as shipped | 8 / 4 | 8 / 5 | 1 | 3 | 0 | 1 | 1.00 / 1.00 | 1.00 / 0.80 | 47.9 | 55.5 | 49.5 | 128 | 368 | 83 | 24.6 |
+| MOT17-04 | chosen | 8 / 5 | 8 / 5 | 0 | 23 | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | 54.0 | 62.1 | 52.6 | 126 | 540 | 163 | 10.6 |
+| MOT17-09 | as shipped | 3 / 7 | 1 / 10 | 5 | 2 | 2 | 3 | 0.33 / 1.00 | 1.00 / 0.70 | 40.5 | 49.8 | 53.3 | 55 | 85 | 28 | 119.5 |
+| MOT17-09 | chosen | 4 / 11 | 1 / 10 | 4 | 3 | 4 | 0 | 0.25 / 1.00 | 0.91 / 1.00 | 46.2 | 55.6 | 61.0 | 57 | 83 | 61 | 10.8 |
+| MOT20-01 | as shipped | 10 / 11 | 14 / 21 | 14 | 2 | 2 | 16 | 1.00 / 0.71 | 0.82 / 0.43 | 38.5 | 47.4 | 43.8 | 267 | 533 | 85 | 24.5 |
+| MOT20-01 | chosen | 10 / 13 | 14 / 21 | 12 | 9 | 2 | 14 | 1.00 / 0.71 | 0.85 / 0.52 | 44.3 | 56.0 | 50.5 | 187 | 567 | 122 | 10.6 |
+| MOT20-02 | as shipped | 150 / 53 | 157 / 33 | 27 | 9 | 64 | 51 | 0.78 / 0.75 | 0.42 / 0.67 | 34.7 | 43.4 | 44.2 | 1285 | 3285 | 359 | 23.5 |
+| MOT20-02 | chosen | 155 / 40 | 157 / 33 | 9 | 91 | 42 | 37 | 0.83 / 0.82 | 0.60 / 0.73 | 37.5 | 47.1 | 48.6 | 1222 | 3577 | 601 | 10.5 |
+| MOT20-03 | as shipped | 11 / 322 | 4 / 376 | 61 | 57 | 46 | 93 | 0.27 / 0.75 | 0.88 / 0.76 | 38.2 | 55.1 | 51.1 | 1626 | 8026 | 931 | 15.9 |
+| MOT20-03 | chosen | 7 / 305 | 4 / 376 | 74 | 122 | 20 | 88 | 0.43 / 0.75 | 0.95 / 0.77 | 39.9 | 59.7 | 52.5 | 982 | 8816 | 956 | 7.3 |
+| MOT20-05 | as shipped | 41 / 411 | 46 / 594 | 188 | 43 | 83 | 271 | 0.41 / 0.37 | 0.86 / 0.59 | 27.0 | 36.6 | 36.9 | 2402 | 9582 | 1284 | 17.6 |
+| MOT20-05 | chosen | 16 / 250 | 46 / 594 | 374 | 110 | 32 | 406 | 0.50 / 0.17 | 0.90 / 0.38 | 17.2 | 22.2 | 17.9 | 1168 | 10769 | 1159 | 8.5 |
+| people-walking | as shipped | 11 / 7 | 12 / 7 | 1 | 0 | 0 | 1 | 1.00 / 0.92 | 1.00 / 1.00 | n/a | n/a | n/a | n/a | n/a | 39 | 115.2 |
+| people-walking | chosen | 12 / 7 | 12 / 7 | 0 | 0 | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | n/a | n/a | n/a | n/a | n/a | 93 | 10.2 |
+| grocery-store | as shipped | 1 / 0 | 1 / 0 | 0 | 0 | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | n/a | n/a | n/a | n/a | n/a | 1 | 25.0 |
+| grocery-store | chosen | 1 / 0 | 1 / 0 | 0 | 2 | 0 | 0 | 1.00 / 1.00 | 1.00 / 1.00 | n/a | n/a | n/a | n/a | n/a | 3 | 10.2 |
 | market-square | as shipped | 1 / 16 | 1 / 18 | 2 | 1 | 0 | 2 | 1.00 / 1.00 | 1.00 / 0.89 | n/a | n/a | n/a | n/a | n/a | 115 | 3.6 |
-| market-square | chosen | 1 / 20 | 1 / 18 | 2 | 0 | 2 | 0 | 1.00 / 1.00 | 0.90 / 1.00 | n/a | n/a | n/a | n/a | n/a | 188 | 0.3 |
-| subway | as shipped | 6 / 10 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 65 | 23.5 |
-| subway | chosen | 15 / 14 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 221 | 10.1 |
+| market-square | chosen | 1 / 20 | 1 / 18 | 2 | 0 | 2 | 0 | 1.00 / 1.00 | 0.90 / 1.00 | n/a | n/a | n/a | n/a | n/a | 183 | 0.3 |
+| subway | as shipped | 6 / 10 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 65 | 23.4 |
+| subway | chosen | 13 / 15 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 215 | 10.0 |
 
 Against the gate. PLAN.md tunes on MOT20-03 and MOT20-05 and validates on the other MOT
 scenes and the sample clips. All seven MOT scenes also helped choose this setup, so the only
 check it never saw is the sample clips, and their scene files were tuned on those same clips,
 which favours "as shipped". The listed crossings take their time and x from the chosen run
 once confirmed in plain frames, which favours "chosen". On them the chosen setup is better on
-one, about level on one and worse on one, each on few crossings (19, 19 and 1). The gate names
+one and about level on two, each on few crossings (19, 19 and 1). The gate names
 a tracker
 against ByteTrack; this table changes the detector and tracker together against each scene
 file, so a gain cannot be credited to the tracker alone.
 
-- **MOT20-03 false crossings:** 46 to 23 with the chosen setup, and 93 to 89 missed, on a
+- **MOT20-03 false crossings:** 46 to 20 with the chosen setup, and 93 to 88 missed, on a
   scene used to choose. Line error rises from 61 to 74, as it counts fewer in total and
-  false crossings had been filling that gap. Zone error rises from 57 to 121.
-- **Check scenes:** 68 to 53 wrong and 73 to 53 missed in total, on scenes used to choose.
-  Wrong rose on two (MOT17-04 0 to 1, MOT17-09 2 to 4), and MOT17-02 lost a real crossing
-  (OUT recall 0.90 to 0.80). Line error is better on three, equal on MOT17-04 and worse on
-  MOT17-02. Zone error is worse on four (MOT17-04 3 to 26, MOT17-09 2 to 4, MOT20-01 2 to 5,
-  MOT20-02 9 to 121), perhaps because lower bars add tracks, which was not tested.
-- **MOT20-05, the other crowd:** 83 to 33 wrong but 271 to 406 missed, line error 188 to
-  373, zone error 43 to 109, and HOTA 27.0 to 17.0.
+  false crossings had been filling that gap. Zone error rises from 57 to 122.
+- **Check scenes:** 68 to 48 wrong and 73 to 54 missed in total, on scenes used to choose.
+  Wrong rose on one (MOT17-09 2 to 4), and MOT17-02 lost a real crossing (OUT recall 0.90 to
+  0.80). Line error is better on four and worse on MOT17-02. Zone error is worse on four
+  (MOT17-04 3 to 23, MOT17-09 2 to 3, MOT20-01 2 to 9, MOT20-02 9 to 91), perhaps because
+  lower bars add tracks, which was not tested.
+- **MOT20-05, the other crowd:** 83 to 32 wrong but 271 to 406 missed, line error 188 to
+  374, zone error 43 to 110, and HOTA 27.0 to 17.2.
   Filtering at confidence 0.3 costs it the most: at 0.1 it found 327 where this finds 234.
 - **Sample clips, listed crossing by crossing:**
   - people-walking: 0 wrong and 0 missed against 0 and 1. The missed one is a man at the left
@@ -156,10 +157,11 @@ file, so a gain cannot be credited to the tracker alone.
     0.778 against 0.900 at 0.5 s and 100 px (`scripts/detector_study/tolerance.py`). "About
     level" holds at the loosest setting only. The tighter gaps partly reflect where the times
     came from, so this leans to chosen but does not settle it.
-  - grocery-store: a real fault. One shopper is counted twice: the track breaks while they
-    browse, and the new box then jumps from upper body to whole body across the line. The
-    0.3 confidence filter alone causes it on `yolo26s`.
-- **Subway:** cannot be scored. The chosen setup counts 15 and 14 against 6 and 10, with 221
+  - grocery-store: level on crossings, zone error 2 against 0. Without `stitch_top` one
+    shopper is counted twice: the track breaks while they browse, and the new box then jumps
+    from upper body to whole body across the line. The 0.3 confidence filter alone causes it
+    on `yolo26s`; see [linking by the top of the box](#linking-by-the-top-of-the-box).
+- **Subway:** cannot be scored. The chosen setup counts 13 and 15 against 6 and 10, with 215
   IDs against 65, so more detections, and likely more splits. It needs box labels.
 
 ## Head and overlap
@@ -253,9 +255,25 @@ near where it should be and a similar width. Results for the chosen setup, from 
   exactly what can overlap a neighbour.
 - The same check on the existing rule judges 2,219 of 2,369 links: 576 same and 1,643
   different, about 74%. That is a rough count of a different set of links, so not a like for
-  like comparison, but it may mean the stitcher links the wrong person often in crowds. It
-  needs its own look.
-- No default changed, and it is not in `--auto` yet.
+  like comparison, but it may mean the stitcher links the wrong person often in crowds.
+- **That look, by eye and by turning it off.** Crops of sampled links on MOT20-05, MOT20-03
+  and MOT17-04 agree with the labels: links judged different join different people, often a
+  body apart after a gap of a few frames. Turning the stitcher off for the chosen setup
+  (`stitch_seconds` 0) gives wrong / missed and scene F1:
+
+  | scenes | stitch 1 s | off |
+  | --- | --- | --- |
+  | sample clips | 3 / 0, 0.872 | 2 / 0, 0.880 |
+  | MOT | 109 / 548, 0.791 | 86 / 555, 0.803 |
+  | PersonPath22 chosen on, 38 | 194 / 312, 0.600 | 162 / 338, 0.587 |
+  | PersonPath22 held out, 39 | 129 / 344, 0.600 | 81 / 382, 0.570 |
+
+  In crowds most of its wrong links add wrong crossings (MOT20-05 14 wrong off, 33 on), but
+  on the sparser held out scenes it recovers more real ones than it adds wrong. So it stays
+  on; stitching less where it is crowded is left for later. Measured before `stitch_top` was
+  in `--auto`, so these rows are without it.
+- The tracker default stays 0. Phase 3 closed with 0.1 in `--auto` (`configs/analyzer.yaml`),
+  the setup in the gate table above.
 
 ## Limits
 
