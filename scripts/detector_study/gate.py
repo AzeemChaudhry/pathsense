@@ -22,17 +22,21 @@ from pathsense.eval import tracking_metrics
 from pathsense.eval.mot import write_mot
 from pathsense.io import VideoSource
 from pathsense.pipeline import Pipeline
+from pathsense.tune.analyze import load_rules
 from pathsense.tune.cache import cache_path, cached_detections
 from pathsense.tune.replay import no_detector, replay
-from pathsense.tune.run import CURRENT, _load_scene, load_candidates
+from pathsense.tune.run import CURRENT, Candidate, _load_scene
 
 MOT = "MOT17-02 MOT17-04 MOT17-09 MOT20-01 MOT20-02 MOT20-03 MOT20-05".split()
 SCENES = [f"configs/scenes/mot/{name}.yaml" for name in MOT]
 SAMPLES = "people-walking grocery-store market-square subway".split()
 SCENES += [f"configs/scenes/{name}.yaml" for name in SAMPLES]
-CHOSEN = ["detector.name=yolo26s", "detector.imgsz=1920"]
-CONFIDENCE = 0.3
-CROWD_LOW_BAR = next(c for c in load_candidates() if c.name == "crowd, low bar")
+AUTO = load_rules().rules[-1]  # the setup `--auto` falls back on, read so the two never part
+CHOSEN = [o for o in AUTO.overrides if o.startswith("detector.") and "detector.conf=" not in o]
+CONFIDENCE = float(next(o for o in AUTO.overrides if o.startswith("detector.conf=")).split("=")[1])
+CROWD_LOW_BAR = Candidate(
+    AUTO.name, AUTO.why, tuple(o for o in AUTO.overrides if not o.startswith("detector."))
+)
 CPU_FRAMES = 30
 OUT = Path("runs/detector-study")
 

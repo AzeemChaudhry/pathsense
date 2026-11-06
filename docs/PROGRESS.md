@@ -4,16 +4,18 @@ What each phase changed, shown as before and after: how the project was used, wh
 do, and what it measured. Measurements and the reasoning behind each decision are in
 [NOTES.md](../NOTES.md); the plan and gates are in [PLAN.md](PLAN.md).
 
-All images come from `people-walking.mp4`, a public sample clip from the
-[supervision](https://github.com/roboflow/supervision) assets (1920x1080, 25 FPS, about 25
-people), on a laptop GTX 1650.
+All images come from public sample clips from the
+[supervision](https://github.com/roboflow/supervision) assets: `people-walking.mp4`
+(1920x1080, 25 FPS, about 25 people) and, for Phase 3, `grocery-store.mp4` (4K, 33 s), on a
+laptop GTX 1650.
 
 | Phase | Version | Gate | Status |
 | --- | --- | --- | --- |
 | 0. Webcam baseline | 0.1.0 | One person keeps one ID for 15 s; FPS and failures logged | Passed |
 | 1. Pipeline package | 0.2.0 | Swap detector or tracker with one config line | Passed |
 | 2. Analytics and event log | 0.3.0 | Counts match a hand count; event log reproduces them | Passed |
-| 3. Evaluation and scene tuning | 0.4.0 | Tracker comparison and tuned scenes against true counts | Next |
+| 3. Evaluation and scene tuning | 0.4.0 | Fewer false crossings in a crowd, holding on check scenes; all eleven scenes in a table | Passed |
+| 4. Train on Open Images | 0.5.0 | Fine tuned model beats the COCO one on held out data; ONNX runs | Next |
 
 ## Phase 0: webcam baseline (v0.1.0)
 
@@ -159,15 +161,83 @@ detector never boxes them as separate people. That is the cluster problem below.
   wrong way against 4 real ones. This is tracking, not counting logic; net counting per ID
   was tried and only traded it for missed exits.
 
+## Phase 3: evaluation and scene tuning (v0.4.0)
+
+**Before.** Counts were checked against one hand count. Every camera ran `yolo26n` at 640
+unless someone wrote a scene file by hand, and when a count was off there was no way to tell
+whether the detector, the tracker or a setting was to blame. In crowds, IDs handed to a
+neighbour counted people crossing the wrong way.
+
+**After.** Every scene is scored against truth, two studies say which settings matter, and
+settings are chosen from data: with truth by `pathsense tune`, without it by
+`pathsense run --auto`.
+
+```bash
+uv run pathsense tune configs/scenes/people-walking.yaml        # setups ranked against truth
+uv run pathsense run --source data/samples/people-walking.mp4 --auto
+```
+
+![grocery-store with and without linking by the top of the box](images/phase3-grocery-stitch-top.jpg)
+
+*The last fault found on the sample clips. Behind the cart the shopper's whole body box drops
+below the confidence bar and an upper body box takes over (28.0 s). Top: the tracker gives it
+a new ID, which crosses the line again as the whole body returns (29.2 s), so one shopper is
+counted IN twice. Bottom: `tracker.stitch_top` links the boxes by their top, and the shopper
+keeps ID 1 and one count.*
+
+| | Before (Phase 2) | After (Phase 3) |
+| --- | --- | --- |
+| Truth | One hand count per clip | 7 MOT scenes with box labels, 80 PersonPath22 cameras, every crossing listed on three sample clips |
+| Scores | Counts | Wrong and missed crossings, precision and recall per direction, line and zone error, HOTA, IDF1, MOTA, FPS |
+| Choosing settings | By hand, per scene | `pathsense tune` from saved boxes against truth; `pathsense analyze` and `--auto` with no truth |
+| Unseen video | `yolo26n` at 640 | `--auto`: `yolo26s` at 1920, a lower bar for the tracker (the default is unchanged) |
+| Scene F1 on 39 held out cameras | 0.411 | 0.598 |
+| Wrong crossings, MOT20-03 crowd | 46 | 20 (missed 93 to 88) |
+| Crowd tracking | ByteTrack as shipped | A bounce rule for crossings made by an ID change, crowd settings, linking by the top of the box |
+| Speed, GTX 1650, MOT scenes | About 25 FPS | About 10 FPS under `--auto` |
+| Tests | 250 | 417 |
+
+### The gate
+
+| Check | Result |
+| --- | --- |
+| Table for all eleven scenes | In the README. subway has no truth, so it shows counts only |
+| Fewer false crossings in a crowd, recall no worse | MOT20-03: 46 to 20 wrong, 93 to 88 missed. The other crowd, MOT20-05, gets worse: 83 to 32 wrong but 271 to 406 missed |
+| Holds on the check scenes | Five MOT scenes: 68 to 48 wrong, 73 to 54 missed in total, though MOT17-02 loses a real crossing and MOT20-01 misses one more. Sample clips: people-walking 1 missed to 0; grocery-store level; market-square scene file 0 wrong / 2 missed, chosen 2 wrong / 0 missed, though by eye the scene file misses 4 who cross |
+
+All MOT scenes helped choose the setup, and it changes the detector with the tracker, so the
+gain cannot be credited to the tracker alone. MOT frames are not shown; their license allows
+evaluation only. Full tables: [TRACKER_STUDY.md](TRACKER_STUDY.md) and
+[DETECTOR_STUDY.md](DETECTOR_STUDY.md).
+
+### What Phase 3 showed
+
+- **Input size matters most.** Going from 640 to 1920 is worth more than every tracker
+  setting together, and a bigger model needs its own tracker bars.
+- **Wrong way crossings are ID swaps,** not counting logic. Tuned tracker settings and a
+  rule that ignores a quick return over the line cut them from 392 to 129 on the two crowds
+  they were tuned on.
+- **One setup does not fit every camera.** A rule choosing per scene from a scan lost once
+  scenes were held out, so `--auto` uses one setup until Phase 4's models are in.
+- **Look at the frames, not only the score.** Matching crossings by time and place cannot
+  tell people apart, and two of the sample clips' hand counts were wrong until checked frame
+  by frame.
+- **A dense night crowd is a detector problem.** On MOT20-05 the chosen setup misses 406 of
+  640 crossings against 271 for its scene file, because people fall below the confidence bar.
+  That is Phase 4's target.
+
 ## Open issues carried forward
 
 | Issue | Found in | Planned in |
 | --- | --- | --- |
-| New ID after leaving the frame for more than about 1 s; none of the three trackers recognises a returning person by appearance | Phase 0 | Phase 3: longer lost track buffer and an appearance based re-identification step |
+| New ID after leaving the frame for more than about 1 s; none of the three trackers recognises a returning person by appearance | Phase 0 | Phase 3 built appearance embeddings as a toggle, off: no gain passed clearly, and re-entry is untested. Backlog |
 | Partly visible people at the frame edge missed or split | Phase 0 | Phase 4: fine tuning |
 | Detected people not tracked because the track start threshold is high | Phase 1 | Phase 3: the tracker study chose 0.4 for crowds, set in the crowd scene files; per scene choice in `pathsense tune` |
 | ID swaps in crowds give false crossings the wrong way (MOT20-03: 28 against 4) | Phase 2 | Phase 3: reduced, not solved. Wrong crossings 392 to 129 on the two tune crowds, 79 to 62 on five check scenes ([tracker study](TRACKER_STUDY.md)); MOT20-03 29 to 11 |
-| Missed crossings in crowds: 156 of 437 detected in at least half the frames but untracked, or the track ends or changes ID at the line; 28 never detected | Phase 3 | Phase 3 step 5; Phase 4 for the rest |
+| Missed crossings in crowds: 156 of 437 detected in at least half the frames but untracked, or the track ends or changes ID at the line; 28 never detected | Phase 3 | Phase 4: crowd recall per density band; MOT20-05 misses 406 under `--auto` |
 | subway: far more board than the 7 counted, and the scene has no truth to tune against (too crowded to count from frames) | Phase 3 | Box by box labels with a labelling tool |
 | Groups standing close together are boxed as one or not at all | Phase 2 | Phase 3 measures it per scene; backlog: cluster detection |
 | Far groups in zones: we find 60 % of visible people (MOT17-02) | Phase 2 | Phase 3 scene tuning; backlog: zones guide detection |
+| The stitcher links the wrong person in crowds (MOT20-05: most judged links), though turning it off loses more real crossings on sparse scenes | Phase 3 | Backlog: stitch less where it is crowded |
+| Zone error rises under `--auto` on busy scenes (MOT20-02: 9 to 91) | Phase 3 | Phase 4: fit `configs/analyzer.yaml` again with the trained models |
+| `--auto` is too slow for a browser (`yolo26s` at 1920, 1.9 FPS on a CPU) | Phase 3 | Phase 5: measure what the browser can afford |

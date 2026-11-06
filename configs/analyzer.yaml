@@ -7,7 +7,9 @@ frames: 40
 
 # On 45 labelled scenes, a rule choosing per scene lost once scenes were held out (F1 0.601
 # against 0.619 for one setup), so for now one setup fits all. Fit again after
-# Phase 4's training (docs/DETECTOR_STUDY.md).
+# Phase 4's training (docs/DETECTOR_STUDY.md). stitch_top joins a person whose box shrinks to
+# the upper body, as behind a cart; it ends grocery-store's double count and costs little
+# elsewhere (docs/DETECTOR_STUDY.md, "Linking by the top of the box").
 rules:
   - name: yolo26s at 1920, crowd settings, low bar
     why: the best single setup on 45 labelled scenes
@@ -19,3 +21,4 @@ rules:
       - "tracker.params={lost_track_buffer: 60, minimum_iou_threshold: 0.4, iou: diou,
          high_conf_det_threshold: 0.4, track_activation_threshold: 0.3}"
       - tracker.stitch_seconds=1
+      - tracker.stitch_top=0.1

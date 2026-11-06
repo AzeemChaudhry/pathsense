@@ -144,10 +144,17 @@ after numbers on CCTV style video.
   embeddings stay as a toggle, off, and re-entry remains untested.
   Detector study and scene analyzer done (2026-10-31, [DETECTOR_STUDY.md](DETECTOR_STUDY.md)):
   across 84 scored cameras, input size matters most, and `yolo26s` at 1920 with a lower
-  first pass bar beats the default on held out scenes (scene F1 0.600 against 0.411). The
+  first pass bar beats the default on held out scenes (scene F1 0.600 against 0.411; 0.598
+  with `tracker.stitch_top` 0.1, as `--auto` now runs). The
   gate table is in the README. Crossings improve on MOT20-03 and the check scenes, though all
   of them helped choose the setup, and it changes the detector as well as the tracker.
   MOT20-05 gets worse. On the sample clips, now listed crossing by crossing, it is better on
-  people-walking, about level on market-square and worse on grocery-store, on few
-  crossings. Subway has no truth.
-  **Awaiting a decision on the gate.**
+  people-walking and about level on market-square and grocery-store, on few crossings,
+  once `tracker.stitch_top` 0.1 ends grocery-store's double count. Subway has no truth.
+- **Phase 3 gate passed (2026-11-02), v0.4.0.** The README table covers all eleven scenes.
+  The chosen setup, what `pathsense run --auto` uses, cuts MOT20-03 false crossings from 46
+  to 20 and misses 88 against 93, and on the five check scenes goes from 68 to 48 wrong and
+  73 to 54 missed, though every MOT scene helped choose it and it changes the detector with
+  the tracker. Carried into Phase 4 as targets: MOT20-05 misses people (406 missed against
+  271, from detector recall in a dense night crowd), zone error rises on busy scenes, and the
+  stitcher links the wrong person in crowds.

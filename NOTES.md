@@ -568,3 +568,20 @@ Reports in `runs/tune/<scene>/report.md`.
   different on MOT, about 74% (94 and 725 on MOT20-05). A rough count of a different set of
   links, but it may mean it links the wrong person often in crowds. Needs its own look.
 - **Decision:** keep it at 0.1 as a setting, off by default. Azeem decides on `--auto`.
+
+## 2026-11-02: the existing stitcher, and closing Phase 3
+
+- **Why:** the `stitch_top` check suggested the existing stitcher joins different people on
+  about 74% of judged MOT links. If so, turning it off could be a free gain.
+- **Tried:** crops of sampled links on MOT20-05, MOT20-03 and MOT17-04, last box before the
+  gap beside the first after; then the chosen setup with `stitch_seconds` 0 on every scene.
+- **Result:** measured on the chosen setup before `stitch_top` joined `--auto`, so not the
+  shipped one (with it: MOT 100 / 548, F1 0.795; held out 120 / 350, F1 0.598). The crops
+  agree with the labels: the "different" links join different people,
+  often a body apart, after a median gap of 7 to 10 frames. Off, wrong / missed goes 109 / 548
+  to 86 / 555 on MOT (F1 0.791 to 0.803), but 129 / 344 to 81 / 382 held out (F1 0.600 to
+  0.570). In crowds it mostly adds wrong crossings; on sparse scenes it recovers real ones.
+- **Decision:** the stitcher stays on; stitching less in crowds is backlog. Azeem passed the
+  Phase 3 gate with `stitch_top` 0.1 in `--auto`. Gate table rerun with it: MOT20-03 46 to 20
+  wrong, 93 to 88 missed; check scenes 68 to 48 wrong, 73 to 54 missed; grocery-store level.
+  MOT20-05 (406 missed against 271) and busy scene zone error carry into Phase 4.
