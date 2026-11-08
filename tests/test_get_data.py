@@ -100,6 +100,62 @@ def test_only_usable_images_are_chosen_and_the_seed_fixes_them():
     assert len(get_data.choose_images(boxes, 500, seed=1)) == 20
 
 
+def _people(n, height):
+    return [
+        {
+            "label": "Person",
+            "bbox": [0.1 * k, 0.1, 0.05, height],
+            "group": False,
+            "depiction": False,
+        }
+        for k in range(n)
+    ]
+
+
+def test_crowded_images_fill_their_share_and_the_rest_is_random():
+    boxes = {f"crowd{k}": _people(5, 0.1) for k in range(4)}
+    boxes |= {f"few{k}": _people(4, 0.1) for k in range(10)}  # one short of crowded
+    boxes |= {f"big{k}": _people(6, 0.5) for k in range(10)}  # people too large
+    for seed in range(20):
+        chosen = get_data.choose_images(boxes, 6, seed=seed, crowded=0.5)
+        assert len(chosen) == 6 and sum(k.startswith("crowd") for k in chosen) >= 3
+        every = get_data.choose_images(boxes, 6, seed=seed, crowded=1.0)
+        assert len(every) == 6  # only 4 crowded exist, so 2 are drawn from the rest
+        assert {f"crowd{k}" for k in range(4)} <= set(every)
+    assert get_data.choose_images(boxes, 6, seed=1) == get_data.choose_images(
+        boxes, 6, seed=1, crowded=0.0
+    )
+
+
+def test_group_boxes_are_the_person_crowds_only():
+    dets = [
+        {"label": "Person", "bbox": [0.1, 0.2, 0.3, 0.4], "group": True, "depiction": False},
+        {"label": "Man", "bbox": [0.5, 0.5, 0.1, 0.1], "group": False, "depiction": False},
+        {"label": "Woman", "bbox": [0.0, 0.0, 0.2, 0.2], "group": False, "depiction": True},
+    ]
+    assert get_data.group_boxes(dets) == [pytest.approx((0.1, 0.2, 0.4, 0.6))]
+
+
+def test_a_crowd_is_greyed_out_but_a_labelled_person_in_it_is_kept(tmp_path):
+    from PIL import Image
+
+    src, dst = tmp_path / "src.jpg", tmp_path / "dst.jpg"
+    Image.new("RGB", (100, 100), (200, 30, 30)).save(src, quality=100)
+    person = "0 0.300000 0.300000 0.200000 0.200000"  # 20 to 40 px each way, inside the crowd
+    get_data.grey_out(src, dst, [(0.1, 0.1, 0.6, 0.6)], [person])
+    with Image.open(dst) as out:
+        grey, kept, outside = out.getpixel((50, 50)), out.getpixel((30, 30)), out.getpixel((80, 80))
+    assert all(abs(v - get_data.GREY) <= 3 for v in grey)
+    assert abs(kept[0] - 200) <= 6 and abs(outside[0] - 200) <= 6
+
+
+def test_a_crowded_share_outside_0_to_1_is_refused(tmp_path, monkeypatch):
+    monkeypatch.setattr(get_data, "DATA", tmp_path)
+    args = argparse.Namespace(max_train=2, max_val=2, seed=0, crowded_share=1.5, grey_groups=True)
+    with pytest.raises(SystemExit, match="share"):
+        get_data.cmd_openimages(args)
+
+
 class Reply(io.BytesIO):
     def __init__(self, body, size=None):
         super().__init__(body)
@@ -190,8 +246,9 @@ def _run_openimages(tmp_path, monkeypatch, missing):
     monkeypatch.setattr(get_data, "fetch", fake_fetch)
     monkeypatch.setattr(get_data, "person_classes", lambda path: {"/m/p": "Person"})
     monkeypatch.setattr(get_data, "read_boxes", lambda path, classes: {})
-    monkeypatch.setattr(get_data, "choose_images", lambda boxes, limit, seed: chosen)
-    get_data.cmd_openimages(argparse.Namespace(max_train=2, max_val=2, seed=0))
+    monkeypatch.setattr(get_data, "choose_images", lambda boxes, limit, seed, crowded: chosen)
+    args = argparse.Namespace(max_train=2, max_val=2, seed=0, crowded_share=0.0, grey_groups=True)
+    get_data.cmd_openimages(args)
 
 
 def _earlier_files(tmp_path):
@@ -200,6 +257,7 @@ def _earlier_files(tmp_path):
     images.mkdir(parents=True)
     labels.mkdir(parents=True)
     (images / "old.jpg").write_bytes(b"jpg")
+    (images / get_data.KIND).write_text(f"grey {get_data.MAX_GREY}\n")
     (labels / "old.txt").write_text("0 0 0 0 0\n")
     return images, labels
 
@@ -207,7 +265,7 @@ def _earlier_files(tmp_path):
 def test_earlier_files_go_once_every_download_worked(tmp_path, monkeypatch):
     images, labels = _earlier_files(tmp_path)
     _run_openimages(tmp_path, monkeypatch, set())
-    assert sorted(path.stem for path in images.iterdir()) == ["new", "other"]
+    assert sorted(path.stem for path in images.glob("*.jpg")) == ["new", "other"]
     assert sorted(path.stem for path in labels.iterdir()) == ["new", "other"]
 
 
@@ -230,3 +288,127 @@ def test_fetch_gives_up_on_a_missing_file_at_once(tmp_path, monkeypatch):
     monkeypatch.setattr(get_data.time, "sleep", lambda _: None)
     assert not get_data.fetch("u", tmp_path / "x.jpg") and len(calls) == 1
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("grey", [True, False])
+def test_the_download_greys_a_crowd_unless_told_to_keep_it(tmp_path, monkeypatch, grey):
+    from PIL import Image
+
+    def fake_fetch(url, dst, tries=get_data.TRIES):
+        if not url.endswith(".csv"):
+            Image.new("RGB", (100, 100), (200, 30, 30)).save(dst, quality=100)
+        return True
+
+    crowd = {"label": "Person", "bbox": [0.5, 0.5, 0.4, 0.4], "group": True, "depiction": False}
+    alone = _people(1, 0.2)
+    monkeypatch.setattr(get_data, "DATA", tmp_path)
+    monkeypatch.setattr(get_data, "fetch", fake_fetch)
+    monkeypatch.setattr(get_data, "person_classes", lambda path: {"/m/p": "Person"})
+    monkeypatch.setattr(get_data, "read_boxes", lambda path, classes: {"x": alone + [crowd]})
+    args = argparse.Namespace(max_train=1, max_val=1, seed=0, crowded_share=0.0, grey_groups=grey)
+    get_data.cmd_openimages(args)
+    images = tmp_path / "openimages" / "images" / "train"
+    assert [path.name for path in images.glob("*.jpg")] == ["x.jpg"]
+    assert not list(images.glob("*.whole.*")) and not list(images.glob("*.part"))
+    with Image.open(images / "x.jpg") as out:
+        red = out.getpixel((70, 70))[0]
+    assert abs(red - (get_data.GREY if grey else 200)) <= 6
+
+
+def test_grey_share_counts_the_crowd_less_the_people_in_it():
+    crowd = {"label": "Person", "bbox": [0.0, 0.0, 0.5, 1.0], "group": True, "depiction": False}
+    person = {"label": "Man", "bbox": [0.0, 0.0, 0.1, 0.5], "group": False, "depiction": False}
+    assert get_data.grey_share([crowd]) == pytest.approx(0.5)
+    assert get_data.grey_share([crowd, person]) == pytest.approx(0.45)
+    assert get_data.grey_share([person]) == 0.0
+
+
+@pytest.mark.parametrize("grey", [True, False])
+def test_an_image_that_would_be_mostly_grey_is_left_out(tmp_path, monkeypatch, grey):
+    crowd = {"label": "Person", "bbox": [0.0, 0.0, 0.9, 0.9], "group": True, "depiction": False}
+    seen = {}
+    monkeypatch.setattr(get_data, "DATA", tmp_path)
+    monkeypatch.setattr(get_data, "fetch", lambda url, dst, tries=get_data.TRIES: True)
+    monkeypatch.setattr(get_data, "person_classes", lambda path: {"/m/p": "Person"})
+    boxes = {"grey": _people(1, 0.2) + [crowd], "fine": _people(1, 0.2)}
+    monkeypatch.setattr(get_data, "read_boxes", lambda path, classes: boxes)
+
+    def choose(found, limit, seed, crowded):
+        seen.update(found)
+        return {}
+
+    monkeypatch.setattr(get_data, "choose_images", choose)
+    args = argparse.Namespace(max_train=1, max_val=1, seed=0, crowded_share=0.0, grey_groups=grey)
+    get_data.cmd_openimages(args)
+    assert sorted(seen) == ["fine"]  # either way, so both choose the same images
+
+
+@pytest.mark.parametrize("held", ["groups kept", None])
+def test_a_folder_of_another_kind_is_refused(tmp_path, held):
+    (tmp_path / "old.jpg").write_bytes(b"jpg")
+    if held:
+        (tmp_path / get_data.KIND).write_text(held + "\n")
+    with pytest.raises(SystemExit, match="another kind"):
+        get_data.same_kind(tmp_path, grey=True)
+
+
+def test_a_folder_of_the_same_kind_or_empty_is_marked(tmp_path):
+    get_data.same_kind(tmp_path, grey=False)
+    get_data.same_kind(tmp_path, grey=False)
+    assert (tmp_path / get_data.KIND).read_text() == "groups kept\n"
+
+
+def test_a_crowd_on_an_unreadable_image_fails_and_is_fetched_again(tmp_path, monkeypatch):
+    def fake_fetch(url, dst, tries=get_data.TRIES):
+        if not url.endswith(".csv"):
+            dst.write_bytes(b"not a jpeg")
+        return True
+
+    crowd = {"label": "Person", "bbox": [0.5, 0.5, 0.4, 0.4], "group": True, "depiction": False}
+    monkeypatch.setattr(get_data, "DATA", tmp_path)
+    monkeypatch.setattr(get_data, "fetch", fake_fetch)
+    monkeypatch.setattr(get_data, "person_classes", lambda path: {"/m/p": "Person"})
+    monkeypatch.setattr(
+        get_data, "read_boxes", lambda path, classes: {"x": _people(1, 0.2) + [crowd]}
+    )
+    args = argparse.Namespace(max_train=1, max_val=1, seed=0, crowded_share=0.0, grey_groups=True)
+    with pytest.raises(SystemExit, match="incomplete"):
+        get_data.cmd_openimages(args)
+    assert not list((tmp_path / "openimages" / "images" / "train").glob("*.jpg"))
+
+
+def test_a_turned_image_is_greyed_as_it_is_shown(tmp_path):
+    from PIL import Image
+
+    src, dst = tmp_path / "src.jpg", tmp_path / "dst.jpg"
+    stored = Image.new("RGB", (100, 50), (200, 30, 30))  # shown turned a quarter: 50 x 100
+    exif = stored.getexif()
+    exif[0x0112] = 6
+    stored.save(src, quality=100, exif=exif)
+    get_data.grey_out(src, dst, [(0.0, 0.0, 1.0, 0.5)], [])
+    with Image.open(dst) as out:
+        assert out.size == (50, 100) and out.getexif().get(0x0112, 1) == 1
+        top, bottom = out.getpixel((25, 20)), out.getpixel((25, 80))
+    assert abs(top[0] - get_data.GREY) <= 3 and abs(bottom[0] - 200) <= 6
+
+
+def test_a_rerun_of_another_kind_stops_before_any_download(tmp_path, monkeypatch):
+    fetched = []
+
+    def fake_fetch(url, dst, tries=get_data.TRIES):
+        fetched.append(url)
+        return True
+
+    images = tmp_path / "openimages" / "images" / "train"
+    images.mkdir(parents=True)
+    (images / "old.jpg").write_bytes(b"jpg")
+    (images / get_data.KIND).write_text(f"grey {get_data.MAX_GREY}\n")
+    monkeypatch.setattr(get_data, "DATA", tmp_path)
+    monkeypatch.setattr(get_data, "fetch", fake_fetch)
+    monkeypatch.setattr(get_data, "person_classes", lambda path: {"/m/p": "Person"})
+    monkeypatch.setattr(get_data, "read_boxes", lambda path, classes: {"x": _people(1, 0.2)})
+    args = argparse.Namespace(max_train=1, max_val=1, seed=0, crowded_share=0.0, grey_groups=False)
+    with pytest.raises(SystemExit, match="another kind"):
+        get_data.cmd_openimages(args)
+    assert all(url.endswith(".csv") for url in fetched)
+    assert (images / "old.jpg").exists()

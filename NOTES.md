@@ -585,3 +585,37 @@ Reports in `runs/tune/<scene>/report.md`.
   Phase 3 gate with `stitch_top` 0.1 in `--auto`. Gate table rerun with it: MOT20-03 46 to 20
   wrong, 93 to 88 missed; check scenes 68 to 48 wrong, 73 to 54 missed; grocery-store level.
   MOT20-05 (406 missed against 271) and busy scene zone error carry into Phase 4.
+
+## 2026-11-08: Open Images is not a crowd dataset (Phase 4, before training)
+
+- **Why:** Phase 4 must lift crowd recall (MOT20-05 misses 406 crossings against 271), and
+  the gate's "held out data" was not defined.
+- **Measured on the box tables:** train has 736,158 images with a usable person, a median 2
+  per image at 32% of the image height; 5.1% of boxes are under 5% of the height. 52,002
+  usable images (7.1%; 16.0% of val) also hold a group box, which our downloader dropped
+  while keeping the image, so the crowd inside was likely taught as background. 32% of the
+  labelled people in those images stand mostly inside a group box. 49,567 images have 5 or
+  more people under 15% of the height.
+- **Searched:** Ultralytics has no ignore regions for detection, only for segmentation
+  (read in its installed source, 8.4.190). MMYOLO treats CrowdHuman's crowd regions as
+  ignore ([configs](https://github.com/open-mmlab/mmyolo/blob/main/configs/yolov5)), and
+  CrowdHuman describes crowds marked as one ignored region
+  ([paper](https://arxiv.org/pdf/1805.00123)). Evidence that fine tuning on photos lifts
+  crowd recall is thin: CrowdHuman pretraining moved COCO persons recall 95.57 to 95.87
+  (same paper, table 9), and crowd copy paste added 2.2 to 3.3 points on CrowdHuman val
+  ([Copy-Paste](https://arxiv.org/pdf/2211.12110)). For scale: MOT20 crowds hold 46 to 195
+  labelled people a frame at a median 11 to 16% of the frame height.
+- **Tried:** grey out group boxes in Ultralytics' padding grey and paste labelled people
+  back. In the first 2,000 image download (seed 0, half crowded) 27 were over half grey and
+  8 over three quarters; by eye the greyest were a few people cut out on a flat grey. Images
+  over half grey are now left out everywhere (14,625 train, 766 val), a rule set from that
+  look, not from all of them. All 2,500 pilot images had EXIF orientation 1.
+- **Review 1 of PR 22:** a rerun with other options could mix greyed and ungreyed images
+  unseen; each images folder now holds a `.kind` file and a mismatch is refused. The greyed
+  file is written whole or not at all, and an unreadable download is fetched again.
+- **Decision (Azeem):** gate's held out data is scene F1 on the 39 held out PersonPath22
+  cameras and MOT box recall per density band against the COCO model of the same size, Open
+  Images val mAP beside them. Train data: grey out groups, `--crowded-share 0.5`, train above
+  640, since input size mattered most in the detector study and small people are the
+  target. A 2,000 image pilot on the laptop first; it should also train once with
+  `--keep-groups`, since the hard grey edges are an artefact of their own.

@@ -74,7 +74,7 @@ Each phase has one gate. Do not start the next phase until the gate passes.
 | 1 | Pipeline package: `Detector` protocol, YOLO26 and RF-DETR adapters, tracker wrapper, frame sources, tests | Swap detector or tracker with one config line |
 | 2 | Analytics + **event log**: line crossings, zones, dwell, heatmap; events as JSON lines (`enter`, `exit`, `zone_enter`, `zone_exit`, `dwell`) with track ID and timestamp | Counts match a hand count on one clip; event log reproduces them |
 | 3 | Evaluation and **scene tuning**. (1) Find why the false crossings happen: clips around each one, detector merges and misses against ID swaps. (2) Tracker comparison on MOT20-03 and 05 with the detector, line and scoring fixed: ByteTrack, ByteTrack with a longer buffer, BoT-SORT with ReID on and off, OC-SORT. (3) An event level safeguard against crossings made by an ID change, with tests for genuine repeat crossings. (4) `pathsense tune`: profile each scene (people size, density, overlap, motion, view), run 5 to 10 candidate configs from cached detections, score them, and say whether an error is a scene limit, a setting or a bug. Tune on MOT20-03 and 05, validate on the other MOT scenes and the sample clips. (5) Recover missed crossings the tracker loses (tracks lost, started late or split at the line), including appearance embeddings for re-linking; each change is kept only if it raises recall without adding wrong crossings on the check scenes. TrackEval HOTA, IDF1, MOTA; FPS on GTX 1650 and CPU | False crossings per scene, crossing precision and recall per direction, count error, ID switches, fragmentation and FPS in a README table for all eleven scenes. The chosen tracker cuts MOT20-03 false crossings without losing real ones (recall no worse than ByteTrack), and holds on the validation scenes |
-| 4 | **Train on Kaggle**: fine tune YOLO26n and RF-DETR Nano on Open Images people; export ONNX; push weights + model card to the Hub | Fine tuned model beats COCO baseline on held out data; ONNX runs in onnxruntime (Python) |
+| 4 | **Train on Kaggle**: fine tune YOLO26n and RF-DETR Nano on Open Images people; export ONNX; push weights + model card to the Hub | Fine tuned model beats the COCO model of the same size on held out data: scene F1 on the 39 held out PersonPath22 cameras and box recall per density band on MOT, with Open Images val mAP (on greyed val) reported beside them; ONNX runs in onnxruntime (Python) |
 | 5 | **Browser app (A)**: Static Space; ONNX detector in the browser; TypeScript ByteTrack; line counter, heatmap, event log; webcam and clip upload; WebGPU with WASM fallback | Same detections in Python and browser give the same track IDs and counts on a test clip |
 | 6 | **Ask your footage (B)**: query tools over the event log; small in browser LLM picks tools and answers; optional "bring your own API key" mode | 20 question test set answered with correct numbers |
 | 7 | Hardening and showcase: CI deploy of the Space on tag, README GIF, model card, write up | Public demo, model card and write up linked from the README |
@@ -158,3 +158,11 @@ after numbers on CCTV style video.
   the tracker. Carried into Phase 4 as targets: MOT20-05 misses people (406 missed against
   271, from detector recall in a dense night crowd), zone error rises on busy scenes, and the
   stitcher links the wrong person in crowds.
+- **Phase 4 in progress.** Open Images does not look like our weak scenes: a median 2
+  people per image at a third of its height, where the MOT20 crowds hold 46 to 195 a frame at
+  11 to 16% of the height. Its group boxes (one box around a crowd, 7% of train images) left
+  those crowds unlabelled, likely teaching that a crowd is background, so
+  `train/get_data.py` now greys them out, keeping the labelled people inside,
+  and `--crowded-share` oversamples images with 5 or more small people. "Held out data" in
+  the gate is now the Phase 3 yardsticks against the COCO model of the same size. A 2,000
+  image pilot on the laptop comes before any long Kaggle run.

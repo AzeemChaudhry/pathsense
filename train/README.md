@@ -6,7 +6,7 @@ Two sources, one per purpose:
 
 | Source | Use it for | Command |
 | --- | --- | --- |
-| **Open Images V7** | Any model you deploy, share or sell | `uv run python train/get_data.py openimages --max-train 8000` |
+| **Open Images V7** | Any model you deploy, share or sell | `uv run python train/get_data.py openimages --max-train 8000 --crowded-share 0.5` |
 | CrowdHuman | Portfolio benchmarks on dense crowds only | `uv run python train/get_data.py crowdhuman --max-train 5000` |
 
 Run `uv sync --extra data` once first.
@@ -27,6 +27,30 @@ exactly this run's images: a smaller `--max-train` removes the rest. If any fail
 kept and the run ends with an error. Group boxes and
 depictions include boxes whose flag is unknown (-1). `--max-train` and `--max-val` count
 images with at least one usable box, and a seed always picks the same ones.
+
+Open Images is mostly a few large people per photo: a median 2 per image at a third of its
+height. The MOT20 crowds hold 46 to 195 people a frame at a median 11 to 16% of the frame
+height. Two options aim training at that:
+
+- **Group boxes are greyed out.** A group box is one box around a crowd, so the people in it
+  have no box each; left in the image they would likely be taught as background. 52,002
+  train images have one. Ultralytics has no ignore regions for detection, so the box is
+  filled with its padding grey (114), and each labelled person's box inside it is pasted
+  back whole, with whatever else falls inside it: a third of the labelled people in these
+  images stand mostly inside a group box. Whether greying helps training is not measured
+  yet. An image that would be more than half grey is left out (14,625 train, 766 val),
+  with `--keep-groups` too, so both choose the same images: in
+  the first 2,000 image download (seed 0, half crowded), 27 were over half grey, and by eye
+  the greyest were a few people cut out on a flat grey. `--keep-groups` turns all this off.
+  Each images folder has a `.kind` file saying which way its images were made; a run with
+  other options refuses that folder, since a kept image is never fetched again and the two
+  kinds would mix unseen. A folder from before this marker exists is refused too: delete it
+  and download again.
+- **`--crowded-share 0.5`** draws half the train images from crowded ones: 5 or more people
+  under 15% of the image height (49,567 train images qualify). The rest are random. Val is
+  never oversampled, but it is greyed and loses its mostly grey images like train, so it is
+  a random sample of the images kept, not of all Open Images, and its mAP does not compare
+  with published Open Images numbers.
 
 ### CrowdHuman (non commercial)
 
