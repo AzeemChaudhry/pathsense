@@ -24,7 +24,7 @@ Closed: SageMaker Studio Lab (no new users), Colab Pro for Education (no new sig
    !git clone https://github.com/AzeemChaudhry/pathsense.git
    %cd pathsense
    !pip install -q -e ".[data]"
-   !python train/get_data.py openimages --max-train 20000 --max-val 2000
+   !python train/get_data.py openimages --max-train 20000 --max-val 2000 --crowded-share 0.5
    ```
 4. Train (T4 has 16 GB, so larger batches than locally):
    ```bash

@@ -6,7 +6,7 @@ Two sources, one per purpose:
 
 | Source | Use it for | Command |
 | --- | --- | --- |
-| **Open Images V7** | Any model you deploy, share or sell | `uv run python train/get_data.py openimages --max-train 8000` |
+| **Open Images V7** | Any model you deploy, share or sell | `uv run python train/get_data.py openimages --max-train 8000 --crowded-share 0.5` |
 | CrowdHuman | Portfolio benchmarks on dense crowds only | `uv run python train/get_data.py crowdhuman --max-train 5000` |
 
 Run `uv sync --extra data` once first.
@@ -27,6 +27,21 @@ exactly this run's images: a smaller `--max-train` removes the rest. If any fail
 kept and the run ends with an error. Group boxes and
 depictions include boxes whose flag is unknown (-1). `--max-train` and `--max-val` count
 images with at least one usable box, and a seed always picks the same ones.
+
+Open Images is mostly a few large people per photo: a median 2 per image at a third of its
+height. A camera over a busy place sees dozens at a tenth. Two options aim it at that:
+
+- **Group boxes are greyed out.** A group box is one box around a crowd, so the people in it
+  have no box each; left in the image they would be taught as background. 52,002 train
+  images have one. Ultralytics has no ignore regions for detection, so the box is filled with
+  its padding grey (114), and every labelled person inside it is pasted back: a third of the
+  labelled people in these images stand inside a group box. An image that would be more than
+  half grey is left out: by eye those are a few people cut out on a flat grey (27 of a 2,000
+  image sample). `--keep-groups` turns all this off.
+  It applies to images as they are downloaded; one kept from an earlier run stays as it was.
+- **`--crowded-share 0.5`** draws half the train images from crowded ones: 5 or more people
+  under 15% of the image height (49,567 train images qualify). The rest are random, and val
+  is always random, so it stays a fair sample of Open Images.
 
 ### CrowdHuman (non commercial)
 

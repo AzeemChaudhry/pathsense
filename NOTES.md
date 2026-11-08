@@ -585,3 +585,26 @@ Reports in `runs/tune/<scene>/report.md`.
   Phase 3 gate with `stitch_top` 0.1 in `--auto`. Gate table rerun with it: MOT20-03 46 to 20
   wrong, 93 to 88 missed; check scenes 68 to 48 wrong, 73 to 54 missed; grocery-store level.
   MOT20-05 (406 missed against 271) and busy scene zone error carry into Phase 4.
+
+## 2026-11-08: Open Images is not a crowd dataset (Phase 4, before training)
+
+- **Why:** Phase 4 must lift crowd recall (MOT20-05 misses 406 crossings against 271), and
+  the gate's "held out data" was not defined.
+- **Measured on the box tables:** train has 736,158 images with a usable person, a median 2
+  per image at 32% of the image height; 5.1% of boxes are under 5% of the height. 52,002
+  usable images (7.1%; 16.0% of val) also hold a group box, which our downloader dropped
+  while keeping the image, so the crowd inside was taught as background. 32% of the
+  labelled people in those images stand mostly inside a group box. 49,567 images have 5 or
+  more people under 15% of the height.
+- **Searched:** Ultralytics has no ignore regions for detection (only for segmentation);
+  other frameworks treat crowd boxes as ignore. Evidence that fine tuning on photos lifts
+  crowd recall is thin: CrowdHuman pretraining moved COCO persons recall 95.57 to 95.87.
+- **Tried:** grey out group boxes in Ultralytics' padding grey and paste labelled people
+  back. By eye, the greyest images became a few people cut out on a flat grey: 27 of 2,000
+  were over half grey, 8 over three quarters. Images over half grey are now left out (14,625
+  train, 766 val).
+- **Decision (Azeem):** gate's held out data is scene F1 on the 39 held out PersonPath22
+  cameras and MOT box recall per density band against the COCO model of the same size, Open
+  Images val mAP beside them. Train data: grey out groups, `--crowded-share 0.5`, train above
+  640. A 2,000 image pilot on the laptop first; it should also train once with
+  `--keep-groups`, since the hard grey edges are an artefact of their own.

@@ -5,7 +5,8 @@ Sources
 openimages  Open Images V7 (Google), person boxes (Person, Man, Woman, Boy, Girl -> person).
             Annotations CC BY 4.0, images listed as CC BY 2.0: allows commercial use with
             attribution. Fetched from Google's published files. Use this for any model you
-            deploy or sell.
+            deploy or sell. Group boxes (unlabelled crowds) are greyed out, and
+            --crowded-share draws that share of train images from crowded ones.
 crowdhuman  CrowdHuman (Megvii), mirrored at hf.co/datasets/Funtion/CrowdHuman.
             15,000 train / 4,370 val images, about 23 people per image.
             License: CC BY NC 4.0, non commercial research and education only.
@@ -15,7 +16,7 @@ roboflow    Any Roboflow Universe project exported in YOLO format, for example a
 Usage
 -----
     uv sync --extra data
-    uv run python train/get_data.py openimages --max-train 8000
+    uv run python train/get_data.py openimages --max-train 8000 --crowded-share 0.5
     uv run python train/get_data.py crowdhuman --max-train 5000
     uv run python train/get_data.py roboflow \
         --workspace krupal --project overhead-person-94pcq --version 1
@@ -64,6 +65,9 @@ OPENIMAGES_BOXES = {  # our split -> Open Images' name for it, its box file
 OPENIMAGES_IMAGE = "https://open-images-dataset.s3.amazonaws.com/{split}/{image}.jpg"
 WORKERS = 16  # few enough that the bucket does not slow us down
 TRIES = 5
+CROWD_PEOPLE, CROWD_HEIGHT = 5, 0.15  # a crowded image; 49,567 of 736,158 train images
+GREY = 114  # Ultralytics' padding value, so a hidden crowd looks like letterbox padding
+MAX_GREY = 0.5  # an image that would be more grey than this is left out (27 of 2,000)
 BOX_COLUMNS = {"ImageID", "LabelName", "XMin", "XMax", "YMin", "YMax", "IsGroupOf", "IsDepiction"}
 
 
@@ -251,13 +255,83 @@ def read_boxes(path: Path, classes: dict[str, str]) -> dict[str, list[dict]]:
     return boxes
 
 
-def choose_images(boxes: dict[str, list[dict]], limit: int, seed: int) -> dict[str, list[str]]:
+def is_crowded(lines: list[str]) -> bool:
+    """At least CROWD_PEOPLE people under CROWD_HEIGHT of the image height: what a camera
+    over a busy place sees, and what Open Images, a median 2 people at a third of the
+    image height, mostly is not."""
+    return sum(float(line.split()[4]) < CROWD_HEIGHT for line in lines) >= CROWD_PEOPLE
+
+
+def choose_images(
+    boxes: dict[str, list[dict]], limit: int, seed: int, crowded: float = 0.0
+) -> dict[str, list[str]]:
     """`limit` images, the same ones for a seed, each with at least one usable box: image id
-    -> its YOLO lines. An image holding only crowds or drawings of people is never picked."""
+    -> its YOLO lines. An image holding only crowds or drawings of people is never picked.
+    `crowded` of them, as a share, come from crowded images while there are enough."""
     labels = {image: openimages_to_yolo(dets) for image, dets in sorted(boxes.items())}
     usable = [image for image, lines in labels.items() if lines]
     random.Random(seed).shuffle(usable)
-    return {image: labels[image] for image in usable[:limit]}
+    first = [image for image in usable if is_crowded(labels[image])][: round(limit * crowded)]
+    taken = set(first)
+    rest = [image for image in usable if image not in taken][: limit - len(first)]
+    return {image: labels[image] for image in first + rest}
+
+
+def group_boxes(dets: list[dict]) -> list[tuple[float, float, float, float]]:
+    """The person group boxes of one image, as normalised x1, y1, x2, y2."""
+    return [
+        (x, y, x + w, y + h)
+        for d in dets
+        if d["group"] and d["label"] in OPENIMAGES_PERSON_CLASSES
+        for x, y, w, h in [d["bbox"]]
+    ]
+
+
+def grey_share(dets: list[dict]) -> float:
+    """How much of the image `grey_out` would hide, on a 100 x 100 grid."""
+    import numpy as np
+
+    groups = group_boxes(dets)
+    if not groups:
+        return 0.0
+    grid = np.zeros((100, 100), dtype=bool)
+    for x1, y1, x2, y2 in groups:
+        grid[round(y1 * 100) : round(y2 * 100), round(x1 * 100) : round(x2 * 100)] = True
+    for line in openimages_to_yolo(dets):
+        cx, cy, w, h = (float(v) for v in line.split()[1:])
+        rows = slice(round((cy - h / 2) * 100), round((cy + h / 2) * 100))
+        grid[rows, round((cx - w / 2) * 100) : round((cx + w / 2) * 100)] = False
+    return float(grid.mean())
+
+
+def grey_out(
+    src: Path, dst: Path, groups: list[tuple[float, float, float, float]], lines: list[str]
+) -> None:
+    """Write `src` to `dst` with each group box filled grey, except where a labelled person
+    stands. A group box is a crowd with no box per person; left as it is, training would
+    punish the model for finding them. Ultralytics has no ignore regions for detection, so
+    the crowd is hidden in its own padding grey instead. A third of the labelled people in
+    such images stand inside a group box, so they are pasted back."""
+    from PIL import Image, ImageDraw
+
+    with Image.open(src) as im:
+        whole = im.convert("RGB")
+        exif = im.info.get("exif")
+    width, height = whole.size
+    out = whole.copy()
+    draw = ImageDraw.Draw(out)
+    for x1, y1, x2, y2 in groups:
+        draw.rectangle((x1 * width, y1 * height, x2 * width, y2 * height), fill=(GREY,) * 3)
+    for line in lines:
+        cx, cy, w, h = (float(v) for v in line.split()[1:])
+        box = (
+            round((cx - w / 2) * width),
+            round((cy - h / 2) * height),
+            round((cx + w / 2) * width),
+            round((cy + h / 2) * height),
+        )
+        out.paste(whole.crop(box), box[:2])
+    out.save(dst, quality=95, **({"exif": exif} if exif else {}))
 
 
 def write_yaml(name: str, out: Path) -> Path:
@@ -277,6 +351,8 @@ def remove_others(folder: Path, keep: dict[str, list[str]]) -> int:
 
 
 def cmd_openimages(args: argparse.Namespace) -> None:
+    if not 0 <= args.crowded_share <= 1:
+        raise SystemExit("--crowded-share is a share, from 0 to 1")
     out = DATA / "openimages"
     raw = out / "raw"
     raw.mkdir(parents=True, exist_ok=True)
@@ -291,14 +367,42 @@ def cmd_openimages(args: argparse.Namespace) -> None:
         print(f"[download] {table.name}")
         if not fetch(url, table):
             raise SystemExit(f"could not download {url}")
-        chosen = choose_images(read_boxes(table, classes), limit, args.seed)
+        boxes = read_boxes(table, classes)
+        if args.grey_groups:  # a mostly grey image teaches small people on a flat grey
+            mostly = {image for image, dets in boxes.items() if grey_share(dets) > MAX_GREY}
+            boxes = {image: dets for image, dets in boxes.items() if image not in mostly}
+            print(f"[{split}] {len(mostly)} images left out, over {MAX_GREY:.0%} grey")
+        crowded = args.crowded_share if split == "train" else 0.0  # val stays representative
+        chosen = choose_images(boxes, limit, args.seed, crowded)
+        if crowded:
+            share = sum(map(is_crowded, chosen.values())) / max(len(chosen), 1)
+            print(f"[{split}] {share:.0%} crowded images")
+        groups = {image: group_boxes(boxes.get(image, [])) for image in chosen}
+        groups = groups if args.grey_groups else {}
         img_out, lbl_out = out / "images" / split, out / "labels" / split
         img_out.mkdir(parents=True, exist_ok=True)
         lbl_out.mkdir(parents=True, exist_ok=True)
 
-        def get(image: str, oi_split: str = oi_split, img_out: Path = img_out) -> bool:
+        def get(
+            image: str,
+            oi_split: str = oi_split,
+            img_out: Path = img_out,
+            groups: dict = groups,
+            chosen: dict = chosen,
+        ) -> bool:
             url = OPENIMAGES_IMAGE.format(split=oi_split, image=image)
-            return fetch(url, img_out / f"{image}.jpg")
+            dst = img_out / f"{image}.jpg"
+            if dst.exists() or not groups.get(image):
+                return fetch(url, dst)
+            whole = img_out / f"{image}.whole.jpg"  # an earlier selection's leftovers go below
+            if not fetch(url, whole):
+                return False
+            try:
+                grey_out(whole, dst, groups[image], chosen[image])
+            except OSError:  # an image Pillow cannot read is a failed download
+                return False
+            whole.unlink()
+            return True
 
         with ThreadPoolExecutor(WORKERS) as pool:
             done = list(pool.map(get, chosen))
@@ -349,6 +453,18 @@ def main() -> None:
     oi.add_argument("--max-train", type=int, default=8000, help="train images to download")
     oi.add_argument("--max-val", type=int, default=1000, help="val images to download")
     oi.add_argument("--seed", type=int, default=0)
+    oi.add_argument(
+        "--crowded-share",
+        type=float,
+        default=0.0,
+        help="share of train images drawn from crowded ones (5+ people under 15%% of the height)",
+    )
+    oi.add_argument(
+        "--keep-groups",
+        dest="grey_groups",
+        action="store_false",
+        help="leave group boxes (unlabelled crowds) as they are instead of greying them out",
+    )
     oi.set_defaults(func=cmd_openimages)
 
     ch = sub.add_parser("crowdhuman", help="CrowdHuman from the Hugging Face Hub")
