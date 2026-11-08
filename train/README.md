@@ -38,12 +38,14 @@ height. Two options aim training at that:
   filled with its padding grey (114), and each labelled person's box inside it is pasted
   back whole, with whatever else falls inside it: a third of the labelled people in these
   images stand mostly inside a group box. Whether greying helps training is not measured
-  yet. An image that would be more than half grey is left out (14,625 train, 766 val): in
+  yet. An image that would be more than half grey is left out (14,625 train, 766 val),
+  with `--keep-groups` too, so both choose the same images: in
   the first 2,000 image download (seed 0, half crowded), 27 were over half grey, and by eye
   the greyest were a few people cut out on a flat grey. `--keep-groups` turns all this off.
   Each images folder has a `.kind` file saying which way its images were made; a run with
   other options refuses that folder, since a kept image is never fetched again and the two
-  kinds would mix unseen.
+  kinds would mix unseen. A folder from before this marker exists is refused too: delete it
+  and download again.
 - **`--crowded-share 0.5`** draws half the train images from crowded ones: 5 or more people
   under 15% of the image height (49,567 train images qualify). The rest are random. Val is
   never oversampled, but it is greyed and loses its mostly grey images like train, so it is

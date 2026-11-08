@@ -593,7 +593,7 @@ Reports in `runs/tune/<scene>/report.md`.
 - **Measured on the box tables:** train has 736,158 images with a usable person, a median 2
   per image at 32% of the image height; 5.1% of boxes are under 5% of the height. 52,002
   usable images (7.1%; 16.0% of val) also hold a group box, which our downloader dropped
-  while keeping the image, so the crowd inside was taught as background. 32% of the
+  while keeping the image, so the crowd inside was likely taught as background. 32% of the
   labelled people in those images stand mostly inside a group box. 49,567 images have 5 or
   more people under 15% of the height.
 - **Searched:** Ultralytics has no ignore regions for detection, only for segmentation

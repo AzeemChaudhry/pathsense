@@ -323,7 +323,8 @@ def test_grey_share_counts_the_crowd_less_the_people_in_it():
     assert get_data.grey_share([person]) == 0.0
 
 
-def test_an_image_that_would_be_mostly_grey_is_left_out(tmp_path, monkeypatch):
+@pytest.mark.parametrize("grey", [True, False])
+def test_an_image_that_would_be_mostly_grey_is_left_out(tmp_path, monkeypatch, grey):
     crowd = {"label": "Person", "bbox": [0.0, 0.0, 0.9, 0.9], "group": True, "depiction": False}
     seen = {}
     monkeypatch.setattr(get_data, "DATA", tmp_path)
@@ -337,9 +338,9 @@ def test_an_image_that_would_be_mostly_grey_is_left_out(tmp_path, monkeypatch):
         return {}
 
     monkeypatch.setattr(get_data, "choose_images", choose)
-    args = argparse.Namespace(max_train=1, max_val=1, seed=0, crowded_share=0.0, grey_groups=True)
+    args = argparse.Namespace(max_train=1, max_val=1, seed=0, crowded_share=0.0, grey_groups=grey)
     get_data.cmd_openimages(args)
-    assert sorted(seen) == ["fine"]
+    assert sorted(seen) == ["fine"]  # either way, so both choose the same images
 
 
 @pytest.mark.parametrize("held", ["groups kept", None])
@@ -389,3 +390,25 @@ def test_a_turned_image_is_greyed_as_it_is_shown(tmp_path):
         assert out.size == (50, 100) and out.getexif().get(0x0112, 1) == 1
         top, bottom = out.getpixel((25, 20)), out.getpixel((25, 80))
     assert abs(top[0] - get_data.GREY) <= 3 and abs(bottom[0] - 200) <= 6
+
+
+def test_a_rerun_of_another_kind_stops_before_any_download(tmp_path, monkeypatch):
+    fetched = []
+
+    def fake_fetch(url, dst, tries=get_data.TRIES):
+        fetched.append(url)
+        return True
+
+    images = tmp_path / "openimages" / "images" / "train"
+    images.mkdir(parents=True)
+    (images / "old.jpg").write_bytes(b"jpg")
+    (images / get_data.KIND).write_text(f"grey {get_data.MAX_GREY}\n")
+    monkeypatch.setattr(get_data, "DATA", tmp_path)
+    monkeypatch.setattr(get_data, "fetch", fake_fetch)
+    monkeypatch.setattr(get_data, "person_classes", lambda path: {"/m/p": "Person"})
+    monkeypatch.setattr(get_data, "read_boxes", lambda path, classes: {"x": _people(1, 0.2)})
+    args = argparse.Namespace(max_train=1, max_val=1, seed=0, crowded_share=0.0, grey_groups=False)
+    with pytest.raises(SystemExit, match="another kind"):
+        get_data.cmd_openimages(args)
+    assert all(url.endswith(".csv") for url in fetched)
+    assert (images / "old.jpg").exists()

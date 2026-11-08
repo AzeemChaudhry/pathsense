@@ -19,7 +19,9 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
   marks with one box, keeping the labelled people inside them. This is meant to stop
   training treating a crowd as background; that is not measured yet. An image that would be
   more than half grey is left out, train and val alike. `--keep-groups` keeps them as they
-  are, and a `.kind` file stops a rerun mixing the two in one folder.
+  are, choosing the same images. A `.kind` file stops a rerun mixing the two in one
+  folder; a folder downloaded before this has none and is refused, so delete it and
+  download again.
 - The Phase 4 gate's "held out data" is now named: scene F1 on the 39 held out PersonPath22
   cameras and box recall per density band on MOT, against the COCO model of the same size,
   with Open Images val mAP beside them (on greyed val, so not comparable with published

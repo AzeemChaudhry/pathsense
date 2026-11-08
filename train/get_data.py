@@ -353,7 +353,7 @@ def same_kind(folder: Path, grey: bool) -> None:
     kind = f"grey {MAX_GREY}" if grey else "groups kept"
     marker = folder / KIND
     held = marker.read_text().strip() if marker.exists() else None
-    if held is None and any(folder.glob("*.jpg")):
+    if held is None and any("." not in path.stem for path in folder.glob("*.jpg")):
         held = "unknown, from before images were marked"
     if held not in (None, kind):
         raise SystemExit(
@@ -389,10 +389,11 @@ def cmd_openimages(args: argparse.Namespace) -> None:
         if not fetch(url, table):
             raise SystemExit(f"could not download {url}")
         boxes = read_boxes(table, classes)
-        if args.grey_groups:  # a mostly grey image teaches small people on a flat grey
-            mostly = {image for image, dets in boxes.items() if grey_share(dets) > MAX_GREY}
-            boxes = {image: dets for image, dets in boxes.items() if image not in mostly}
-            print(f"[{split}] {len(mostly)} images left out, over {MAX_GREY:.0%} grey")
+        # A mostly grey image teaches small people on a flat grey. Left out with --keep-groups
+        # too, so the two choose the same images and differ only in the grey.
+        mostly = {image for image, dets in boxes.items() if grey_share(dets) > MAX_GREY}
+        boxes = {image: dets for image, dets in boxes.items() if image not in mostly}
+        print(f"[{split}] {len(mostly)} images left out, over {MAX_GREY:.0%} grey")
         crowded = args.crowded_share if split == "train" else 0.0  # val stays representative
         chosen = choose_images(boxes, limit, args.seed, crowded)
         if crowded:
