@@ -11,17 +11,19 @@ version, fixes are patch versions, and 1.0.0 is the finished showcase (Phase 7).
 ### Added
 
 - `train/get_data.py openimages --crowded-share`: draws that share of train images from
-  crowded ones (5 or more people under 15% of the image height). Val stays random.
+  crowded ones (5 or more people under 15% of the image height). Val is not oversampled.
 
 ### Changed
 
 - `train/get_data.py openimages` greys out group boxes, the unlabelled crowds Open Images
-  marks with one box, keeping the labelled people inside them, so training no longer
-  treats a crowd as background. An image that would be more than half grey is left out.
-  `--keep-groups` keeps them as they are.
+  marks with one box, keeping the labelled people inside them. This is meant to stop
+  training treating a crowd as background; that is not measured yet. An image that would be
+  more than half grey is left out, train and val alike. `--keep-groups` keeps them as they
+  are, and a `.kind` file stops a rerun mixing the two in one folder.
 - The Phase 4 gate's "held out data" is now named: scene F1 on the 39 held out PersonPath22
   cameras and box recall per density band on MOT, against the COCO model of the same size,
-  with Open Images val mAP beside them.
+  with Open Images val mAP beside them (on greyed val, so not comparable with published
+  numbers).
 
 ## [0.4.0] - 2026-11-02
 

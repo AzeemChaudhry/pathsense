@@ -67,6 +67,7 @@ WORKERS = 16  # few enough that the bucket does not slow us down
 TRIES = 5
 CROWD_PEOPLE, CROWD_HEIGHT = 5, 0.15  # a crowded image; 49,567 of 736,158 train images
 GREY = 114  # Ultralytics' padding value, so a hidden crowd looks like letterbox padding
+KIND = ".kind"  # in each images folder: how its images were greyed, so runs do not mix
 MAX_GREY = 0.5  # an image that would be more grey than this is left out (27 of 2,000)
 BOX_COLUMNS = {"ImageID", "LabelName", "XMin", "XMax", "YMin", "YMax", "IsGroupOf", "IsDepiction"}
 
@@ -309,14 +310,16 @@ def grey_out(
 ) -> None:
     """Write `src` to `dst` with each group box filled grey, except where a labelled person
     stands. A group box is a crowd with no box per person; left as it is, training would
-    punish the model for finding them. Ultralytics has no ignore regions for detection, so
-    the crowd is hidden in its own padding grey instead. A third of the labelled people in
-    such images stand inside a group box, so they are pasted back."""
-    from PIL import Image, ImageDraw
+    likely punish the model for finding them. Ultralytics has no ignore regions for
+    detection, so the crowd is hidden in its own padding grey instead. A third of the
+    labelled people in such images stand mostly inside a group box, so each one's box is
+    pasted back whole, with whatever else falls inside it. Boxes are drawn on the image as
+    shown, so it is turned upright first and saved with no EXIF turn. Written whole or not
+    at all, as `fetch` does."""
+    from PIL import Image, ImageDraw, ImageOps
 
     with Image.open(src) as im:
-        whole = im.convert("RGB")
-        exif = im.info.get("exif")
+        whole = ImageOps.exif_transpose(im).convert("RGB")
     width, height = whole.size
     out = whole.copy()
     draw = ImageDraw.Draw(out)
@@ -331,7 +334,9 @@ def grey_out(
             round((cy + h / 2) * height),
         )
         out.paste(whole.crop(box), box[:2])
-    out.save(dst, quality=95, **({"exif": exif} if exif else {}))
+    part = dst.with_suffix(f"{dst.suffix}.part")
+    out.save(part, format="JPEG", quality=95)
+    part.replace(dst)
 
 
 def write_yaml(name: str, out: Path) -> Path:
@@ -342,9 +347,25 @@ def write_yaml(name: str, out: Path) -> Path:
     return yaml_path
 
 
+def same_kind(folder: Path, grey: bool) -> None:
+    """Refuse to add images greyed one way to a folder of images greyed another: a kept
+    image is never fetched again, so the two would mix unseen. `.kind` says which it holds."""
+    kind = f"grey {MAX_GREY}" if grey else "groups kept"
+    marker = folder / KIND
+    held = marker.read_text().strip() if marker.exists() else None
+    if held is None and any(folder.glob("*.jpg")):
+        held = "unknown, from before images were marked"
+    if held not in (None, kind):
+        raise SystemExit(
+            f"{folder} holds images of another kind ({held}), not {kind}: delete the folder or "
+            "run with the same options"
+        )
+    marker.write_text(kind + "\n")
+
+
 def remove_others(folder: Path, keep: dict[str, list[str]]) -> int:
     """Delete what an earlier run chose, so a split holds this run's images and no more."""
-    others = [path for path in folder.iterdir() if path.stem not in keep]
+    others = [path for path in folder.iterdir() if path.stem not in keep and path.name != KIND]
     for path in others:
         path.unlink()
     return len(others)
@@ -382,6 +403,7 @@ def cmd_openimages(args: argparse.Namespace) -> None:
         img_out, lbl_out = out / "images" / split, out / "labels" / split
         img_out.mkdir(parents=True, exist_ok=True)
         lbl_out.mkdir(parents=True, exist_ok=True)
+        same_kind(img_out, args.grey_groups)
 
         def get(
             image: str,
@@ -401,7 +423,8 @@ def cmd_openimages(args: argparse.Namespace) -> None:
                 grey_out(whole, dst, groups[image], chosen[image])
             except OSError:  # an image Pillow cannot read is a failed download
                 return False
-            whole.unlink()
+            finally:
+                whole.unlink()  # a bad one is fetched again next time
             return True
 
         with ThreadPoolExecutor(WORKERS) as pool:
